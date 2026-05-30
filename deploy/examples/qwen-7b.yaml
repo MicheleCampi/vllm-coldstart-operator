@@ -1,0 +1,9 @@
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: VllmService
+metadata:
+  name: qwen-7b
+  namespace: default
+spec:
+  model: "Qwen/Qwen2.5-7B-Instruct"
+  replicas: 1
+  warmupStrategy: Eager

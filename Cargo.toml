@@ -1,0 +1,22 @@
+[package]
+name = "vllm-coldstart-operator"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.83"
+license = "Apache-2.0"
+description = "A Kubernetes operator that manages vLLM inference replicas with cold-start as a first-class signal"
+repository = "https://github.com/MicheleCampi/vllm-coldstart-operator"
+
+[dependencies]
+kube = { version = "2", features = ["runtime", "derive", "client"] }
+k8s-openapi = { version = "0.26", features = ["v1_34"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures = "0.3"
+anyhow = "1.0.102"
+serde_yaml = "0.9.34"

@@ -1,0 +1,73 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: vllmservices.inference.michelecampi.dev
+spec:
+  group: inference.michelecampi.dev
+  names:
+    categories: []
+    kind: VllmService
+    plural: vllmservices
+    shortNames:
+    - vllm
+    singular: vllmservice
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for VllmServiceSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              Desired state for a vLLM inference service.
+
+              The cold-start-aware field (`warmup_strategy`) is what makes this
+              operator different from a generic Deployment wrapper: the operator
+              treats time-to-first-token as a first-class concern, configuring the
+              pod for the cold-start/throughput trade-off the spec asks for.
+            properties:
+              model:
+                description: HuggingFace model id to serve, e.g. "Qwen/Qwen2.5-7B-Instruct".
+                type: string
+              replicas:
+                default: 1
+                description: Number of replicas to run.
+                format: int32
+                type: integer
+              warmupStrategy:
+                default: Eager
+                description: |-
+                  Cold-start vs throughput trade-off. "eager" disables CUDA graphs
+                  for a faster cold start (better for scale-to-zero); "graph" enables
+                  them for faster steady-state inference at a higher cold-start cost.
+                enum:
+                - Eager
+                - Graph
+                type: string
+            required:
+            - model
+            type: object
+          status:
+            description: Observed state, written back by the operator.
+            nullable: true
+            properties:
+              message:
+                description: Human-readable detail about the current phase.
+                type: string
+              phase:
+                description: 'Lifecycle phase: Pending -> Warming -> Ready.'
+                type: string
+            required:
+            - message
+            - phase
+            type: object
+        required:
+        - spec
+        title: VllmService
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
