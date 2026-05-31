@@ -18,7 +18,7 @@ use serde_json::json;
 use thiserror::Error;
 use tracing::{info, warn};
 
-use vllm_coldstart_operator::{VllmService, VllmServiceStatus, WarmupStrategy};
+use vllm_coldstart_operator::{phase_for, VllmService, VllmServiceStatus, WarmupStrategy};
 
 const MANAGER: &str = "vllm-coldstart-operator";
 
@@ -32,32 +32,6 @@ enum Error {
 
 struct Context {
     client: Client,
-}
-
-/// Lifecycle phase derived from the owned Deployment's ready replicas.
-///
-/// This is the heart of the operator: a vLLM pod that is "Running" from
-/// Kubernetes' point of view is not yet able to serve a token — it still
-/// has to load weights and warm up. The cold-start study quantified that
-/// gap; here it becomes an observable phase. "Ready" means warm, not just
-/// alive.
-fn phase_for(desired: i32, ready: i32) -> (&'static str, String) {
-    if ready == 0 {
-        (
-            "Pending",
-            "Deployment created; no replica ready yet".to_string(),
-        )
-    } else if ready < desired {
-        (
-            "Warming",
-            format!("{ready}/{desired} replicas ready; warming up"),
-        )
-    } else {
-        (
-            "Ready",
-            format!("{ready}/{desired} replicas ready and warm"),
-        )
-    }
 }
 
 fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {

@@ -52,3 +52,68 @@ pub struct VllmServiceStatus {
     /// Human-readable detail about the current phase.
     pub message: String,
 }
+
+/// Lifecycle phase derived from the owned Deployment's ready replicas.
+///
+/// This is the heart of the operator: a vLLM pod that Kubernetes considers
+/// "Running" is not yet able to serve a token — it still has to load weights
+/// and warm up. The cold-start study quantified that gap; here it becomes an
+/// observable phase. "Ready" means warm, not merely alive.
+pub fn phase_for(desired: i32, ready: i32) -> (&'static str, String) {
+    if ready == 0 {
+        (
+            "Pending",
+            "Deployment created; no replica ready yet".to_string(),
+        )
+    } else if ready < desired {
+        (
+            "Warming",
+            format!("{ready}/{desired} replicas ready; warming up"),
+        )
+    } else {
+        (
+            "Ready",
+            format!("{ready}/{desired} replicas ready and warm"),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zero_ready_is_pending() {
+        let (phase, _) = phase_for(3, 0);
+        assert_eq!(phase, "Pending");
+    }
+
+    #[test]
+    fn partial_ready_is_warming() {
+        let (phase, msg) = phase_for(3, 1);
+        assert_eq!(phase, "Warming");
+        assert!(msg.contains("1/3"));
+    }
+
+    #[test]
+    fn all_ready_is_ready() {
+        let (phase, msg) = phase_for(3, 3);
+        assert_eq!(phase, "Ready");
+        assert!(msg.contains("3/3"));
+    }
+
+    #[test]
+    fn single_replica_ready() {
+        // The common scale-to-one case: one desired, one ready -> Ready.
+        let (phase, _) = phase_for(1, 1);
+        assert_eq!(phase, "Ready");
+    }
+
+    #[test]
+    fn ready_exceeding_desired_is_still_ready() {
+        // During a scale-down a Deployment can briefly report more ready
+        // than desired; that is still a serving state, not a warming one.
+        let (phase, _) = phase_for(2, 3);
+        assert_eq!(phase, "Ready");
+    }
+}
