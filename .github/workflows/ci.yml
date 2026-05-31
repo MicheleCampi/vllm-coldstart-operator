@@ -42,3 +42,95 @@ jobs:
 
       - name: Build release
         run: cargo build --release
+
+  e2e:
+    name: end-to-end on kind
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build operator and crdgen
+        run: cargo build --bins
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: e2e
+
+      - name: Install CRD
+        run: |
+          cargo run --bin crdgen > deploy/crd.yaml
+          kubectl apply -f deploy/crd.yaml
+          kubectl wait --for=condition=Established crd/vllmservices.inference.michelecampi.dev --timeout=30s
+
+      - name: Start operator in background
+        run: |
+          ./target/debug/vllm-coldstart-operator > operator.log 2>&1 &
+          echo $! > operator.pid
+          sleep 3
+          echo "operator started (pid $(cat operator.pid))"
+
+      - name: Apply a VllmService
+        run: kubectl apply -f deploy/examples/qwen-7b.yaml
+
+      - name: Wait for Deployment to be created
+        run: |
+          for i in $(seq 1 30); do
+            if kubectl get deployment qwen-7b >/dev/null 2>&1; then
+              echo "Deployment created after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: Deployment not created within 30s"
+          kubectl get all
+          cat operator.log
+          exit 1
+
+      - name: Wait for status to reach Ready
+        run: |
+          for i in $(seq 1 60); do
+            phase=$(kubectl get vllmservice qwen-7b -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            echo "[$i] phase=${phase:-<none>}"
+            if [ "$phase" = "Ready" ]; then
+              echo "VllmService reached Ready after ${i}s"
+              kubectl get vllmservice qwen-7b -o jsonpath='{.status.message}'
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "ERROR: VllmService did not reach Ready within 120s"
+          kubectl get vllmservice qwen-7b -o yaml
+          cat operator.log
+          exit 1
+
+      - name: Verify owner reference and garbage collection
+        run: |
+          owner=$(kubectl get deployment qwen-7b -o jsonpath='{.metadata.ownerReferences[0].kind}')
+          [ "$owner" = "VllmService" ] || { echo "ERROR: bad owner ref: $owner"; exit 1; }
+          kubectl delete vllmservice qwen-7b
+          for i in $(seq 1 30); do
+            if ! kubectl get deployment qwen-7b >/dev/null 2>&1; then
+              echo "Deployment garbage-collected after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: Deployment not garbage-collected within 30s"
+          exit 1
+
+      - name: Stop operator
+        if: always()
+        run: kill "$(cat operator.pid)" 2>/dev/null || true
