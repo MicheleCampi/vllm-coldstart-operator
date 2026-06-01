@@ -113,6 +113,15 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         ..Default::default()
     };
 
+    // On K3s the default runtime is runc; a pod needs the "nvidia"
+    // RuntimeClass to actually get GPU access. Request it only when GPUs
+    // are requested, so gpu=0 (CI / CPU) pods schedule with the default
+    // runtime and need no RuntimeClass installed on the cluster.
+    let runtime_class_name = if svc.spec.gpu > 0 {
+        Some("nvidia".to_string())
+    } else {
+        None
+    };
     let template = PodTemplateSpec {
         metadata: Some(ObjectMeta {
             labels: Some(labels.clone()),
@@ -120,6 +129,7 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         }),
         spec: Some(PodSpec {
             containers: vec![container],
+            runtime_class_name,
             ..Default::default()
         }),
     };
