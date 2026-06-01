@@ -29,6 +29,20 @@ pub struct VllmServiceSpec {
     /// them for faster steady-state inference at a higher cold-start cost.
     #[serde(default)]
     pub warmup_strategy: WarmupStrategy,
+    /// Container image to run. Defaults to the official vLLM OpenAI server.
+    #[serde(default = "default_image")]
+    pub image: String,
+    /// Number of GPUs to request per replica. Set to 0 for CPU-only or
+    /// placeholder runs (e.g. CI on a cluster without GPUs).
+    #[serde(default = "default_gpu")]
+    pub gpu: i32,
+    /// HTTP path for the readiness probe, e.g. "/health". When non-empty,
+    /// the operator gates readiness (and thus the Warming->Ready transition)
+    /// on this endpoint, so "Ready" means the server can actually serve.
+    /// Set to an empty string to disable the probe entirely, for inert
+    /// placeholder images that expose no HTTP health endpoint.
+    #[serde(default = "default_health_path")]
+    pub health_path: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default, PartialEq)]
@@ -42,6 +56,15 @@ pub enum WarmupStrategy {
 
 fn default_replicas() -> i32 {
     1
+}
+fn default_image() -> String {
+    "vllm/vllm-openai:latest".to_string()
+}
+fn default_gpu() -> i32 {
+    1
+}
+fn default_health_path() -> String {
+    "/health".to_string()
 }
 
 /// Observed state, written back by the operator.

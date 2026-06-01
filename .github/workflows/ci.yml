@@ -83,12 +83,12 @@ jobs:
           echo "operator started (pid $(cat operator.pid))"
 
       - name: Apply a VllmService
-        run: kubectl apply -f deploy/examples/qwen-7b.yaml
+        run: kubectl apply -f deploy/examples/ci-placeholder.yaml
 
       - name: Wait for Deployment to be created
         run: |
           for i in $(seq 1 30); do
-            if kubectl get deployment qwen-7b >/dev/null 2>&1; then
+            if kubectl get deployment ci-placeholder >/dev/null 2>&1; then
               echo "Deployment created after ${i}s"
               exit 0
             fi
@@ -102,27 +102,27 @@ jobs:
       - name: Wait for status to reach Ready
         run: |
           for i in $(seq 1 60); do
-            phase=$(kubectl get vllmservice qwen-7b -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            phase=$(kubectl get vllmservice ci-placeholder -o jsonpath='{.status.phase}' 2>/dev/null || true)
             echo "[$i] phase=${phase:-<none>}"
             if [ "$phase" = "Ready" ]; then
               echo "VllmService reached Ready after ${i}s"
-              kubectl get vllmservice qwen-7b -o jsonpath='{.status.message}'
+              kubectl get vllmservice ci-placeholder -o jsonpath='{.status.message}'
               exit 0
             fi
             sleep 2
           done
           echo "ERROR: VllmService did not reach Ready within 120s"
-          kubectl get vllmservice qwen-7b -o yaml
+          kubectl get vllmservice ci-placeholder -o yaml
           cat operator.log
           exit 1
 
       - name: Verify owner reference and garbage collection
         run: |
-          owner=$(kubectl get deployment qwen-7b -o jsonpath='{.metadata.ownerReferences[0].kind}')
+          owner=$(kubectl get deployment ci-placeholder -o jsonpath='{.metadata.ownerReferences[0].kind}')
           [ "$owner" = "VllmService" ] || { echo "ERROR: bad owner ref: $owner"; exit 1; }
-          kubectl delete vllmservice qwen-7b
+          kubectl delete vllmservice ci-placeholder
           for i in $(seq 1 30); do
-            if ! kubectl get deployment qwen-7b >/dev/null 2>&1; then
+            if ! kubectl get deployment ci-placeholder >/dev/null 2>&1; then
               echo "Deployment garbage-collected after ${i}s"
               exit 0
             fi

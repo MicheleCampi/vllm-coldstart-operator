@@ -1,0 +1,18 @@
+# Control-plane end-to-end test fixture (not a usage example).
+# Uses a placeholder image, gpu=0, and an empty health path so the reconcile
+# loop, status machine, owner references, and garbage collection can be
+# exercised on a GPU-less kind cluster in CI. The pause image exposes no
+# HTTP endpoint, so healthPath is "": readiness is not gated and the pod
+# becomes Ready as soon as it runs. For a real deployment see qwen-7b.yaml.
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: VllmService
+metadata:
+  name: ci-placeholder
+  namespace: default
+spec:
+  model: "placeholder/ci-test"
+  replicas: 1
+  warmupStrategy: Eager
+  image: "registry.k8s.io/pause:3.10"
+  gpu: 0
+  healthPath: ""

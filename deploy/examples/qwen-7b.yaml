@@ -1,3 +1,5 @@
+# Example: serve Qwen2.5-7B on a GPU node with the official vLLM image.
+# Requires a cluster with an NVIDIA GPU and the device plugin installed.
 apiVersion: inference.michelecampi.dev/v1alpha1
 kind: VllmService
 metadata:
@@ -7,3 +9,5 @@ spec:
   model: "Qwen/Qwen2.5-7B-Instruct"
   replicas: 1
   warmupStrategy: Eager
+  image: "vllm/vllm-openai:latest"
+  gpu: 1

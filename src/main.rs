@@ -4,8 +4,13 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
-use k8s_openapi::api::core::v1::{Container, ContainerPort, EnvVar, PodSpec, PodTemplateSpec};
+use k8s_openapi::api::core::v1::{
+    Container, ContainerPort, EnvVar, HTTPGetAction, PodSpec, PodTemplateSpec, Probe,
+    ResourceRequirements,
+};
+use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::{
     api::{Api, ObjectMeta, Patch, PatchParams},
     runtime::{
@@ -47,9 +52,45 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
 
     let enforce_eager = matches!(svc.spec.warmup_strategy, WarmupStrategy::Eager);
 
+    // GPU resource limit, only when requested. With gpu=0 (CI / CPU-only)
+    // the container requests no GPU and schedules on any node.
+    let resources = if svc.spec.gpu > 0 {
+        let mut limits = BTreeMap::new();
+        limits.insert(
+            "nvidia.com/gpu".to_string(),
+            Quantity(svc.spec.gpu.to_string()),
+        );
+        Some(ResourceRequirements {
+            limits: Some(limits),
+            ..Default::default()
+        })
+    } else {
+        None
+    };
+
+    // Readiness probe, built only when health_path is non-empty. This is
+    // what makes "Ready" mean "warm": when set, Kubernetes marks the pod
+    // ready only once the server answers on this endpoint, so the
+    // Warming->Ready transition tracks the real cold start. Inert
+    // placeholder images set health_path to "" to disable the probe.
+    let readiness_probe = if svc.spec.health_path.is_empty() {
+        None
+    } else {
+        Some(Probe {
+            http_get: Some(HTTPGetAction {
+                path: Some(svc.spec.health_path.clone()),
+                port: IntOrString::Int(8000),
+                ..Default::default()
+            }),
+            initial_delay_seconds: Some(5),
+            period_seconds: Some(5),
+            failure_threshold: Some(60),
+            ..Default::default()
+        })
+    };
     let container = Container {
         name: "inference".to_string(),
-        image: Some("registry.k8s.io/pause:3.10".to_string()),
+        image: Some(svc.spec.image.clone()),
         ports: Some(vec![ContainerPort {
             container_port: 8000,
             name: Some("http".to_string()),
@@ -67,6 +108,8 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
                 ..Default::default()
             },
         ]),
+        resources,
+        readiness_probe,
         ..Default::default()
     };
 

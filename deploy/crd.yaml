@@ -28,6 +28,26 @@ spec:
               treats time-to-first-token as a first-class concern, configuring the
               pod for the cold-start/throughput trade-off the spec asks for.
             properties:
+              gpu:
+                default: 1
+                description: |-
+                  Number of GPUs to request per replica. Set to 0 for CPU-only or
+                  placeholder runs (e.g. CI on a cluster without GPUs).
+                format: int32
+                type: integer
+              healthPath:
+                default: /health
+                description: |-
+                  HTTP path for the readiness probe, e.g. "/health". When non-empty,
+                  the operator gates readiness (and thus the Warming->Ready transition)
+                  on this endpoint, so "Ready" means the server can actually serve.
+                  Set to an empty string to disable the probe entirely, for inert
+                  placeholder images that expose no HTTP health endpoint.
+                type: string
+              image:
+                default: vllm/vllm-openai:latest
+                description: Container image to run. Defaults to the official vLLM OpenAI server.
+                type: string
               model:
                 description: HuggingFace model id to serve, e.g. "Qwen/Qwen2.5-7B-Instruct".
                 type: string
