@@ -1,0 +1,25 @@
+# Smoke test: verify the cluster can schedule a GPU pod before deploying vLLM.
+# Runs nvidia-smi in a minimal CUDA container and exits. If this Job completes
+# and its logs show the GPU, the K3s + RuntimeClass + device-plugin chain works
+# and the operator's GPU path will too. Run after setup-k3s-gpu.sh:
+#   kubectl apply -f gpu-smoke-test.yaml
+#   kubectl wait --for=condition=complete job/gpu-smoke-test --timeout=120s
+#   kubectl logs job/gpu-smoke-test
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gpu-smoke-test
+  namespace: default
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      runtimeClassName: nvidia
+      restartPolicy: Never
+      containers:
+        - name: cuda
+          image: "nvidia/cuda:12.4.1-base-ubuntu22.04"
+          command: ["nvidia-smi"]
+          resources:
+            limits:
+              nvidia.com/gpu: 1
