@@ -1,0 +1,16 @@
+# Build artifacts — never needed in the image context
+target/
+# VCS
+.git/
+.gitignore
+# Docs / CI / deploy manifests not used by the build
+*.md
+.github/
+deploy/
+chart/
+docs/
+# Editor / OS cruft
+.vscode/
+.idea/
+*.swp
+.DS_Store
