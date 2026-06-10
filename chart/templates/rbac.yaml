@@ -1,0 +1,36 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "vllm-coldstart-operator.fullname" . }}
+  labels:
+    {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
+rules:
+# Watch VllmService custom resources across all namespaces (Api::all).
+- apiGroups: ["inference.michelecampi.dev"]
+  resources: ["vllmservices"]
+  verbs: ["get", "list", "watch"]
+# Write lifecycle phase back on the /status subresource.
+- apiGroups: ["inference.michelecampi.dev"]
+  resources: ["vllmservices/status"]
+  verbs: ["get", "patch", "update"]
+# Server-side apply the owned Deployment and watch owned children (.owns).
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "vllm-coldstart-operator.fullname" . }}
+  labels:
+    {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "vllm-coldstart-operator.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "vllm-coldstart-operator.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}

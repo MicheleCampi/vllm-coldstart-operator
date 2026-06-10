@@ -1,0 +1,11 @@
+{{- if .Values.example.enabled -}}
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: VllmService
+metadata:
+  name: {{ .Values.example.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
+spec:
+  {{- toYaml .Values.example.spec | nindent 2 }}
+{{- end }}

@@ -53,3 +53,7 @@ example:
   #     image: "vllm/vllm-openai:latest"
   #     gpu: 1
   #     healthPath: "/health"
+
+# -- Value of RUST_LOG for the operator (tracing EnvFilter). Matches the
+#    binary's built-in default.
+logLevel: "info,kube=warn"
