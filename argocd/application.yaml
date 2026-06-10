@@ -17,6 +17,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: vllm-operator-system
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      name: vllmservices.inference.michelecampi.dev
+      jsonPointers:
+        - /spec/names/categories
+        - /spec/names/listKind
+        - /spec/versions/0/additionalPrinterColumns
   syncPolicy:
     automated:
       prune: true
@@ -24,3 +32,4 @@ spec:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true
