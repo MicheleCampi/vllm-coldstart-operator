@@ -23,7 +23,9 @@ use serde_json::json;
 use thiserror::Error;
 use tracing::{info, warn};
 
-use vllm_coldstart_operator::{phase_for, VllmService, VllmServiceStatus, WarmupStrategy};
+use vllm_coldstart_operator::{
+    metrics::Metrics, phase_for, VllmService, VllmServiceStatus, WarmupStrategy,
+};
 
 const MANAGER: &str = "vllm-coldstart-operator";
 
@@ -35,8 +37,19 @@ enum Error {
     MissingNamespace,
 }
 
+impl Error {
+    /// Stable, low-cardinality label for the failures metric.
+    fn metric_label(&self) -> &'static str {
+        match self {
+            Error::Kube(_) => "kube",
+            Error::MissingNamespace => "missing_namespace",
+        }
+    }
+}
+
 struct Context {
     client: Client,
+    metrics: Metrics,
 }
 
 fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
@@ -159,6 +172,7 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
 
 async fn reconcile(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Action, Error> {
     let name = svc.name_any();
+    let _measurer = ctx.metrics.count_and_measure();
     let ns = svc.namespace().ok_or(Error::MissingNamespace)?;
     info!(
         "reconciling VllmService '{}' in '{}': model={} replicas={} strategy={:?}",
@@ -181,6 +195,8 @@ async fn reconcile(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Action, E
         .and_then(|s| s.ready_replicas)
         .unwrap_or(0);
     let (phase, message) = phase_for(desired_replicas, ready_replicas);
+    ctx.metrics
+        .set_phase(&name, &ns, phase, &["Pending", "Warming", "Ready"]);
 
     // 3. Write status on the /status subresource (does not retrigger the
     //    spec watcher, so no reconcile loop).
@@ -205,11 +221,49 @@ async fn reconcile(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Action, E
     Ok(Action::requeue(Duration::from_secs(requeue)))
 }
 
-fn error_policy(_svc: Arc<VllmService>, err: &Error, _ctx: Arc<Context>) -> Action {
+fn error_policy(svc: Arc<VllmService>, err: &Error, ctx: Arc<Context>) -> Action {
     warn!("reconcile failed: {}", err);
+    ctx.metrics.set_failure(&svc.name_any(), err.metric_label());
     Action::requeue(Duration::from_secs(15))
 }
 
+mod http {
+    use crate::Metrics;
+    use axum::{
+        extract::State, http::header::CONTENT_TYPE, response::IntoResponse, routing::get, Router,
+    };
+    use tokio::net::TcpListener;
+    use tracing::info;
+
+    /// OpenMetrics scrape endpoint.
+    async fn metrics_handler(State(metrics): State<Metrics>) -> impl IntoResponse {
+        let body = metrics.encode();
+        (
+            [(
+                CONTENT_TYPE,
+                "application/openmetrics-text; version=1.0.0; charset=utf-8",
+            )],
+            body,
+        )
+    }
+
+    /// Liveness/readiness probe target.
+    async fn health_handler() -> &'static str {
+        "ok"
+    }
+
+    /// Serve `/metrics` and `/healthz` on 0.0.0.0:8080 until shutdown.
+    pub async fn serve(metrics: Metrics) -> anyhow::Result<()> {
+        let app = Router::new()
+            .route("/metrics", get(metrics_handler))
+            .route("/healthz", get(health_handler))
+            .with_state(metrics);
+        let listener = TcpListener::bind("0.0.0.0:8080").await?;
+        info!("metrics server listening on 0.0.0.0:8080");
+        axum::serve(listener, app).await?;
+        Ok(())
+    }
+}
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -222,10 +276,17 @@ async fn main() -> anyhow::Result<()> {
     let client = Client::try_default().await?;
     let services: Api<VllmService> = Api::all(client.clone());
     let deployments: Api<Deployment> = Api::all(client.clone());
+    let metrics = Metrics::default();
     let context = Arc::new(Context {
         client: client.clone(),
+        metrics: metrics.clone(),
     });
 
+    tokio::spawn(async move {
+        if let Err(e) = http::serve(metrics).await {
+            tracing::error!("metrics server exited: {}", e);
+        }
+    });
     info!("starting vllm-coldstart-operator controller");
 
     Controller::new(services, watcher::Config::default())
