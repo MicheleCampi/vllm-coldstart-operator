@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vllm-coldstart-operator
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/MicheleCampi/vllm-coldstart-operator
+    targetRevision: main
+    path: chart
+    helm:
+      releaseName: vcso
+      parameters:
+        - name: example.enabled
+          value: "true"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vllm-operator-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

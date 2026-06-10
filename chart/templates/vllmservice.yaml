@@ -2,6 +2,8 @@
 apiVersion: inference.michelecampi.dev/v1alpha1
 kind: VllmService
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   name: {{ .Values.example.name }}
   namespace: {{ .Release.Namespace }}
   labels:

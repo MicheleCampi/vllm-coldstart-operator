@@ -2,6 +2,8 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
   name: {{ include "vllm-coldstart-operator.fullname" . }}
   labels:
     {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
@@ -22,6 +24,8 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
   name: {{ include "vllm-coldstart-operator.fullname" . }}
   labels:
     {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
