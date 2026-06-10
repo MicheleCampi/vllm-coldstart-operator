@@ -31,6 +31,22 @@ spec:
         env:
         - name: RUST_LOG
           value: {{ .Values.logLevel | quote }}
+        ports:
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 5
+          periodSeconds: 15
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          initialDelaySeconds: 3
+          periodSeconds: 10
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
