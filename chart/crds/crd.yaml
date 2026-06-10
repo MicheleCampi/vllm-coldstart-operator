@@ -6,6 +6,8 @@ metadata:
     argocd.argoproj.io/sync-options: Prune=false
   name: vllmservices.inference.michelecampi.dev
 spec:
+  conversion:
+    strategy: None
   group: inference.michelecampi.dev
   names:
     categories: []
