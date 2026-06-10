@@ -1,0 +1,55 @@
+# -- Operator container image (public on GHCR, anonymous pull).
+image:
+  repository: ghcr.io/michelecampi/vllm-coldstart-operator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# -- Replicas for the operator Deployment itself (leader election not
+#    implemented, so keep at 1).
+replicaCount: 1
+
+# -- Resource requests/limits for the operator pod. The binary is a ~18MB
+#    static-pie musl on distroless/static; it needs very little.
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+serviceAccount:
+  # -- Create the operator ServiceAccount. Disable to bring your own.
+  create: true
+  # -- Override the generated name. Empty -> chart fullname.
+  name: ""
+
+rbac:
+  # -- Create the cluster-wide ClusterRole + ClusterRoleBinding. The
+  #    controller watches VllmServices in ALL namespaces (Api::all), so
+  #    namespaced RBAC is insufficient.
+  create: true
+
+# -- Ship an example VllmService alongside the operator. The default is the
+#    GPU-less CI placeholder, so `helm install` on a kind cluster exercises
+#    the full reconcile->status->Ready loop without a GPU. For a real
+#    deployment, override with the qwen-7b values shown below.
+example:
+  enabled: true
+  name: ci-placeholder
+  spec:
+    model: "placeholder/ci-test"
+    replicas: 1
+    warmupStrategy: Eager
+    image: "registry.k8s.io/pause:3.10"
+    gpu: 0
+    healthPath: ""
+  # Real GPU deployment override (requires NVIDIA device plugin):
+  #   name: qwen-7b
+  #   spec:
+  #     model: "Qwen/Qwen2.5-7B-Instruct"
+  #     replicas: 1
+  #     warmupStrategy: Eager
+  #     image: "vllm/vllm-openai:latest"
+  #     gpu: 1
+  #     healthPath: "/health"
