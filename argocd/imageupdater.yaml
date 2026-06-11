@@ -20,5 +20,4 @@ spec:
               - "linux/amd64"
           manifestTargets:
             helm:
-              name: "image.repository"
-              tag: "image.tag"
+              spec: "image.spec"
