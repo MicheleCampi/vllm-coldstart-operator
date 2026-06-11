@@ -8,7 +8,7 @@ image:
   repository: michelecampi/vllm-coldstart-operator
   tag: latest
   pullPolicy: IfNotPresent
-  spec: ghcr.io/michelecampi/vllm-coldstart-operator:latest@sha256:f45100c463d6450ce89b09e541009e238513e22da0cb171ca204107af133e8a6
+  spec: ghcr.io/michelecampi/vllm-coldstart-operator:latest@sha256:d7ccf8580f42a87ea401f13eed9188fc8892b07bd2212357e87c7919f71fb98d
 # -- Replicas for the operator Deployment itself (leader election not
 #    implemented, so keep at 1).
 replicaCount: 1
