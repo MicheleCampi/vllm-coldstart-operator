@@ -26,7 +26,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: operator
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        image: "{{ include "vllm-coldstart-operator.image" . }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
         - name: RUST_LOG

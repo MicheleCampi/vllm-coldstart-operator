@@ -1,7 +1,11 @@
 # -- Operator container image (public on GHCR, anonymous pull).
 image:
   repository: ghcr.io/michelecampi/vllm-coldstart-operator
-  tag: "3fabbdd"
+  tag: latest
+  # -- Immutable content digest. When set, takes precedence over tag for
+  #    deterministic, rebuild-proof rollouts (a tag on GHCR is mutable; a
+  #    digest is content-addressed). Update on every operator code change.
+  digest: "sha256:c01f05b82819871499bd06148219df25e613d85e145099b8040e53970b17d564"
   pullPolicy: IfNotPresent
 
 # -- Replicas for the operator Deployment itself (leader election not
