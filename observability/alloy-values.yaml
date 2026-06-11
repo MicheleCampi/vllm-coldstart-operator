@@ -1,0 +1,70 @@
+controller:
+  type: deployment
+  replicas: 1
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["nodes", "services", "endpoints", "pods"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["discovery.k8s.io"]
+      resources: ["endpointslices"]
+      verbs: ["get", "list", "watch"]
+
+alloy:
+  extraEnv:
+    - name: GC_PROM_USER
+      valueFrom:
+        secretKeyRef:
+          name: gc-remote-write
+          key: username
+    - name: GC_PROM_PASS
+      valueFrom:
+        secretKeyRef:
+          name: gc-remote-write
+          key: password
+  configMap:
+    content: |
+      prometheus.remote_write "gc" {
+        external_labels = {
+          cluster = "kind-operator-test",
+        }
+        endpoint {
+          url = "https://prometheus-prod-65-prod-eu-west-2.grafana.net/api/prom/push"
+          basic_auth {
+            username = sys.env("GC_PROM_USER")
+            password = sys.env("GC_PROM_PASS")
+          }
+        }
+      }
+
+      prometheus.exporter.self "default" {}
+
+      prometheus.scrape "self" {
+        targets    = prometheus.exporter.self.default.targets
+        forward_to = [prometheus.remote_write.gc.receiver]
+        job_name   = "alloy-self"
+      }
+
+      discovery.kubernetes "operator" {
+        role = "endpoints"
+        namespaces {
+          names = ["vllm-operator-system"]
+        }
+      }
+
+      discovery.relabel "operator_metrics" {
+        targets = discovery.kubernetes.operator.targets
+        rule {
+          source_labels = ["__meta_kubernetes_endpoint_port_name"]
+          regex         = "metrics"
+          action        = "keep"
+        }
+      }
+
+      prometheus.scrape "operator" {
+        targets    = discovery.relabel.operator_metrics.output
+        forward_to = [prometheus.remote_write.gc.receiver]
+        job_name   = "vllm-coldstart-operator"
+      }
