@@ -8,11 +8,10 @@ image:
   repository: michelecampi/vllm-coldstart-operator
   tag: latest
   pullPolicy: IfNotPresent
-
+  spec: ghcr.io/michelecampi/vllm-coldstart-operator:latest@sha256:6d792695be2035974bd98fe410aff721ebcad4a008d07a8a53ae441142c95711
 # -- Replicas for the operator Deployment itself (leader election not
 #    implemented, so keep at 1).
 replicaCount: 1
-
 # -- Resource requests/limits for the operator pod. The binary is a ~18MB
 #    static-pie musl on distroless/static; it needs very little.
 resources:
@@ -22,19 +21,16 @@ resources:
   limits:
     cpu: 500m
     memory: 128Mi
-
 serviceAccount:
   # -- Create the operator ServiceAccount. Disable to bring your own.
   create: true
   # -- Override the generated name. Empty -> chart fullname.
   name: ""
-
 rbac:
   # -- Create the cluster-wide ClusterRole + ClusterRoleBinding. The
   #    controller watches VllmServices in ALL namespaces (Api::all), so
   #    namespaced RBAC is insufficient.
   create: true
-
 # -- Ship an example VllmService alongside the operator. The default is the
 #    GPU-less CI placeholder, so `helm install` on a kind cluster exercises
 #    the full reconcile->status->Ready loop without a GPU. For a real
@@ -58,7 +54,6 @@ example:
   #     image: "vllm/vllm-openai:latest"
   #     gpu: 1
   #     healthPath: "/health"
-
 # -- Value of RUST_LOG for the operator (tracing EnvFilter). Matches the
 #    binary's built-in default.
 logLevel: "info,kube=warn"
