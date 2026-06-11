@@ -1,7 +1,7 @@
 # -- Operator container image (public on GHCR, anonymous pull).
 image:
   repository: ghcr.io/michelecampi/vllm-coldstart-operator
-  tag: latest
+  tag: "3fabbdd"
   pullPolicy: IfNotPresent
 
 # -- Replicas for the operator Deployment itself (leader election not
