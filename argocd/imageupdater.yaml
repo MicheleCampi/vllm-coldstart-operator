@@ -1,0 +1,24 @@
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: vllm-coldstart-operator
+  namespace: argocd
+spec:
+  writeBackConfig:
+    method: "git:secret:argocd/git-creds"
+    gitConfig:
+      repository: "https://github.com/MicheleCampi/vllm-coldstart-operator"
+      branch: "main"
+  applicationRefs:
+    - namePattern: "vllm-coldstart-operator"
+      images:
+        - alias: "operator"
+          imageName: "ghcr.io/michelecampi/vllm-coldstart-operator:latest"
+          commonUpdateSettings:
+            updateStrategy: "digest"
+            platforms:
+              - "linux/amd64"
+          manifestTargets:
+            helm:
+              name: "image.repository"
+              tag: "image.tag"

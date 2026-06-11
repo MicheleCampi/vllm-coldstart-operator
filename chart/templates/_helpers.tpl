@@ -41,10 +41,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- end }}
 {{- define "vllm-coldstart-operator.image" -}}
-{{- if .Values.image.spec -}}
-{{- .Values.image.spec -}}
-{{- else if .Values.image.digest -}}
-{{- printf "%s@%s" .Values.image.repository .Values.image.digest -}}
+{{- if .Values.image.registry -}}
+{{- printf "%s/%s:%s" .Values.image.registry .Values.image.repository .Values.image.tag -}}
 {{- else -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- end -}}

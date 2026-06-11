@@ -1,15 +1,12 @@
-# -- Operator container image (public on GHCR, anonymous pull).
+# -- Operator container image (public on GHCR, anonymous pull). Registry and
+#    repository are kept separate so ArgoCD Image Updater can write back the
+#    repository/tag without the registry prefix. The live digest is pinned by
+#    the updater into tag (as `latest@sha256:...`) via a machine-managed
+#    .argocd-source-*.yaml override; this source file keeps the plain tag.
 image:
-  repository: ghcr.io/michelecampi/vllm-coldstart-operator
+  registry: ghcr.io
+  repository: michelecampi/vllm-coldstart-operator
   tag: latest
-  # -- Immutable content digest. When set, takes precedence over tag for
-  #    deterministic, rebuild-proof rollouts (a tag on GHCR is mutable; a
-  #    digest is content-addressed). Update on every operator code change.
-  digest: "sha256:c01f05b82819871499bd06148219df25e613d85e145099b8040e53970b17d564"
-  # -- Full image reference (repo@sha256:...) written by ArgoCD Image Updater
-  #    via git write-back. Takes precedence over digest/tag when set. Left
-  #    empty in source; the live value lives in .argocd-source-*.yaml.
-  spec: ""
   pullPolicy: IfNotPresent
 
 # -- Replicas for the operator Deployment itself (leader election not
