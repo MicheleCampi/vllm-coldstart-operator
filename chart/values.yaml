@@ -6,6 +6,10 @@ image:
   #    deterministic, rebuild-proof rollouts (a tag on GHCR is mutable; a
   #    digest is content-addressed). Update on every operator code change.
   digest: "sha256:c01f05b82819871499bd06148219df25e613d85e145099b8040e53970b17d564"
+  # -- Full image reference (repo@sha256:...) written by ArgoCD Image Updater
+  #    via git write-back. Takes precedence over digest/tag when set. Left
+  #    empty in source; the live value lives in .argocd-source-*.yaml.
+  spec: ""
   pullPolicy: IfNotPresent
 
 # -- Replicas for the operator Deployment itself (leader election not
