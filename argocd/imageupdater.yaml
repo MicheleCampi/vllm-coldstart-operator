@@ -9,15 +9,17 @@ spec:
     gitConfig:
       repository: "https://github.com/MicheleCampi/vllm-coldstart-operator"
       branch: "main"
+    writeBackTarget: "helmvalues:chart/values.yaml"
   applicationRefs:
     - namePattern: "vllm-coldstart-operator"
       images:
         - alias: "operator"
-          imageName: "ghcr.io/michelecampi/vllm-coldstart-operator:latest"
+          imageName: "ghcr.io/michelecampi/vllm-coldstart-operator"
           commonUpdateSettings:
-            updateStrategy: "digest"
+            updateStrategy: "newest-build"
+            allowTags: "regexp:^[0-9a-f]{7}$"
             platforms:
               - "linux/amd64"
           manifestTargets:
             helm:
-              spec: "image.spec"
+              tag: "image.tag"
