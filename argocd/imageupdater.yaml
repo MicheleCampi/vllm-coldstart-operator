@@ -9,7 +9,7 @@ spec:
     gitConfig:
       repository: "https://github.com/MicheleCampi/vllm-coldstart-operator"
       branch: "main"
-    writeBackTarget: "helmvalues:chart/values.yaml"
+      writeBackTarget: "helmvalues:chart/values.yaml"
   applicationRefs:
     - namePattern: "vllm-coldstart-operator"
       images:
