@@ -1,13 +1,8 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  annotations:
-    argocd.argoproj.io/sync-wave: "-2"
-    argocd.argoproj.io/sync-options: Prune=false
   name: vllmservices.inference.michelecampi.dev
 spec:
-  conversion:
-    strategy: None
   group: inference.michelecampi.dev
   names:
     categories: []
@@ -33,6 +28,16 @@ spec:
               treats time-to-first-token as a first-class concern, configuring the
               pod for the cold-start/throughput trade-off the spec asks for.
             properties:
+              extraArgs:
+                default: []
+                description: |-
+                  Extra command-line arguments appended to `vllm serve <model>`, e.g.
+                  ["--max-model-len", "8192", "--gpu-memory-utilization", "0.90"].
+                  Keeps engine tuning (context length, memory fraction, quantization)
+                  in the resource spec rather than baked into the operator binary.
+                items:
+                  type: string
+                type: array
               gpu:
                 default: 1
                 description: |-
@@ -61,6 +66,16 @@ spec:
                 description: Number of replicas to run.
                 format: int32
                 type: integer
+              runtimeClassName:
+                description: |-
+                  RuntimeClass for the workload pod. Cluster-dependent: K3s GPU nodes
+                  need "nvidia" to route the pod to the NVIDIA container runtime, while
+                  managed clusters (GKE, EKS, AKS) expose GPUs through the device plugin
+                  with the default runtime and define no such RuntimeClass. Leave unset
+                  (the default) on managed clusters; setting a non-existent RuntimeClass
+                  makes the API server reject the pod.
+                nullable: true
+                type: string
               warmupStrategy:
                 default: Eager
                 description: |-

@@ -45,6 +45,20 @@ pub struct VllmServiceSpec {
     /// placeholder images that expose no HTTP health endpoint.
     #[serde(default = "default_health_path")]
     pub health_path: String,
+    /// RuntimeClass for the workload pod. Cluster-dependent: K3s GPU nodes
+    /// need "nvidia" to route the pod to the NVIDIA container runtime, while
+    /// managed clusters (GKE, EKS, AKS) expose GPUs through the device plugin
+    /// with the default runtime and define no such RuntimeClass. Leave unset
+    /// (the default) on managed clusters; setting a non-existent RuntimeClass
+    /// makes the API server reject the pod.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_class_name: Option<String>,
+    /// Extra command-line arguments appended to `vllm serve <model>`, e.g.
+    /// ["--max-model-len", "8192", "--gpu-memory-utilization", "0.90"].
+    /// Keeps engine tuning (context length, memory fraction, quantization)
+    /// in the resource spec rather than baked into the operator binary.
+    #[serde(default)]
+    pub extra_args: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default, PartialEq)]

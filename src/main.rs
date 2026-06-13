@@ -5,8 +5,8 @@ use std::time::Duration;
 use futures::StreamExt;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EnvVar, HTTPGetAction, PodSpec, PodTemplateSpec, Probe,
-    ResourceRequirements,
+    Container, ContainerPort, EmptyDirVolumeSource, HTTPGetAction, PodSpec, PodTemplateSpec, Probe,
+    ResourceRequirements, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
@@ -65,9 +65,15 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
 
     let enforce_eager = matches!(svc.spec.warmup_strategy, WarmupStrategy::Eager);
 
+    // A request for GPUs is the signal that this is a real vLLM workload
+    // rather than the inert CI placeholder (gpu=0, pause image). Only then
+    // do we inject the serving command, the GPU limit, the shared-memory
+    // volume and any tuning args; the placeholder stays a do-nothing pod.
+    let serving = svc.spec.gpu > 0;
+
     // GPU resource limit, only when requested. With gpu=0 (CI / CPU-only)
     // the container requests no GPU and schedules on any node.
-    let resources = if svc.spec.gpu > 0 {
+    let resources = if serving {
         let mut limits = BTreeMap::new();
         limits.insert(
             "nvidia.com/gpu".to_string(),
@@ -79,6 +85,54 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         })
     } else {
         None
+    };
+
+    // Invocation. The vllm/vllm-openai image's entrypoint is `vllm serve`,
+    // but we set command+args explicitly so the operator does not depend on
+    // the image's entrypoint staying stable across tags. `vllm serve` takes
+    // the model as a positional argument; warmupStrategy maps to
+    // --enforce-eager (CUDA graphs off => faster cold start); extraArgs
+    // carries per-deployment engine tuning (e.g. --max-model-len,
+    // --gpu-memory-utilization). The placeholder keeps the pause entrypoint.
+    let (command, args) = if serving {
+        let mut a = vec![
+            svc.spec.model.clone(),
+            "--host".to_string(),
+            "0.0.0.0".to_string(),
+            "--port".to_string(),
+            "8000".to_string(),
+        ];
+        if enforce_eager {
+            a.push("--enforce-eager".to_string());
+        }
+        a.extend(svc.spec.extra_args.iter().cloned());
+        (Some(vec!["vllm".to_string(), "serve".to_string()]), Some(a))
+    } else {
+        (None, None)
+    };
+
+    // vLLM uses /dev/shm for intra-process tensor transfer; the container
+    // runtime's default 64MiB is too small and causes hard-to-diagnose
+    // crashes under load. Back it with a memory-medium emptyDir on real
+    // serving pods. The placeholder needs none.
+    let (volumes, volume_mounts) = if serving {
+        (
+            Some(vec![Volume {
+                name: "dshm".to_string(),
+                empty_dir: Some(EmptyDirVolumeSource {
+                    medium: Some("Memory".to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }]),
+            Some(vec![VolumeMount {
+                name: "dshm".to_string(),
+                mount_path: "/dev/shm".to_string(),
+                ..Default::default()
+            }]),
+        )
+    } else {
+        (None, None)
     };
 
     // Readiness probe, built only when health_path is non-empty. This is
@@ -104,37 +158,24 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     let container = Container {
         name: "inference".to_string(),
         image: Some(svc.spec.image.clone()),
+        command,
+        args,
         ports: Some(vec![ContainerPort {
             container_port: 8000,
             name: Some("http".to_string()),
             ..Default::default()
         }]),
-        env: Some(vec![
-            EnvVar {
-                name: "VLLM_MODEL".to_string(),
-                value: Some(svc.spec.model.clone()),
-                ..Default::default()
-            },
-            EnvVar {
-                name: "VLLM_ENFORCE_EAGER".to_string(),
-                value: Some(enforce_eager.to_string()),
-                ..Default::default()
-            },
-        ]),
         resources,
         readiness_probe,
+        volume_mounts,
         ..Default::default()
     };
 
-    // On K3s the default runtime is runc; a pod needs the "nvidia"
-    // RuntimeClass to actually get GPU access. Request it only when GPUs
-    // are requested, so gpu=0 (CI / CPU) pods schedule with the default
-    // runtime and need no RuntimeClass installed on the cluster.
-    let runtime_class_name = if svc.spec.gpu > 0 {
-        Some("nvidia".to_string())
-    } else {
-        None
-    };
+    // RuntimeClass is cluster-dependent and comes from the spec (default
+    // None). Managed clusters (GKE/EKS/AKS) expose GPUs via the device
+    // plugin with the default runtime and define no "nvidia" RuntimeClass;
+    // setting a non-existent one makes the API server reject the pod. K3s
+    // GPU nodes set it to "nvidia".
     let template = PodTemplateSpec {
         metadata: Some(ObjectMeta {
             labels: Some(labels.clone()),
@@ -142,7 +183,8 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         }),
         spec: Some(PodSpec {
             containers: vec![container],
-            runtime_class_name,
+            runtime_class_name: svc.spec.runtime_class_name.clone(),
+            volumes,
             ..Default::default()
         }),
     };

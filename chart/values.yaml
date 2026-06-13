@@ -4,10 +4,10 @@
 #    via git write-back. When spec is set, the image helper uses it verbatim.
 image:
   repository: ghcr.io/michelecampi/vllm-coldstart-operator
-  tag: 0.1.0
+  tag: 0.2.0
   pullPolicy: IfNotPresent
   # -- Managed by ArgoCD Image Updater. Full image reference, takes precedence.
-  spec: ghcr.io/michelecampi/vllm-coldstart-operator:latest@sha256:d7ccf8580f42a87ea401f13eed9188fc8892b07bd2212357e87c7919f71fb98d
+  spec: ""
 # -- Replicas for the operator Deployment itself (leader election not
 #    implemented, so keep at 1).
 replicaCount: 1
@@ -44,15 +44,18 @@ example:
     image: "registry.k8s.io/pause:3.10"
     gpu: 0
     healthPath: ""
-    # Real GPU deployment override (requires NVIDIA device plugin):
+    # Real GPU deployment override (managed cluster, e.g. GKE/EKS/AKS):
     #   name: qwen-7b
     #   spec:
     #     model: "Qwen/Qwen2.5-7B-Instruct"
     #     replicas: 1
-    #     warmupStrategy: Eager
-    #     image: "vllm/vllm-openai:latest"
+    #     warmupStrategy: Eager          # operator appends --enforce-eager
+    #     image: "vllm/vllm-openai:v0.11.0"
     #     gpu: 1
     #     healthPath: "/health"
+    #     # runtimeClassName: leave unset on managed clusters; set to "nvidia"
+    #     #   only on K3s GPU nodes that route GPUs via the nvidia runtime.
+    #     extraArgs: ["--max-model-len", "8192", "--gpu-memory-utilization", "0.90"]
 # -- Value of RUST_LOG for the operator (tracing EnvFilter). Matches the
 #    binary's built-in default.
 logLevel: "info,kube=warn"
