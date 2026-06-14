@@ -5,8 +5,8 @@ use std::time::Duration;
 use futures::StreamExt;
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EmptyDirVolumeSource, HTTPGetAction, PodSpec, PodTemplateSpec, Probe,
-    ResourceRequirements, Volume, VolumeMount,
+    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, HTTPGetAction, PodSpec,
+    PodTemplateSpec, Probe, ResourceRequirements, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
@@ -155,11 +155,26 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
             ..Default::default()
         })
     };
+    // vLLM's base image (CUDA 12.8+) sets LD_LIBRARY_PATH to /usr/local/cuda
+    // paths, but GKE/EKS/AKS mount the GPU driver at /usr/local/nvidia/lib64;
+    // without this the loader cannot find libcuda.so.1 and vLLM falls back to
+    // "UnspecifiedPlatform" and fails to infer the device. Point the loader at
+    // the managed-cluster driver mount. Only meaningful on real GPU pods.
+    let env = if serving {
+        Some(vec![EnvVar {
+            name: "LD_LIBRARY_PATH".to_string(),
+            value: Some("/usr/local/nvidia/lib64".to_string()),
+            ..Default::default()
+        }])
+    } else {
+        None
+    };
     let container = Container {
         name: "inference".to_string(),
         image: Some(svc.spec.image.clone()),
         command,
         args,
+        env,
         ports: Some(vec![ContainerPort {
             container_port: 8000,
             name: Some("http".to_string()),
