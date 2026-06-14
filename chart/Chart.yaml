@@ -2,5 +2,5 @@ apiVersion: v2
 name: vllm-coldstart-operator
 description: Kubernetes operator that treats LLM cold-start as a first-class lifecycle signal for vLLM inference services.
 type: application
-version: 0.2.0
-appVersion: "0.2.0"
+version: 0.2.1
+appVersion: "0.2.1"

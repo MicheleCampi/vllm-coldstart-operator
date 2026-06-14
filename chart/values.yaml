@@ -4,7 +4,7 @@
 #    via git write-back. When spec is set, the image helper uses it verbatim.
 image:
   repository: ghcr.io/michelecampi/vllm-coldstart-operator
-  tag: 0.2.0
+  tag: 0.2.1
   pullPolicy: IfNotPresent
   # -- Managed by ArgoCD Image Updater. Full image reference, takes precedence.
   spec: ""
