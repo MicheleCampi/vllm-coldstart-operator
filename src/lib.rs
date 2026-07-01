@@ -1,4 +1,5 @@
 pub mod fleet_placement;
+pub mod fleet_planning;
 pub mod fleet_types;
 pub mod metrics;
 
