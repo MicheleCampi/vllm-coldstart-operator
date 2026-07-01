@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use kube::{
-    api::{Api, ObjectMeta, Patch, PatchParams},
+    api::{Api, ListParams, ObjectMeta, Patch, PatchParams},
     runtime::{
         controller::{Action, Controller},
         watcher,
@@ -144,12 +144,10 @@ pub async fn reconcile(
     );
 
     // 1. Snapshot the fleet-visible node states and convert to pure candidates.
-    //    List-only: this block plans from a fresh snapshot each reconcile.
     let node_states: Api<NodeState> = Api::all(ctx.client.clone());
     let states = node_states.list(&Default::default()).await?;
     let candidates: Vec<NodeCandidate> =
         states.iter().filter_map(node_state_to_candidate).collect();
-
     if candidates.is_empty() {
         warn!(
             "FleetService '{}': no reported NodeState objects, nothing to place",
@@ -158,16 +156,57 @@ pub async fn reconcile(
         return Ok(Action::requeue(REQUEUE));
     }
 
-    // 2. Pure planning: fill `replicas` slots across candidates, spreading load.
-    let plan = plan_initial_placements(fleet.spec.replicas, &candidates);
-
-    // 3. Apply one owned VllmService per planned slot (server-side apply,
-    //    distinct field manager). Deterministic child names => idempotent.
+    // 2. Read the current placements from the owned VllmService children,
+    //    not from status: the children are the source of truth (ADR: a
+    //    controller trusts its owned objects, status is a derived report).
+    //    Map slot index -> currently pinned node, so stable placements are
+    //    preserved verbatim across reconciles and do not oscillate when node
+    //    warmth changes.
     let services: Api<VllmService> = Api::namespaced(ctx.client.clone(), &ns);
+    let lp = ListParams::default().labels(&format!("inference.michelecampi.dev/fleet={name}"));
+    let existing = services.list(&lp).await?;
+    let mut current: BTreeMap<usize, String> = BTreeMap::new();
+    for child in &existing.items {
+        // Child name is "<fleet>-<index>"; recover the slot index from the
+        // suffix. Ignore any child that does not parse (not fleet-owned in
+        // the expected shape).
+        let child_name = child.name_any();
+        if let Some(idx) = child_name
+            .rsplit_once('-')
+            .and_then(|(_, i)| i.parse::<usize>().ok())
+        {
+            if let Some(node) = &child.spec.node_name {
+                current.insert(idx, node.clone());
+            }
+        }
+    }
+
+    // 3. Decide the node for each slot: preserve an existing pin, plan a
+    //    fresh node only for slots that have no child yet. Planning for the
+    //    missing slots still spreads load across candidates.
+    let desired = fleet.spec.replicas.max(0) as usize;
+    let missing: Vec<usize> = (0..desired).filter(|i| !current.contains_key(i)).collect();
+    let fresh = plan_initial_placements(missing.len() as i32, &candidates);
+    let mut fresh_iter = fresh.into_iter();
+    let mut slot_nodes: Vec<(usize, String)> = Vec::with_capacity(desired);
+    for i in 0..desired {
+        let node = match current.get(&i) {
+            Some(existing_node) => existing_node.clone(),
+            None => match fresh_iter.next() {
+                Some(n) => n,
+                None => continue, // no candidate available for this slot
+            },
+        };
+        slot_nodes.push((i, node));
+    }
+
+    // 4. Apply one owned VllmService per slot (server-side apply, distinct
+    //    field manager). Deterministic child names => idempotent; preserved
+    //    slots reapply the same node_name, so SSA is a no-op for them.
     let pp = PatchParams::apply(FLEET_MANAGER).force();
-    let mut placements: Vec<PlacementStatus> = Vec::with_capacity(plan.len());
-    for (index, node_name) in plan.iter().enumerate() {
-        let child = build_owned_vllm_service(&fleet, index, node_name)?;
+    let mut placements: Vec<PlacementStatus> = Vec::with_capacity(slot_nodes.len());
+    for (index, node_name) in &slot_nodes {
+        let child = build_owned_vllm_service(&fleet, *index, node_name)?;
         let child_name = child.name_any();
         services
             .patch(&child_name, &pp, &Patch::Apply(&child))
@@ -181,7 +220,7 @@ pub async fn reconcile(
         });
     }
 
-    // 4. Write fleet status on the /status subresource.
+    // 5. Write fleet status on the /status subresource.
     let fleets: Api<FleetService> = Api::namespaced(ctx.client.clone(), &ns);
     let placed = placements.len() as i32;
     let status_patch = json!({
@@ -198,9 +237,11 @@ pub async fn reconcile(
         .await?;
 
     info!(
-        "FleetService '{}': applied {} placements across {} candidate nodes",
+        "FleetService '{}': {} slots placed ({} preserved, {} newly planned) across {} candidates",
         name,
         placed,
+        current.len().min(desired),
+        missing.len(),
         candidates.len()
     );
     Ok(Action::requeue(REQUEUE))
