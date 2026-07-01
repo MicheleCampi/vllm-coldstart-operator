@@ -62,6 +62,13 @@ pub struct VllmServiceSpec {
     /// in the resource spec rather than baked into the operator binary.
     #[serde(default)]
     pub extra_args: Vec<String>,
+    /// Exact node this replica must land on, as a `kubernetes.io/hostname`
+    /// nodeSelector. Set by the fleet controller (ADR-0004) to pin a placement
+    /// to its chosen node while keeping the default scheduler in the loop
+    /// (resource fit, admission, taint/toleration). Unset for standalone /
+    /// CI use, where no node constraint is emitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub node_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default, PartialEq)]
@@ -76,7 +83,7 @@ pub enum WarmupStrategy {
 fn default_replicas() -> i32 {
     1
 }
-fn default_image() -> String {
+pub fn default_image() -> String {
     "vllm/vllm-openai:latest".to_string()
 }
 fn default_gpu() -> i32 {

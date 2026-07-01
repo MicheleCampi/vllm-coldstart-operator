@@ -27,6 +27,8 @@ use vllm_coldstart_operator::{
     metrics::Metrics, phase_for, VllmService, VllmServiceStatus, WarmupStrategy,
 };
 
+mod fleet_controller;
+
 const MANAGER: &str = "vllm-coldstart-operator";
 
 #[derive(Debug, Error)]
@@ -191,6 +193,17 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     // plugin with the default runtime and define no "nvidia" RuntimeClass;
     // setting a non-existent one makes the API server reject the pod. K3s
     // GPU nodes set it to "nvidia".
+    // Pin to an exact node when the spec names one (ADR-0004). The fleet
+    // controller sets node_name to land a placement on its chosen node via
+    // the well-known kubernetes.io/hostname label, keeping the default
+    // scheduler in the loop (resource fit, admission, taint/toleration)
+    // rather than bypassing it with spec.nodeName. Unset => no constraint.
+    let node_selector = svc.spec.node_name.as_ref().map(|n| {
+        let mut m = BTreeMap::new();
+        m.insert("kubernetes.io/hostname".to_string(), n.clone());
+        m
+    });
+
     let template = PodTemplateSpec {
         metadata: Some(ObjectMeta {
             labels: Some(labels.clone()),
@@ -199,6 +212,7 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         spec: Some(PodSpec {
             containers: vec![container],
             runtime_class_name: svc.spec.runtime_class_name.clone(),
+            node_selector,
             volumes,
             ..Default::default()
         }),
@@ -334,6 +348,8 @@ async fn main() -> anyhow::Result<()> {
     let services: Api<VllmService> = Api::all(client.clone());
     let deployments: Api<Deployment> = Api::all(client.clone());
     let metrics = Metrics::default();
+    let fleet_metrics = metrics.clone();
+    let fleet_client = client.clone();
     let context = Arc::new(Context {
         client: client.clone(),
         metrics: metrics.clone(),
@@ -346,7 +362,7 @@ async fn main() -> anyhow::Result<()> {
     });
     info!("starting vllm-coldstart-operator controller");
 
-    Controller::new(services, watcher::Config::default())
+    let vllm_fut = Controller::new(services, watcher::Config::default())
         .owns(deployments, watcher::Config::default())
         .run(reconcile, error_policy, context)
         .for_each(|res| async move {
@@ -354,8 +370,14 @@ async fn main() -> anyhow::Result<()> {
                 Ok((obj, _action)) => info!("reconciled {}", obj.name),
                 Err(e) => warn!("reconcile loop error: {:?}", e),
             }
-        })
-        .await;
+        });
+
+    // Both controllers share the runtime and the metrics registry. join!
+    // keeps both alive for the process lifetime; neither stream terminates
+    // under normal operation, so this never returns. (select! would tear the
+    // other controller down the instant one stream ended — wrong here.)
+    let fleet_fut = fleet_controller::run(fleet_client, fleet_metrics);
+    tokio::join!(vllm_fut, fleet_fut);
 
     Ok(())
 }
