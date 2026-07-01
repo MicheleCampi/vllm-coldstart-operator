@@ -1,3 +1,4 @@
+pub mod fleet_types;
 pub mod metrics;
 
 use kube::CustomResource;
