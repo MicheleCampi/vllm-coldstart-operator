@@ -61,6 +61,15 @@ spec:
               model:
                 description: HuggingFace model id to serve, e.g. "Qwen/Qwen2.5-7B-Instruct".
                 type: string
+              nodeName:
+                description: |-
+                  Exact node this replica must land on, as a `kubernetes.io/hostname`
+                  nodeSelector. Set by the fleet controller (ADR-0004) to pin a placement
+                  to its chosen node while keeping the default scheduler in the loop
+                  (resource fit, admission, taint/toleration). Unset for standalone /
+                  CI use, where no node constraint is emitted.
+                nullable: true
+                type: string
               replicas:
                 default: 1
                 description: Number of replicas to run.
@@ -106,6 +115,291 @@ spec:
         required:
         - spec
         title: VllmService
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: fleetservices.inference.michelecampi.dev
+spec:
+  group: inference.michelecampi.dev
+  names:
+    categories: []
+    kind: FleetService
+    plural: fleetservices
+    shortNames:
+    - fleet
+    singular: fleetservice
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for FleetServiceSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              Desired state for a fleet of vLLM services scheduled across nodes.
+
+              `FleetService` does not manage warmup lifecycle itself — that stays owned
+              by `VllmService`, already validated E2E on GKE. This CRD owns placement:
+              which node runs which instance, and how the fleet reacts to node-level
+              state (warmth, load, spot preemption) that only exists once you have more
+              than one node. Deployment -> ReplicaSet -> Pod is the model: FleetService
+              creates and reconciles owned VllmService objects, it does not replace
+              their reconciler.
+            properties:
+              hysteresis:
+                default:
+                  maxConcurrentReschedules: 1
+                  stableReconcilesRequired: 3
+                description: Anti-oscillation controls for the reconcile loop.
+                properties:
+                  maxConcurrentReschedules:
+                    default: 1
+                    description: |-
+                      Max simultaneous reschedules across the fleet, analogous to
+                      maxUnavailable. Caps blast radius of a bad placement decision.
+                    format: int32
+                    type: integer
+                  stableReconcilesRequired:
+                    default: 3
+                    description: |-
+                      Consecutive reconciles a node-state category must persist before the
+                      controller acts on it. Prevents flapping on a single noisy sample.
+                    format: int32
+                    type: integer
+                type: object
+              model:
+                description: HuggingFace model id, passed through to every owned VllmService.
+                type: string
+              nodePool:
+                default:
+                  selector: {}
+                  spotPolicy:
+                    enabled: false
+                    maxSpotFraction: 0.0
+                description: Node pool this fleet is allowed to place onto.
+                properties:
+                  selector:
+                    additionalProperties:
+                      type: string
+                    default: {}
+                    description: Label selector for nodes this fleet may place onto.
+                    type: object
+                  spotPolicy:
+                    default:
+                      enabled: false
+                      maxSpotFraction: 0.0
+                    properties:
+                      enabled:
+                        default: false
+                        type: boolean
+                      maxSpotFraction:
+                        default: 0.5
+                        description: Max fraction of fleet replicas allowed on spot nodes, 0.0-1.0.
+                        format: float
+                        type: number
+                    type: object
+                type: object
+              placement:
+                default:
+                  strategy: WarmthFirst
+                description: |-
+                  Placement strategy. Only "warmth-first" is implemented in v1; the
+                  enum exists so a future bin-packing strategy does not require an API
+                  break, but no other variant does anything yet (see ADR).
+                properties:
+                  strategy:
+                    default: WarmthFirst
+                    enum:
+                    - WarmthFirst
+                    - Spread
+                    - BinPack
+                    type: string
+                type: object
+              replicas:
+                description: Desired replica count at fleet level (across all nodes).
+                format: int32
+                type: integer
+              template:
+                description: |-
+                  VllmService template applied to every placement. Same shape as
+                  VllmServiceSpec minus `model`/`replicas`, which the fleet controls.
+                properties:
+                  extraArgs:
+                    default: []
+                    items:
+                      type: string
+                    type: array
+                  gpu:
+                    default: 1
+                    format: int32
+                    type: integer
+                  healthPath:
+                    default: /health
+                    type: string
+                  runtimeClassName:
+                    nullable: true
+                    type: string
+                type: object
+            required:
+            - model
+            - replicas
+            - template
+            type: object
+          status:
+            description: Observed state, written back by the fleet controller.
+            nullable: true
+            properties:
+              activeReschedules:
+                description: Counter backing the max_concurrent_reschedules cap.
+                format: int32
+                type: integer
+              desiredReplicas:
+                format: int32
+                type: integer
+              phase:
+                description: 'Aggregated phase: worst-case across all placements.'
+                type: string
+              placements:
+                default: []
+                items:
+                  properties:
+                    lastTransitionTime:
+                      description: RFC3339 timestamp of the last phase transition.
+                      type: string
+                    nodeRef:
+                      type: string
+                    phase:
+                      type: string
+                    stableSince:
+                      default: ''
+                      description: |-
+                        RFC3339 timestamp since the current phase has held stable, used for
+                        hysteresis. None-equivalent is an empty string (kept JsonSchema-simple
+                        rather than Option<String> to avoid an extra null branch in the CRD
+                        schema).
+                      type: string
+                    vllmServiceRef:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - nodeRef
+                  - phase
+                  - vllmServiceRef
+                  type: object
+                type: array
+              readyReplicas:
+                format: int32
+                type: integer
+            required:
+            - activeReschedules
+            - desiredReplicas
+            - phase
+            - readyReplicas
+            type: object
+        required:
+        - spec
+        title: FleetService
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: nodestates.inference.michelecampi.dev
+spec:
+  group: inference.michelecampi.dev
+  names:
+    categories: []
+    kind: NodeState
+    plural: nodestates
+    shortNames:
+    - nstate
+    singular: nodestate
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for NodeStateSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              Desired state observed for a single node, written by a per-node reporter
+              DaemonSet (outside this operator's binary) and read by FleetController.
+              Kept separate from core Node objects: mutating Node annotations directly
+              risks collision with cluster-autoscaler and other node controllers.
+            properties:
+              reportIntervalSeconds:
+                default: 15
+                description: Cadence at which the reporter refreshes status, in seconds.
+                format: int32
+                type: integer
+            type: object
+          status:
+            description: Observed state for a single node, written by the per-node reporter.
+            nullable: true
+            properties:
+              activeServiceCount:
+                format: int32
+                type: integer
+              gpuMemoryUsedBytes:
+                format: int64
+                type: integer
+              gpuUtilization:
+                format: float
+                type: number
+              lastReportTime:
+                description: RFC3339 timestamp of the last reporter write.
+                type: string
+              observedGeneration:
+                format: int64
+                type: integer
+              spot:
+                default:
+                  isSpotInstance: false
+                  preemptionNoticeDetected: false
+                  preemptionNoticeTime: ''
+                properties:
+                  isSpotInstance:
+                    default: false
+                    type: boolean
+                  preemptionNoticeDetected:
+                    default: false
+                    type: boolean
+                  preemptionNoticeTime:
+                    default: ''
+                    description: RFC3339 timestamp; empty string until a notice is first detected.
+                    type: string
+                type: object
+              warmth:
+                default: Cold
+                enum:
+                - Cold
+                - Warming
+                - Warm
+                type: string
+            required:
+            - activeServiceCount
+            - gpuMemoryUsedBytes
+            - gpuUtilization
+            - lastReportTime
+            - observedGeneration
+            type: object
+        required:
+        - spec
+        title: NodeState
         type: object
     served: true
     storage: true
