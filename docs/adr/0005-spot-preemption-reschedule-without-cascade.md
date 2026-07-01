@@ -35,20 +35,31 @@ warmth would cause the fleet to churn placements continuously — the opposite
 of anti-cascade. The preemption notice is the only signal that is both urgent
 (a hard deadline before the node vanishes) and unambiguous.
 
-### 2. Bounded reschedule: two brakes, both active
+### 2. Bounded reschedule: concurrency cap active, hysteresis deferred
 
-- **Concurrency cap** — `spec.hysteresis` backs `max_concurrent_reschedules`;
-  the controller tracks in-flight reschedules in `status.activeReschedules`
-  and refuses to start a new one past the cap. When a whole spot pool is
-  reclaimed at once, displaced replicas are drained and replaced in bounded
-  waves, not all at once. This is the primary anti-cascade brake.
-- **Hysteresis** — a placement that has just moved (its `stableSince` is
-  recent) is not moved again within the hysteresis window. This stops the
-  ping-pong where a replace immediately re-triggers on transient state.
+- **Concurrency cap (active in v1)** — `spec.hysteresis.max_concurrent_reschedules`
+  caps simultaneous reschedules; the controller tracks in-flight reschedules in
+  `status.activeReschedules` and refuses to start a new one past the cap. When a
+  whole spot pool is reclaimed at once, displaced replicas are drained and
+  replaced in bounded waves, not all at once. This is the primary anti-cascade
+  brake and it is the one that matters for the preemption trigger.
+- **Hysteresis (deferred)** — `spec.hysteresis.stable_reconciles_required` and
+  the `stableSince` timestamp on `PlacementStatus` exist to damp flapping, but
+  are *not* made load-bearing in v1. Hysteresis guards against ping-pong on a
+  *noisy, oscillating* signal; the only v1 trigger is preemption (decision 1),
+  which is a rare, one-way, urgent event that does not oscillate. Wiring a
+  reconcile-counter or a timestamp window now would add per-placement state to
+  guard against a failure mode v1 cannot exhibit.
 
-Both are active. The cap bounds the *burst*; hysteresis bounds the
-*frequency*. They address different cascade shapes and neither subsumes the
-other.
+The cap bounds the *burst*, which is the real risk when a spot pool is reclaimed
+together. Hysteresis bounds the *frequency*, which only becomes a risk once
+reschedules can trigger on an oscillating signal such as warmth — explicitly out
+of scope in v1 (decision 1). Hysteresis becomes load-bearing when that trigger
+is added; the spec fields are already in place for it.
+
+Trade-off, stated: v1 protects against the burst but not the ping-pong. This is
+sound precisely because preemption does not oscillate; it would not be sound if
+warmth were a trigger.
 
 ### 3. No healthy target: drain and hold, do not force
 
@@ -88,7 +99,8 @@ revisit if fleet count per namespace grows large.
 - `.watches(NodeState)` added to the fleet Controller with a namespace-wide
   mapper. This is the first reactive (non-poll) path in the fleet controller.
 - `status.activeReschedules` becomes load-bearing: written up as reschedules
-  start, down as they complete, and read to enforce the cap.
+  start, down as they complete, and read to enforce the concurrency cap. The
+  hysteresis fields remain defined but inert in v1 (see decision 2).
 - Validation on kind: simulate preemption by patching
   `status.spot.preemptionNoticeDetected=true` on a node carrying placements,
   observe bounded drain + replace, and the graceful-hold case by preempting
