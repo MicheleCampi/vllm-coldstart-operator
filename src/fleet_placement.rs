@@ -35,6 +35,32 @@ pub fn select_node_for_placement(candidates: &[NodeCandidate]) -> Option<&NodeCa
     })
 }
 
+/// Choose a replacement node for a placement displaced by preemption
+/// (ADR-0005). Excludes the preempted node by name, then applies the same
+/// warmth-first selection as initial placement over the survivors.
+///
+/// Returns None when no healthy survivor exists — every remaining candidate
+/// is Cold or the candidate set is empty. The caller treats None as the
+/// drain-and-hold case (decision 3): the replica stays Draining rather than
+/// being forced onto an unsuitable node.
+pub fn select_replacement_node(
+    candidates: &[NodeCandidate],
+    preempted_node: &str,
+) -> Option<String> {
+    let survivors: Vec<NodeCandidate> = candidates
+        .iter()
+        .filter(|c| c.name != preempted_node)
+        .cloned()
+        .collect();
+    // A Cold-only survivor set is not a healthy target: warmth-first would
+    // still pick one, so drop Cold explicitly to honour drain-and-hold.
+    let healthy: Vec<NodeCandidate> = survivors
+        .into_iter()
+        .filter(|c| !matches!(c.warmth, Warmth::Cold))
+        .collect();
+    select_node_for_placement(&healthy).map(|c| c.name.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,5 +114,35 @@ mod tests {
         let candidates = vec![candidate("only-node", Warmth::Cold, 99.0, 10)];
         let chosen = select_node_for_placement(&candidates).unwrap();
         assert_eq!(chosen.name, "only-node");
+    }
+
+    #[test]
+    fn replacement_excludes_preempted_and_picks_warmest_survivor() {
+        let candidates = vec![
+            candidate("preempted", Warmth::Warm, 0.1, 0),
+            candidate("survivor-warm", Warmth::Warm, 0.2, 0),
+            candidate("survivor-warming", Warmth::Warming, 0.1, 0),
+        ];
+        let chosen = select_replacement_node(&candidates, "preempted");
+        // preempted is excluded; among survivors the Warm one wins over Warming.
+        assert_eq!(chosen, Some("survivor-warm".to_string()));
+    }
+
+    #[test]
+    fn replacement_holds_when_only_cold_survivors() {
+        let candidates = vec![
+            candidate("preempted", Warmth::Warm, 0.1, 0),
+            candidate("cold-a", Warmth::Cold, 0.0, 0),
+            candidate("cold-b", Warmth::Cold, 0.0, 0),
+        ];
+        // Every survivor is Cold: not a healthy target => drain-and-hold.
+        assert_eq!(select_replacement_node(&candidates, "preempted"), None);
+    }
+
+    #[test]
+    fn replacement_holds_when_preempted_was_the_only_node() {
+        let candidates = vec![candidate("preempted", Warmth::Warm, 0.1, 0)];
+        // Excluding the only node leaves nothing => drain-and-hold.
+        assert_eq!(select_replacement_node(&candidates, "preempted"), None);
     }
 }
