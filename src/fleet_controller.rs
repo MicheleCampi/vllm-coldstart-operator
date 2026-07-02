@@ -255,13 +255,24 @@ pub async fn reconcile(
     // replacement chosen for them within budget. A slot with no replacement
     // (cap exhausted, or select_replacement_node returns None because every
     // survivor is Cold) stays pinned and drains-and-holds (ADR-0005 dec.3).
+    // Replacement targets must exclude *every* preempted node, not just the one
+    // being replaced: in a multi-node reclaim another preempted node is itself
+    // draining and is not a safe destination. select_replacement_node already
+    // drops the single node passed to it and rejects Cold; filtering the whole
+    // preempted set here closes the multi-node case.
+    let healthy_candidates: Vec<NodeCandidate> = candidates
+        .iter()
+        .filter(|c| !preempted.contains(c.name.as_str()))
+        .cloned()
+        .collect();
+
     let mut preempted_slots: BTreeSet<usize> = BTreeSet::new();
     let mut moved: BTreeMap<usize, String> = BTreeMap::new();
     for (i, node) in &current {
         if preempted.contains(node.as_str()) {
             preempted_slots.insert(*i);
             if budget > 0 {
-                if let Some(target) = select_replacement_node(&candidates, node.as_str()) {
+                if let Some(target) = select_replacement_node(&healthy_candidates, node.as_str()) {
                     moved.insert(*i, target);
                     budget -= 1;
                 }
