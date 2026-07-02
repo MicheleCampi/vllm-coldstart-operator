@@ -15,7 +15,7 @@
 //! from that snapshot. Reacting to node changes via a `.watches(NodeState)`
 //! mapper is the spot-preemption block (ADR-0005), not this one.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,7 +31,7 @@ use kube::{
 use serde_json::json;
 use tracing::{info, warn};
 
-use vllm_coldstart_operator::fleet_placement::NodeCandidate;
+use vllm_coldstart_operator::fleet_placement::{select_replacement_node, NodeCandidate};
 use vllm_coldstart_operator::fleet_planning::plan_initial_placements;
 use vllm_coldstart_operator::fleet_types::{
     placement_phase_for, FleetService, FleetServiceStatus, NodeState, PlacementStatus,
@@ -148,6 +148,21 @@ pub async fn reconcile(
     let states = node_states.list(&Default::default()).await?;
     let candidates: Vec<NodeCandidate> =
         states.iter().filter_map(node_state_to_candidate).collect();
+
+    // Nodes that signalled a spot preemption notice. This is the only trigger
+    // for a reschedule in v1 (ADR-0005 dec.1): warmth changes and node
+    // disappearance deliberately do not move placements.
+    let preempted: BTreeSet<String> = states
+        .iter()
+        .filter(|ns| {
+            ns.status
+                .as_ref()
+                .map(|s| s.spot.preemption_notice_detected)
+                .unwrap_or(false)
+        })
+        .map(|ns| ns.name_any())
+        .collect();
+
     if candidates.is_empty() {
         warn!(
             "FleetService '{}': no reported NodeState objects, nothing to place",
@@ -211,16 +226,61 @@ pub async fn reconcile(
     //    fresh node only for slots that have no child yet. Planning for the
     //    missing slots still spreads load across candidates.
     let desired = fleet.spec.replicas.max(0) as usize;
+
+    // Preemption pass (ADR-0005): a slot whose current pin sits on a preempted
+    // node must move. The concurrency cap bounds the blast radius — count moves
+    // already in flight (Draining/Rescheduling on a *healthy* node, i.e. already
+    // consuming survivor capacity) and only start new moves up to the cap. A
+    // Draining placement still on its preempted node is a drain-and-hold, not a
+    // move in flight, so it does not consume the cap.
+    let cap = fleet.spec.hysteresis.max_concurrent_reschedules.max(0) as usize;
+    let in_flight_moves = fleet
+        .status
+        .as_ref()
+        .map(|st| {
+            st.placements
+                .iter()
+                .filter(|p| {
+                    matches!(p.phase.as_str(), "Draining" | "Rescheduling")
+                        && !preempted.contains(p.node_ref.as_str())
+                })
+                .count()
+        })
+        .unwrap_or(0);
+    let mut budget = cap.saturating_sub(in_flight_moves);
+
+    // Slots forced to Draining because their pin is preempted, plus the healthy
+    // replacement chosen for them within budget. A slot with no replacement
+    // (cap exhausted, or select_replacement_node returns None because every
+    // survivor is Cold) stays pinned and drains-and-holds (ADR-0005 dec.3).
+    let mut preempted_slots: BTreeSet<usize> = BTreeSet::new();
+    let mut moved: BTreeMap<usize, String> = BTreeMap::new();
+    for (i, node) in &current {
+        if preempted.contains(node.as_str()) {
+            preempted_slots.insert(*i);
+            if budget > 0 {
+                if let Some(target) = select_replacement_node(&candidates, node.as_str()) {
+                    moved.insert(*i, target);
+                    budget -= 1;
+                }
+            }
+        }
+    }
+
     let missing: Vec<usize> = (0..desired).filter(|i| !current.contains_key(i)).collect();
     let fresh = plan_initial_placements(missing.len() as i32, &candidates);
     let mut fresh_iter = fresh.into_iter();
     let mut slot_nodes: Vec<(usize, String)> = Vec::with_capacity(desired);
     for i in 0..desired {
-        let node = match current.get(&i) {
-            Some(existing_node) => existing_node.clone(),
-            None => match fresh_iter.next() {
-                Some(n) => n,
-                None => continue, // no candidate available for this slot
+        let node = match moved.get(&i) {
+            // Preempted slot with a healthy replacement: pin moves to the target.
+            Some(target) => target.clone(),
+            None => match current.get(&i) {
+                Some(existing_node) => existing_node.clone(),
+                None => match fresh_iter.next() {
+                    Some(n) => n,
+                    None => continue, // no candidate available for this slot
+                },
             },
         };
         slot_nodes.push((i, node));
@@ -238,14 +298,15 @@ pub async fn reconcile(
             .patch(&child_name, &pp, &Patch::Apply(&child))
             .await?;
         // Advance the placement phase from its previous value via the pure
-        // logic, rather than resetting to Pending. No preemption handling yet
-        // — that is the next pass; here preemption is always false.
+        // logic, rather than resetting to Pending. A slot flagged preempted
+        // above forces Draining regardless of readiness (ADR-0005).
         let current_phase = prev_phase
             .get(&child_name)
             .map(String::as_str)
             .unwrap_or("Pending");
         let node_ready = child_ready.get(&child_name).copied().unwrap_or(false);
-        let phase = placement_phase_for(current_phase, node_ready, false);
+        let preemption = preempted_slots.contains(index);
+        let phase = placement_phase_for(current_phase, node_ready, preemption);
         placements.push(PlacementStatus {
             vllm_service_ref: child_name,
             node_ref: node_name.clone(),
@@ -258,12 +319,24 @@ pub async fn reconcile(
     // 5. Write fleet status on the /status subresource.
     let fleets: Api<FleetService> = Api::namespaced(ctx.client.clone(), &ns);
     let placed = placements.len() as i32;
+    // Active reschedules = moves in flight on healthy nodes (what the cap reads
+    // next reconcile). Drain-and-hold placements are Draining but still pinned
+    // to a preempted node, so they are excluded — otherwise a mass reclaim
+    // would spike the counter and deadlock the cap against its own forced
+    // Draining.
+    let active_reschedules = placements
+        .iter()
+        .filter(|p| {
+            matches!(p.phase.as_str(), "Draining" | "Rescheduling")
+                && !preempted.contains(p.node_ref.as_str())
+        })
+        .count() as i32;
     let status_patch = json!({
         "status": FleetServiceStatus {
             phase: "Placing".to_string(),
             ready_replicas: 0,
             desired_replicas: fleet.spec.replicas,
-            active_reschedules: 0,
+            active_reschedules,
             placements,
         }
     });
