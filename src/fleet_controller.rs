@@ -34,7 +34,7 @@ use tracing::{info, warn};
 use vllm_coldstart_operator::fleet_placement::NodeCandidate;
 use vllm_coldstart_operator::fleet_planning::plan_initial_placements;
 use vllm_coldstart_operator::fleet_types::{
-    FleetService, FleetServiceStatus, NodeState, PlacementStatus,
+    placement_phase_for, FleetService, FleetServiceStatus, NodeState, PlacementStatus,
 };
 use vllm_coldstart_operator::metrics::Metrics;
 use vllm_coldstart_operator::{default_image, VllmService, VllmServiceSpec};
@@ -166,11 +166,21 @@ pub async fn reconcile(
     let lp = ListParams::default().labels(&format!("inference.michelecampi.dev/fleet={name}"));
     let existing = services.list(&lp).await?;
     let mut current: BTreeMap<usize, String> = BTreeMap::new();
+    // Observed readiness of each existing child, keyed by child name. A
+    // placement is Ready only when its owned VllmService reports Ready (that
+    // phase already folds in Deployment readiness + warmup).
+    let mut child_ready: BTreeMap<String, bool> = BTreeMap::new();
     for child in &existing.items {
         // Child name is "<fleet>-<index>"; recover the slot index from the
         // suffix. Ignore any child that does not parse (not fleet-owned in
         // the expected shape).
         let child_name = child.name_any();
+        let ready = child
+            .status
+            .as_ref()
+            .map(|s| s.phase == "Ready")
+            .unwrap_or(false);
+        child_ready.insert(child_name.clone(), ready);
         if let Some(idx) = child_name
             .rsplit_once('-')
             .and_then(|(_, i)| i.parse::<usize>().ok())
@@ -180,6 +190,22 @@ pub async fn reconcile(
             }
         }
     }
+
+    // Previous per-placement phase from our own last status write. The fleet is
+    // the sole writer of the placement lifecycle phase, so phases must be
+    // advanced from here rather than reset to Pending every reconcile — else
+    // the stateful phase (and the reschedule accounting the next pass builds on
+    // it) would never persist across loops.
+    let prev_phase: BTreeMap<String, String> = fleet
+        .status
+        .as_ref()
+        .map(|s| {
+            s.placements
+                .iter()
+                .map(|p| (p.vllm_service_ref.clone(), p.phase.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
 
     // 3. Decide the node for each slot: preserve an existing pin, plan a
     //    fresh node only for slots that have no child yet. Planning for the
@@ -211,10 +237,19 @@ pub async fn reconcile(
         services
             .patch(&child_name, &pp, &Patch::Apply(&child))
             .await?;
+        // Advance the placement phase from its previous value via the pure
+        // logic, rather than resetting to Pending. No preemption handling yet
+        // — that is the next pass; here preemption is always false.
+        let current_phase = prev_phase
+            .get(&child_name)
+            .map(String::as_str)
+            .unwrap_or("Pending");
+        let node_ready = child_ready.get(&child_name).copied().unwrap_or(false);
+        let phase = placement_phase_for(current_phase, node_ready, false);
         placements.push(PlacementStatus {
             vllm_service_ref: child_name,
             node_ref: node_name.clone(),
-            phase: "Pending".to_string(),
+            phase: phase.to_string(),
             last_transition_time: String::new(),
             stable_since: String::new(),
         });
