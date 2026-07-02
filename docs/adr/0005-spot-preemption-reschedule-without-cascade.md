@@ -99,8 +99,16 @@ revisit if fleet count per namespace grows large.
 - `.watches(NodeState)` added to the fleet Controller with a namespace-wide
   mapper. This is the first reactive (non-poll) path in the fleet controller.
 - `status.activeReschedules` becomes load-bearing: written up as reschedules
-  start, down as they complete, and read to enforce the concurrency cap. The
-  hysteresis fields remain defined but inert in v1 (see decision 2).
+  start, down as they complete, and read to enforce the concurrency cap. It
+  counts only *moves in flight on a healthy node* (Draining/Rescheduling whose
+  `nodeRef` is not itself preempted), not the raw Draining count. A drain-and-
+  hold placement is Draining but still pinned to its preempted node, so it is
+  excluded: preemption forces Draining unconditionally, so counting held
+  placements would let a mass reclaim spike the counter and deadlock the cap
+  against its own forced Draining — starving the healthy moves the cap exists
+  to pace. The cap thus bounds consumption of *survivor* capacity, which is the
+  actual cascade risk. The hysteresis fields remain defined but inert in v1
+  (see decision 2).
 - Validation on kind: simulate preemption by patching
   `status.spot.preemptionNoticeDetected=true` on a node carrying placements,
   observe bounded drain + replace, and the graceful-hold case by preempting
