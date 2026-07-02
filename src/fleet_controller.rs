@@ -11,9 +11,10 @@
 //!   `kubernetes.io/hostname` nodeSelector. The scheduler still does resource
 //!   fit, admission and taint/toleration before binding.
 //!
-//! This block is list-only: every reconcile lists `NodeState` fresh and plans
-//! from that snapshot. Reacting to node changes via a `.watches(NodeState)`
-//! mapper is the spot-preemption block (ADR-0005), not this one.
+//! Node changes are observed two ways: every reconcile lists `NodeState`
+//! fresh and plans from that snapshot, and a `.watches(NodeState)` mapper
+//! (ADR-0005 dec.4) wakes the fleet reactively on a preemption notice instead
+//! of waiting for the requeue interval.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -24,6 +25,7 @@ use kube::{
     api::{Api, ListParams, ObjectMeta, Patch, PatchParams},
     runtime::{
         controller::{Action, Controller},
+        reflector::ObjectRef,
         watcher,
     },
     Client, Resource, ResourceExt,
@@ -367,13 +369,39 @@ pub fn error_policy(fleet: Arc<FleetService>, err: &FleetError, ctx: Arc<FleetCo
 pub async fn run(client: Client, metrics: Metrics) {
     let fleets: Api<FleetService> = Api::all(client.clone());
     let services: Api<VllmService> = Api::all(client.clone());
+    let node_states: Api<NodeState> = Api::all(client.clone());
     let context = Arc::new(FleetContext {
         client: client.clone(),
         metrics,
     });
     info!("starting fleet controller");
-    Controller::new(fleets, watcher::Config::default())
+
+    let controller = Controller::new(fleets, watcher::Config::default());
+    // Reader over the controller's own FleetService cache, captured before the
+    // builder chain consumes the controller. The NodeState mapper reads it
+    // synchronously to fan a node event out to fleets (ADR-0005 dec.4).
+    let fleet_reader = controller.store();
+
+    controller
         .owns(services, watcher::Config::default())
+        .watches(
+            node_states,
+            watcher::Config::default(),
+            move |node: NodeState| {
+                // Namespace-wide fan-out: a NodeState change wakes every
+                // FleetService in the node's namespace, not only those pinned
+                // to it. The reconcile is idempotent and cheap, so a reverse
+                // node->fleet index is a premature optimisation (ADR-0005
+                // dec.4). Reads the in-memory cache, no API call.
+                let node_ns = node.namespace();
+                fleet_reader
+                    .state()
+                    .into_iter()
+                    .filter(move |fs| fs.namespace() == node_ns)
+                    .map(|fs| ObjectRef::from_obj(fs.as_ref()))
+                    .collect::<Vec<_>>()
+            },
+        )
         .run(reconcile, error_policy, context)
         .for_each(|res| async move {
             match res {
