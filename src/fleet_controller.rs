@@ -88,6 +88,19 @@ fn node_state_to_candidate(ns: &NodeState) -> Option<NodeCandidate> {
     })
 }
 
+/// Number of this fleet's own placements currently pinned to each node.
+/// The controller knows where it has already placed; that knowledge must not
+/// depend on an external reporter refreshing NodeState.activeServiceCount in
+/// time. Rehearsal finding (item 4): with a stale reporter the replacement
+/// co-located two placements on one node while a free warm spare existed.
+fn own_placements_per_node(current: &BTreeMap<usize, String>) -> BTreeMap<String, i32> {
+    let mut counts = BTreeMap::new();
+    for node in current.values() {
+        *counts.entry(node.clone()).or_insert(0) += 1;
+    }
+    counts
+}
+
 /// Build an owned VllmService for one placement: the fleet's model/template
 /// plus the chosen node, pinned via node_name (ADR-0004). Name is
 /// deterministic (`<fleet>-<index>`) so re-reconciles apply the same object
@@ -225,6 +238,20 @@ pub async fn reconcile(
         })
         .unwrap_or_default();
 
+    // Self-awareness: fold this fleet's own placements into the candidates'
+    // load signal. Both fresh planning and replacement selection must see the
+    // capacity the fleet itself has already consumed, even when the NodeState
+    // reporter lags (on kind it is static). The tie-break order of the pure
+    // seam (count before utilization) then does the right thing unchanged.
+    let own_counts = own_placements_per_node(&current);
+    let candidates: Vec<NodeCandidate> = candidates
+        .into_iter()
+        .map(|mut c| {
+            c.active_service_count += own_counts.get(c.name.as_str()).copied().unwrap_or(0);
+            c
+        })
+        .collect();
+
     // 3. Decide the node for each slot: preserve an existing pin, plan a
     //    fresh node only for slots that have no child yet. Planning for the
     //    missing slots still spreads load across candidates.
@@ -272,17 +299,37 @@ pub async fn reconcile(
     for (i, node) in &current {
         if preempted.contains(node.as_str()) {
             preempted_slots.insert(*i);
-            if budget > 0 {
-                if let Some(target) = select_replacement_node(&healthy_candidates, node.as_str()) {
+            if budget == 0 {
+                info!(
+                    "FleetService '{}': preemption notice on '{}' — cap exhausted, slot {} drains and holds",
+                    name, node, i
+                );
+                continue;
+            }
+            match select_replacement_node(&healthy_candidates, node.as_str()) {
+                Some(target) => {
+                    info!(
+                        "FleetService '{}': preemption notice on '{}' — rescheduling slot {} to '{}'",
+                        name, node, i, target
+                    );
                     moved.insert(*i, target);
                     budget -= 1;
+                }
+                None => {
+                    info!(
+                        "FleetService '{}': preemption notice on '{}' — no healthy replacement for slot {}, drain-and-hold",
+                        name, node, i
+                    );
                 }
             }
         }
     }
 
     let missing: Vec<usize> = (0..desired).filter(|i| !current.contains_key(i)).collect();
-    let fresh = plan_initial_placements(missing.len() as i32, &candidates);
+    // Fresh slots must not land on a preempted node either — it would need
+    // rescheduling on the very next pass (same exclusion rationale as
+    // replacement, ADR-0005).
+    let fresh = plan_initial_placements(missing.len() as i32, &healthy_candidates);
     let mut fresh_iter = fresh.into_iter();
     let mut slot_nodes: Vec<(usize, String)> = Vec::with_capacity(desired);
     for i in 0..desired {
@@ -438,6 +485,18 @@ pub async fn run(client: Client, metrics: Metrics) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn own_placements_counted_per_node() {
+        let mut current = BTreeMap::new();
+        current.insert(0, "node-a".to_string());
+        current.insert(1, "node-a".to_string());
+        current.insert(2, "node-b".to_string());
+        let counts = own_placements_per_node(&current);
+        assert_eq!(counts.get("node-a"), Some(&2));
+        assert_eq!(counts.get("node-b"), Some(&1));
+        assert_eq!(counts.get("node-c"), None);
+    }
 
     #[test]
     fn owned_child_carries_template_image_and_pinned_node() {
