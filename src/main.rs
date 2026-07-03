@@ -8,7 +8,8 @@ use k8s_openapi::api::apps::v1::{
 };
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EmptyDirVolumeSource, EnvVar, HTTPGetAction, PodSpec,
-    PodTemplateSpec, Probe, ResourceRequirements, Volume, VolumeMount,
+    PodTemplateSpec, Probe, ResourceRequirements, Service, ServicePort, ServiceSpec, Volume,
+    VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
@@ -270,6 +271,45 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     })
 }
 
+/// Stable routing surface for a VllmService: an owned ClusterIP Service
+/// selecting the Deployment's pods on port 8000. This is what makes the
+/// make-before-break drain of ADR-0005 dec.5 real: on a reschedule the
+/// replacement pod joins these endpoints when it turns Ready and the
+/// terminating pod leaves them immediately, so new requests never route to
+/// a draining pod. Also created for placeholder pods — harmless, since a
+/// never-ready pod contributes no endpoints.
+fn build_service(svc: &VllmService) -> Result<Service, Error> {
+    let name = svc.name_any();
+    let ns = svc.namespace().ok_or(Error::MissingNamespace)?;
+    let mut selector = BTreeMap::new();
+    selector.insert("app".to_string(), name.clone());
+    let mut labels = selector.clone();
+    labels.insert(
+        "app.kubernetes.io/managed-by".to_string(),
+        MANAGER.to_string(),
+    );
+    Ok(Service {
+        metadata: ObjectMeta {
+            name: Some(name),
+            namespace: Some(ns),
+            labels: Some(labels),
+            owner_references: Some(vec![svc.controller_owner_ref(&()).unwrap()]),
+            ..Default::default()
+        },
+        spec: Some(ServiceSpec {
+            selector: Some(selector),
+            ports: Some(vec![ServicePort {
+                name: Some("http".to_string()),
+                port: 8000,
+                target_port: Some(IntOrString::Int(8000)),
+                ..Default::default()
+            }]),
+            ..Default::default()
+        }),
+        ..Default::default()
+    })
+}
+
 async fn reconcile(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Action, Error> {
     let name = svc.name_any();
     let _measurer = ctx.metrics.count_and_measure();
@@ -285,6 +325,15 @@ async fn reconcile(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Action, E
     let pp = PatchParams::apply(MANAGER).force();
     let applied = deployments
         .patch(&name, &pp, &Patch::Apply(&desired))
+        .await?;
+
+    // 1b. Apply the owned Service (stable routing surface; see
+    //     build_service). Same SSA manager and force semantics as the
+    //     Deployment.
+    let k8s_services: Api<Service> = Api::namespaced(ctx.client.clone(), &ns);
+    let desired_service = build_service(&svc)?;
+    k8s_services
+        .patch(&name, &pp, &Patch::Apply(&desired_service))
         .await?;
 
     // 2. Derive the lifecycle phase from the Deployment's ready replicas.
@@ -409,4 +458,43 @@ async fn main() -> anyhow::Result<()> {
     tokio::join!(vllm_fut, fleet_fut);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample() -> VllmService {
+        serde_json::from_value(json!({
+            "metadata": {
+                "name": "svc-a",
+                "namespace": "default",
+                "uid": "00000000-0000-0000-0000-000000000001"
+            },
+            "spec": {"model": "facebook/opt-125m", "gpu": 0}
+        }))
+        .expect("valid fixture")
+    }
+
+    #[test]
+    fn service_selects_deployment_pods_on_port_8000() {
+        let svc = sample();
+        let service = build_service(&svc).expect("service");
+        let deploy = build_deployment(&svc).expect("deployment");
+        let pod_labels = deploy
+            .spec
+            .and_then(|s| s.template.metadata)
+            .and_then(|m| m.labels)
+            .expect("pod labels");
+        let spec = service.spec.expect("service spec");
+        // Every selector key must be present on the pod template, or the
+        // Service selects nothing and ADR-0005 dec.5 silently has no
+        // endpoints to speak of.
+        for (k, v) in spec.selector.expect("selector").iter() {
+            assert_eq!(pod_labels.get(k), Some(v));
+        }
+        let ports = spec.ports.expect("ports");
+        assert_eq!(ports.len(), 1);
+        assert_eq!(ports[0].port, 8000);
+    }
 }
