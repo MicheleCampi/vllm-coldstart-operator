@@ -87,6 +87,26 @@ a premature optimisation for the fleet sizes this targets. Trade-off: a node
 event wakes fleets that do not care, doing a no-op reconcile each. Acceptable;
 revisit if fleet count per namespace grows large.
 
+### 5. Data-plane drain: make-before-break plus grace period
+
+The control plane marks a placement Draining, but the actual draining of
+in-flight requests is delegated to declared Deployment mechanics:
+
+- **Make-before-break** — the owned Deployment sets `maxSurge: 1` /
+  `maxUnavailable: 0` explicitly. On a reschedule the pin change (ADR-0004
+  nodeSelector) rolls the pod: the replacement must be Ready (readiness probe
+  = warm) on the target node before the displaced pod is terminated. Service
+  continuity does not depend on scheduler timing.
+- **Grace period** — serving pods set `terminationGracePeriodSeconds: 120`.
+  On termination the pod leaves Service endpoints immediately, so new requests
+  route to the replacement; in-flight generations have the grace window to
+  finish. Generations longer than the window are cut: bounded, stated loss.
+
+These values match what the k8s defaults (25%/25%) already round to at
+replicas=1 — but relying on that silently would let the anti-cascade property
+vanish under a default change or an explicit Recreate. Declared here; measured
+under real saturation in the item-4 GPU validation.
+
 ## Consequences
 
 - New pure function to select a replacement node for a displaced placement,

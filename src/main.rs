@@ -3,7 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
-use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
+use k8s_openapi::api::apps::v1::{
+    Deployment, DeploymentSpec, DeploymentStrategy, RollingUpdateDeployment,
+};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EmptyDirVolumeSource, EnvVar, HTTPGetAction, PodSpec,
     PodTemplateSpec, Probe, ResourceRequirements, Volume, VolumeMount,
@@ -53,6 +55,14 @@ struct Context {
     client: Client,
     metrics: Metrics,
 }
+
+/// Drain window for serving pods, in seconds. On termination the pod leaves
+/// Service endpoints immediately (new requests route to the replacement);
+/// in-flight generations get this long to complete after SIGTERM before the
+/// kubelet kills the pod. Bounds the tail of a make-before-break move.
+/// Deliberately a constant, not a spec field: the drain window is operator
+/// policy in v1 (same YAGNI stance as ADR-0005's deferred hysteresis).
+const TERMINATION_GRACE_SECONDS: i64 = 120;
 
 fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     let name = svc.name_any();
@@ -214,7 +224,25 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
             runtime_class_name: svc.spec.runtime_class_name.clone(),
             node_selector,
             volumes,
+            termination_grace_period_seconds: serving.then_some(TERMINATION_GRACE_SECONDS),
             ..Default::default()
+        }),
+    };
+
+    // Make-before-break, declared rather than inherited: maxSurge=1 /
+    // maxUnavailable=0 is what the k8s defaults (25%/25%) already round to at
+    // replicas=1, but the anti-cascade drain of ADR-0005 dec.5 relies on it,
+    // so it must not drift silently with defaults. On a cross-node move
+    // (nodeSelector change, ADR-0004) the replacement pod must be Ready on
+    // the target node before the displaced pod is terminated. Trade-off,
+    // stated: an in-place update on a full single-GPU node holds (surge pod
+    // unschedulable) until capacity frees — correct for fleet moves, which
+    // always change node.
+    let strategy = DeploymentStrategy {
+        type_: Some("RollingUpdate".to_string()),
+        rolling_update: Some(RollingUpdateDeployment {
+            max_surge: Some(IntOrString::Int(1)),
+            max_unavailable: Some(IntOrString::Int(0)),
         }),
     };
 
@@ -224,6 +252,7 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
             match_labels: Some(labels.clone()),
             ..Default::default()
         },
+        strategy: Some(strategy),
         template,
         ..Default::default()
     };
