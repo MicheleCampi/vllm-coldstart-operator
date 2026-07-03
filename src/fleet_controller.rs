@@ -36,7 +36,8 @@ use tracing::{info, warn};
 use vllm_coldstart_operator::fleet_placement::{select_replacement_node, NodeCandidate};
 use vllm_coldstart_operator::fleet_planning::plan_initial_placements;
 use vllm_coldstart_operator::fleet_types::{
-    placement_phase_for, FleetService, FleetServiceStatus, NodeState, PlacementStatus,
+    fleet_phase_for, placement_phase_for, FleetService, FleetServiceStatus, NodeState,
+    PlacementStatus,
 };
 use vllm_coldstart_operator::metrics::Metrics;
 use vllm_coldstart_operator::{default_image, VllmService, VllmServiceSpec};
@@ -344,10 +345,21 @@ pub async fn reconcile(
                 && !preempted.contains(p.node_ref.as_str())
         })
         .count() as i32;
+    // Honest status: ready counts placements whose lifecycle phase is Ready
+    // (that phase already folds in child Deployment readiness + warmup). A
+    // drain-and-hold is a Draining placement still pinned to a preempted node
+    // (cap exhausted or no healthy target): it drives the fleet phase to
+    // Degraded so the deliberate degradation of ADR-0005 dec.3 is visible in
+    // `kubectl get`, not hidden behind a perpetual Placing.
+    let ready_replicas = placements.iter().filter(|p| p.phase == "Ready").count() as i32;
+    let drain_and_hold = placements
+        .iter()
+        .any(|p| p.phase == "Draining" && preempted.contains(p.node_ref.as_str()));
+    let fleet_phase = fleet_phase_for(fleet.spec.replicas, ready_replicas, drain_and_hold);
     let status_patch = json!({
         "status": FleetServiceStatus {
-            phase: "Placing".to_string(),
-            ready_replicas: 0,
+            phase: fleet_phase.to_string(),
+            ready_replicas,
             desired_replicas: fleet.spec.replicas,
             active_reschedules,
             placements,

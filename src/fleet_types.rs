@@ -178,6 +178,22 @@ pub fn placement_phase_for(
     }
 }
 
+/// Fleet-level phase derived from placement outcomes, pure and unit-testable.
+/// `Degraded` surfaces drain-and-hold (ADR-0005 dec.3): the fleet deliberately
+/// runs with fewer live replicas because no healthy target exists, and the
+/// status must say so rather than hide it. `Ready` requires every desired
+/// replica to report Ready (vacuously true at zero desired). Anything else is
+/// still `Placing`.
+pub fn fleet_phase_for(desired: i32, ready: i32, drain_and_hold: bool) -> &'static str {
+    if drain_and_hold {
+        "Degraded"
+    } else if ready >= desired {
+        "Ready"
+    } else {
+        "Placing"
+    }
+}
+
 /// Desired state observed for a single node, written by a per-node reporter
 /// DaemonSet (outside this operator's binary) and read by FleetController.
 /// Kept separate from core Node objects: mutating Node annotations directly
@@ -278,5 +294,24 @@ mod tests {
     fn unknown_or_pending_stays_pending_without_node_ready() {
         assert_eq!(placement_phase_for("Pending", false, false), "Pending");
         assert_eq!(placement_phase_for("Warming", false, false), "Pending");
+    }
+
+    #[test]
+    fn fleet_ready_when_all_desired_ready() {
+        assert_eq!(fleet_phase_for(2, 2, false), "Ready");
+    }
+
+    #[test]
+    fn fleet_degraded_when_any_drain_and_hold() {
+        // Drain-and-hold wins even when the other replicas are Ready: the
+        // fleet is deliberately short (ADR-0005 dec.3) and the status says so.
+        assert_eq!(fleet_phase_for(2, 1, true), "Degraded");
+        assert_eq!(fleet_phase_for(2, 2, true), "Degraded");
+    }
+
+    #[test]
+    fn fleet_placing_until_all_ready_and_vacuously_ready_at_zero() {
+        assert_eq!(fleet_phase_for(2, 1, false), "Placing");
+        assert_eq!(fleet_phase_for(0, 0, false), "Ready");
     }
 }
