@@ -1,0 +1,85 @@
+{
+  "run_dir": "hack/rehearsal/runs/20260703T211728",
+  "t_notice": 1783113478.8335512,
+  "config": {
+    "type": "run_config",
+    "ts_start": 1783113449.001641,
+    "targets": {
+      "a": "http://172.18.0.4:30801",
+      "b": "http://172.18.0.4:30800"
+    },
+    "model": "facebook/opt-125m",
+    "concurrency": 8,
+    "duration_s": 120.0,
+    "max_tokens": 128,
+    "prompt_words": 100,
+    "seed": 42,
+    "request_timeout_s": 180.0
+  },
+  "during_window_s": 30.0,
+  "targets": {
+    "a": {
+      "before": {
+        "n": 66,
+        "ok": 66,
+        "err": 0,
+        "rps": 2.21,
+        "p50_ms": 3403.3,
+        "p99_ms": 7998.9
+      },
+      "during": {
+        "n": 52,
+        "ok": 52,
+        "err": 0,
+        "rps": 1.73,
+        "p50_ms": 3871.7,
+        "p99_ms": 8560.3
+      },
+      "after": {
+        "n": 110,
+        "ok": 110,
+        "err": 0,
+        "rps": 0.97,
+        "p50_ms": 3919.7,
+        "p99_ms": 8398.3
+      }
+    },
+    "b": {
+      "before": {
+        "n": 59,
+        "ok": 59,
+        "err": 0,
+        "rps": 1.98,
+        "p50_ms": 3849.8,
+        "p99_ms": 8172.2
+      },
+      "during": {
+        "n": 60,
+        "ok": 50,
+        "err": 10,
+        "rps": 2.0,
+        "p50_ms": 2765.8,
+        "p99_ms": 6807.6
+      },
+      "after": {
+        "n": 101,
+        "ok": 101,
+        "err": 0,
+        "rps": 0.89,
+        "p50_ms": 2871.8,
+        "p99_ms": 6842.9
+      }
+    }
+  },
+  "t_decision_s": 0.113,
+  "moved_child": "rehearsal-0",
+  "replacement_node": "fleet-test-worker3",
+  "event_ts_resolution_s": 1,
+  "t_surge_scheduled_s": -0.8,
+  "t_old_pod_kill_s": 6.2,
+  "max_success_gap_s": {
+    "gap_s": 2.57,
+    "starts_at_T_plus_s": 2.9,
+    "target": "b"
+  }
+}

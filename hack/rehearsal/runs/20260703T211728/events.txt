@@ -1,0 +1,24 @@
+TS                     TYPE     REASON              OBJ                            MSG
+2026-07-03T21:16:19Z   Normal   Killing             rehearsal-0-7c84fb5866-mp6rd   Stopping container inference
+2026-07-03T21:16:19Z   Normal   Killing             rehearsal-1-65f4467c55-hgcp9   Stopping container inference
+2026-07-03T21:16:34Z   Normal   SuccessfulCreate    rehearsal-0-69c49fc44          Created pod: rehearsal-0-69c49fc44-db4fk
+2026-07-03T21:16:34Z   Normal   ScalingReplicaSet   rehearsal-0                    Scaled up replica set rehearsal-0-69c49fc44 from 0 to 1
+2026-07-03T21:16:34Z   Normal   ScalingReplicaSet   rehearsal-1                    Scaled up replica set rehearsal-1-65f4467c55 from 0 to 1
+2026-07-03T21:16:34Z   Normal   Scheduled           rehearsal-0-69c49fc44-db4fk    Successfully assigned default/rehearsal-0-69c49fc44-db4fk to fleet-test-worker2
+2026-07-03T21:16:34Z   Normal   SuccessfulCreate    rehearsal-1-65f4467c55         Created pod: rehearsal-1-65f4467c55-5sczm
+2026-07-03T21:16:34Z   Normal   Scheduled           rehearsal-1-65f4467c55-5sczm   Successfully assigned default/rehearsal-1-65f4467c55-5sczm to fleet-test-worker
+2026-07-03T21:16:35Z   Normal   Started             rehearsal-0-69c49fc44-db4fk    Started container inference
+2026-07-03T21:16:35Z   Normal   Pulled              rehearsal-1-65f4467c55-5sczm   Container image "llmd-sim-rehearsal:v0.8.2" already present on machine
+2026-07-03T21:16:35Z   Normal   Pulled              rehearsal-0-69c49fc44-db4fk    Container image "llmd-sim-rehearsal:v0.8.2" already present on machine
+2026-07-03T21:16:35Z   Normal   Started             rehearsal-1-65f4467c55-5sczm   Started container inference
+2026-07-03T21:16:35Z   Normal   Created             rehearsal-1-65f4467c55-5sczm   Created container: inference
+2026-07-03T21:16:35Z   Normal   Created             rehearsal-0-69c49fc44-db4fk    Created container: inference
+2026-07-03T21:17:58Z   Normal   Scheduled           rehearsal-0-5667cf67cc-qwlv5   Successfully assigned default/rehearsal-0-5667cf67cc-qwlv5 to fleet-test-worker3
+2026-07-03T21:17:58Z   Normal   SuccessfulCreate    rehearsal-0-5667cf67cc         Created pod: rehearsal-0-5667cf67cc-qwlv5
+2026-07-03T21:17:58Z   Normal   ScalingReplicaSet   rehearsal-0                    Scaled up replica set rehearsal-0-5667cf67cc from 0 to 1
+2026-07-03T21:17:59Z   Normal   Created             rehearsal-0-5667cf67cc-qwlv5   Created container: inference
+2026-07-03T21:17:59Z   Normal   Started             rehearsal-0-5667cf67cc-qwlv5   Started container inference
+2026-07-03T21:17:59Z   Normal   Pulled              rehearsal-0-5667cf67cc-qwlv5   Container image "llmd-sim-rehearsal:v0.8.2" already present on machine
+2026-07-03T21:18:05Z   Normal   ScalingReplicaSet   rehearsal-0                    Scaled down replica set rehearsal-0-69c49fc44 from 1 to 0
+2026-07-03T21:18:05Z   Normal   Killing             rehearsal-0-69c49fc44-db4fk    Stopping container inference
+2026-07-03T21:18:05Z   Normal   SuccessfulDelete    rehearsal-0-69c49fc44          Deleted pod: rehearsal-0-69c49fc44-db4fk

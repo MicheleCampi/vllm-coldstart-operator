@@ -1,0 +1,13 @@
+# Rehearsal image for item-4 kind validation: llm-d inference sim with the
+# serving args baked into the entrypoint. Needed because the operator's
+# gpu=0 placeholder path deliberately injects no command/args — the image
+# must be self-configuring. Latencies make requests take ~2.8s at 128
+# tokens so the drain window actually has in-flight requests to preserve.
+FROM ghcr.io/llm-d/llm-d-inference-sim:v0.8.2
+ENTRYPOINT ["/app/llm-d-inference-sim", \
+  "--model", "facebook/opt-125m", \
+  "--port", "8000", \
+  "--time-to-first-token", "250ms", \
+  "--inter-token-latency", "20ms", \
+  "--time-factor-under-load", "2.0", \
+  "--max-model-len", "4096"]

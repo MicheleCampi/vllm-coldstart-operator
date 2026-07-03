@@ -1,0 +1,36 @@
+TS                     TYPE      REASON              OBJ                             MSG
+2026-07-03T16:13:44Z   Normal    Pulled              qwen-fleet-1-8499d67b98-xdvq8   (combined from similar events): Successfully pulled image "vllm/vllm-openai:latest" in 690ms (690ms including waiting). Image size: 9203906113 bytes.
+2026-07-03T16:38:44Z   Normal    Pulled              qwen-fleet-3-545fcf64d8-zckqk   (combined from similar events): Successfully pulled image "vllm/vllm-openai:latest" in 701ms (701ms including waiting). Image size: 9203906113 bytes.
+2026-07-03T16:42:32Z   Normal    Pulled              qwen-fleet-2-f85ff88d5-94fl5    Successfully pulled image "vllm/vllm-openai:latest" in 711ms (711ms including waiting). Image size: 9203906113 bytes.
+2026-07-03T16:44:14Z   Normal    Pulling             qwen-fleet-3-545fcf64d8-zckqk   Pulling image "vllm/vllm-openai:latest"
+2026-07-03T16:46:18Z   Normal    Pulling             qwen-fleet-1-8499d67b98-xdvq8   Pulling image "vllm/vllm-openai:latest"
+2026-07-03T16:46:38Z   Normal    Pulling             qwen-fleet-4-874bf8995-sr6rw    Pulling image "vllm/vllm-openai:latest"
+2026-07-03T16:47:05Z   Warning   BackOff             qwen-fleet-1-8499d67b98-xdvq8   Back-off restarting failed container inference in pod qwen-fleet-1-8499d67b98-xdvq8_default(687faf24-cb99-4b95-9d3f-49cbc4221240)
+2026-07-03T16:47:12Z   Warning   BackOff             qwen-fleet-3-545fcf64d8-zckqk   Back-off restarting failed container inference in pod qwen-fleet-3-545fcf64d8-zckqk_default(94f3ed52-9c17-4a64-a0d3-9ad4bae60719)
+2026-07-03T16:47:15Z   Normal    Pulling             qwen-fleet-0-5cc78fdff9-qb876   Pulling image "vllm/vllm-openai:latest"
+2026-07-03T16:48:01Z   Normal    Pulling             qwen-fleet-2-f85ff88d5-94fl5    Pulling image "vllm/vllm-openai:latest"
+2026-07-03T16:48:14Z   Warning   BackOff             qwen-fleet-4-874bf8995-sr6rw    Back-off restarting failed container inference in pod qwen-fleet-4-874bf8995-sr6rw_default(0aaf7a6f-21c5-4ddc-bdeb-ce101d8e2333)
+2026-07-03T16:48:15Z   Warning   BackOff             qwen-fleet-0-5cc78fdff9-qb876   Back-off restarting failed container inference in pod qwen-fleet-0-5cc78fdff9-qb876_default(4cb8c5a3-52ef-4251-9112-5326026a155b)
+2026-07-03T16:48:20Z   Warning   BackOff             qwen-fleet-2-f85ff88d5-94fl5    Back-off restarting failed container inference in pod qwen-fleet-2-f85ff88d5-94fl5_default(43b2c935-9923-4155-933f-d751802b7909)
+2026-07-03T16:50:10Z   Normal    ScalingReplicaSet   rehearsal-0                     Scaled up replica set rehearsal-0-69c49fc44 from 0 to 1
+2026-07-03T16:50:10Z   Normal    Scheduled           rehearsal-0-69c49fc44-9sf55     Successfully assigned default/rehearsal-0-69c49fc44-9sf55 to fleet-test-worker2
+2026-07-03T16:50:10Z   Normal    ScalingReplicaSet   rehearsal-1                     Scaled up replica set rehearsal-1-65f4467c55 from 0 to 1
+2026-07-03T16:50:10Z   Normal    SuccessfulCreate    rehearsal-1-65f4467c55          Created pod: rehearsal-1-65f4467c55-hgcp9
+2026-07-03T16:50:10Z   Normal    Scheduled           rehearsal-1-65f4467c55-hgcp9    Successfully assigned default/rehearsal-1-65f4467c55-hgcp9 to fleet-test-worker
+2026-07-03T16:50:10Z   Normal    SuccessfulCreate    rehearsal-0-69c49fc44           Created pod: rehearsal-0-69c49fc44-9sf55
+2026-07-03T16:50:11Z   Normal    Started             rehearsal-0-69c49fc44-9sf55     Started container inference
+2026-07-03T16:50:11Z   Warning   FailedMount         rehearsal-1-65f4467c55-hgcp9    MountVolume.SetUp failed for volume "kube-api-access-m9tck" : failed to sync configmap cache: timed out waiting for the condition
+2026-07-03T16:50:11Z   Normal    Pulled              rehearsal-0-69c49fc44-9sf55     Container image "llmd-sim-rehearsal:v0.8.2" already present on machine
+2026-07-03T16:50:11Z   Normal    Created             rehearsal-0-69c49fc44-9sf55     Created container: inference
+2026-07-03T16:50:12Z   Normal    Started             rehearsal-1-65f4467c55-hgcp9    Started container inference
+2026-07-03T16:50:12Z   Normal    Created             rehearsal-1-65f4467c55-hgcp9    Created container: inference
+2026-07-03T16:50:12Z   Normal    Pulled              rehearsal-1-65f4467c55-hgcp9    Container image "llmd-sim-rehearsal:v0.8.2" already present on machine
+2026-07-03T16:53:57Z   Normal    ScalingReplicaSet   rehearsal-0                     Scaled up replica set rehearsal-0-7c84fb5866 from 0 to 1
+2026-07-03T16:53:57Z   Normal    Scheduled           rehearsal-0-7c84fb5866-mp6rd    Successfully assigned default/rehearsal-0-7c84fb5866-mp6rd to fleet-test-worker
+2026-07-03T16:53:57Z   Normal    SuccessfulCreate    rehearsal-0-7c84fb5866          Created pod: rehearsal-0-7c84fb5866-mp6rd
+2026-07-03T16:53:58Z   Normal    Started             rehearsal-0-7c84fb5866-mp6rd    Started container inference
+2026-07-03T16:53:58Z   Normal    Created             rehearsal-0-7c84fb5866-mp6rd    Created container: inference
+2026-07-03T16:53:58Z   Normal    Pulled              rehearsal-0-7c84fb5866-mp6rd    Container image "llmd-sim-rehearsal:v0.8.2" already present on machine
+2026-07-03T16:54:04Z   Normal    ScalingReplicaSet   rehearsal-0                     Scaled down replica set rehearsal-0-69c49fc44 from 1 to 0
+2026-07-03T16:54:04Z   Normal    Killing             rehearsal-0-69c49fc44-9sf55     Stopping container inference
+2026-07-03T16:54:04Z   Normal    SuccessfulDelete    rehearsal-0-69c49fc44           Deleted pod: rehearsal-0-69c49fc44-9sf55

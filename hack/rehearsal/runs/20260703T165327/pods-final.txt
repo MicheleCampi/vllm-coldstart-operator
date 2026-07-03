@@ -1,0 +1,3 @@
+NAME                           READY   STATUS    RESTARTS   AGE     IP           NODE                NOMINATED NODE   READINESS GATES
+rehearsal-0-7c84fb5866-mp6rd   1/1     Running   0          2m22s   10.244.3.6   fleet-test-worker   <none>           <none>
+rehearsal-1-65f4467c55-hgcp9   1/1     Running   0          6m9s    10.244.3.5   fleet-test-worker   <none>           <none>

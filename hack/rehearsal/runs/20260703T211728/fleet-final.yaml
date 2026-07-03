@@ -1,0 +1,46 @@
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: FleetService
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"inference.michelecampi.dev/v1alpha1","kind":"FleetService","metadata":{"annotations":{},"name":"rehearsal","namespace":"default"},"spec":{"hysteresis":{"maxConcurrentReschedules":1},"model":"facebook/opt-125m","replicas":2,"template":{"gpu":0,"healthPath":"/health","image":"llmd-sim-rehearsal:v0.8.2"}}}
+  creationTimestamp: "2026-07-03T21:16:22Z"
+  generation: 1
+  name: rehearsal
+  namespace: default
+  resourceVersion: "336271"
+  uid: b848669b-087b-45f4-8033-e5b77b073429
+spec:
+  hysteresis:
+    maxConcurrentReschedules: 1
+    stableReconcilesRequired: 3
+  model: facebook/opt-125m
+  nodePool:
+    selector: {}
+    spotPolicy:
+      enabled: false
+      maxSpotFraction: 0
+  placement:
+    strategy: WarmthFirst
+  replicas: 2
+  template:
+    extraArgs: []
+    gpu: 0
+    healthPath: /health
+    image: llmd-sim-rehearsal:v0.8.2
+status:
+  activeReschedules: 0
+  desiredReplicas: 2
+  phase: Ready
+  placements:
+  - lastTransitionTime: ""
+    nodeRef: fleet-test-worker3
+    phase: Ready
+    stableSince: ""
+    vllmServiceRef: rehearsal-0
+  - lastTransitionTime: ""
+    nodeRef: fleet-test-worker
+    phase: Ready
+    stableSince: ""
+    vllmServiceRef: rehearsal-1
+  readyReplicas: 2

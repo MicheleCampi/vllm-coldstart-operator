@@ -1,0 +1,17 @@
+# Item-4 rehearsal fleet: 2 serving placements + 1 warm spare (seeded via
+# seed-nodestates.sh). gpu=0 -> operator placeholder path, the rehearsal
+# image is self-configuring (see Dockerfile.sim).
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: FleetService
+metadata:
+  name: rehearsal
+  namespace: default
+spec:
+  model: facebook/opt-125m
+  replicas: 2
+  hysteresis:
+    maxConcurrentReschedules: 1
+  template:
+    image: llmd-sim-rehearsal:v0.8.2
+    gpu: 0
+    healthPath: /health
