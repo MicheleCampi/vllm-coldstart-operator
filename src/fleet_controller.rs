@@ -40,7 +40,7 @@ use vllm_coldstart_operator::fleet_types::{
     PlacementStatus,
 };
 use vllm_coldstart_operator::metrics::Metrics;
-use vllm_coldstart_operator::{default_image, VllmService, VllmServiceSpec};
+use vllm_coldstart_operator::{VllmService, VllmServiceSpec};
 
 /// Field manager for server-side apply of owned VllmService objects. Distinct
 /// from the VllmService reconciler's manager so the two do not contend on
@@ -106,7 +106,7 @@ fn build_owned_vllm_service(
         model: fleet.spec.model.clone(),
         replicas: 1,
         warmup_strategy: Default::default(),
-        image: default_image(),
+        image: t.image.clone(),
         gpu: t.gpu,
         health_path: t.health_path.clone(),
         runtime_class_name: t.runtime_class_name.clone(),
@@ -433,4 +433,33 @@ pub async fn run(client: Client, metrics: Metrics) {
             }
         })
         .await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn owned_child_carries_template_image_and_pinned_node() {
+        // API contract: the fleet's template image reaches the child spec
+        // verbatim — no silent fallback to default_image(), which is a
+        // :latest tag and therefore not a reproducible reference.
+        let fleet: FleetService = serde_json::from_value(json!({
+            "metadata": {
+                "name": "rehearsal",
+                "namespace": "default",
+                "uid": "00000000-0000-0000-0000-000000000002"
+            },
+            "spec": {
+                "model": "facebook/opt-125m",
+                "replicas": 2,
+                "template": {"image": "llmd-sim-rehearsal:v0.8.2", "gpu": 0}
+            }
+        }))
+        .expect("valid fixture");
+        let child = build_owned_vllm_service(&fleet, 0, "fleet-test-worker").expect("child");
+        assert_eq!(child.spec.image, "llmd-sim-rehearsal:v0.8.2");
+        assert_eq!(child.spec.node_name.as_deref(), Some("fleet-test-worker"));
+        assert_eq!(child.metadata.name.as_deref(), Some("rehearsal-0"));
+    }
 }

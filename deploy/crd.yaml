@@ -244,6 +244,14 @@ spec:
                   healthPath:
                     default: /health
                     type: string
+                  image:
+                    default: vllm/vllm-openai:latest
+                    description: |-
+                      Container image for every owned VllmService. Pin a digest or exact
+                      tag for reproducible fleets; the default (vllm/vllm-openai:latest)
+                      exists for interactive convenience only and is not a reproducible
+                      reference.
+                    type: string
                   runtimeClassName:
                     nullable: true
                     type: string

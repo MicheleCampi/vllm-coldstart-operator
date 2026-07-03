@@ -53,6 +53,12 @@ pub struct FleetServiceTemplate {
     pub gpu: i32,
     #[serde(default = "default_health_path")]
     pub health_path: String,
+    /// Container image for every owned VllmService. Pin a digest or exact
+    /// tag for reproducible fleets; the default (vllm/vllm-openai:latest)
+    /// exists for interactive convenience only and is not a reproducible
+    /// reference.
+    #[serde(default = "crate::default_image")]
+    pub image: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
