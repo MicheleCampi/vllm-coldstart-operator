@@ -124,6 +124,7 @@ fn build_owned_vllm_service(
         health_path: t.health_path.clone(),
         runtime_class_name: t.runtime_class_name.clone(),
         extra_args: t.extra_args.clone(),
+        model_cache_host_path: t.model_cache_host_path.clone(),
         node_name: Some(node_name.to_string()),
     };
 

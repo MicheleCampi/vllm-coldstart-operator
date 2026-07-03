@@ -59,6 +59,10 @@ pub struct FleetServiceTemplate {
     /// reference.
     #[serde(default = "crate::default_image")]
     pub image: String,
+    /// Host directory mounted at the container's HuggingFace cache on every
+    /// owned VllmService. See VllmServiceSpec.modelCacheHostPath.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_cache_host_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]

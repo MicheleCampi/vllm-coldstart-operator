@@ -69,6 +69,16 @@ pub struct VllmServiceSpec {
     /// CI use, where no node constraint is emitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_name: Option<String>,
+    /// Host directory mounted at the container's HuggingFace cache
+    /// (/root/.cache/huggingface). Point it at a node-local path holding a
+    /// pre-downloaded model so a cold start loads weights from local disk
+    /// instead of re-downloading them from the HF CDN, making reschedule
+    /// latency an operator property rather than a network property. Unset
+    /// (the default) keeps the download-in-pod behaviour. hostPath-backed:
+    /// meant for single-tenant benchmark/edge clusters, not multi-tenant
+    /// production.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_cache_host_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default, PartialEq)]

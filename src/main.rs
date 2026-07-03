@@ -7,9 +7,9 @@ use k8s_openapi::api::apps::v1::{
     Deployment, DeploymentSpec, DeploymentStrategy, RollingUpdateDeployment,
 };
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, HTTPGetAction, PodSpec,
-    PodTemplateSpec, Probe, ResourceRequirements, Service, ServicePort, ServiceSpec, Volume,
-    VolumeMount,
+    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, HTTPGetAction, HostPathVolumeSource,
+    PodSpec, PodTemplateSpec, Probe, ResourceRequirements, Service, ServicePort, ServiceSpec,
+    Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
@@ -129,21 +129,40 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     // crashes under load. Back it with a memory-medium emptyDir on real
     // serving pods. The placeholder needs none.
     let (volumes, volume_mounts) = if serving {
-        (
-            Some(vec![Volume {
-                name: "dshm".to_string(),
-                empty_dir: Some(EmptyDirVolumeSource {
-                    medium: Some("Memory".to_string()),
-                    ..Default::default()
+        let mut vols = vec![Volume {
+            name: "dshm".to_string(),
+            empty_dir: Some(EmptyDirVolumeSource {
+                medium: Some("Memory".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }];
+        let mut mounts = vec![VolumeMount {
+            name: "dshm".to_string(),
+            mount_path: "/dev/shm".to_string(),
+            ..Default::default()
+        }];
+        // Optional host-backed HuggingFace cache (spec.modelCacheHostPath):
+        // mounting a node-local, pre-downloaded cache turns a cold start
+        // from "re-download the weights from the HF CDN" into "load from
+        // local disk". DirectoryOrCreate keeps first use on a fresh node
+        // from failing outright (it just downloads into the mount).
+        if let Some(path) = &svc.spec.model_cache_host_path {
+            vols.push(Volume {
+                name: "model-cache".to_string(),
+                host_path: Some(HostPathVolumeSource {
+                    path: path.clone(),
+                    type_: Some("DirectoryOrCreate".to_string()),
                 }),
                 ..Default::default()
-            }]),
-            Some(vec![VolumeMount {
-                name: "dshm".to_string(),
-                mount_path: "/dev/shm".to_string(),
+            });
+            mounts.push(VolumeMount {
+                name: "model-cache".to_string(),
+                mount_path: "/root/.cache/huggingface".to_string(),
                 ..Default::default()
-            }]),
-        )
+            });
+        }
+        (Some(vols), Some(mounts))
     } else {
         (None, None)
     };
@@ -496,5 +515,63 @@ mod tests {
         let ports = spec.ports.expect("ports");
         assert_eq!(ports.len(), 1);
         assert_eq!(ports[0].port, 8000);
+    }
+    #[test]
+    fn model_cache_host_path_mounts_hf_cache() {
+        let svc: VllmService = serde_json::from_value(json!({
+            "metadata": {
+                "name": "svc-b",
+                "namespace": "default",
+                "uid": "00000000-0000-0000-0000-000000000002"
+            },
+            "spec": {
+                "model": "facebook/opt-125m",
+                "gpu": 1,
+                "modelCacheHostPath": "/opt/hf-cache"
+            }
+        }))
+        .expect("valid fixture");
+        let deploy = build_deployment(&svc).expect("deployment");
+        let pod_spec = deploy.spec.and_then(|s| s.template.spec).expect("pod spec");
+        let volumes = pod_spec.volumes.expect("volumes");
+        let cache_vol = volumes
+            .iter()
+            .find(|v| v.name == "model-cache")
+            .expect("model-cache volume");
+        let host_path = cache_vol.host_path.as_ref().expect("hostPath source");
+        assert_eq!(host_path.path, "/opt/hf-cache");
+        assert_eq!(host_path.type_.as_deref(), Some("DirectoryOrCreate"));
+        let mounts = pod_spec.containers[0]
+            .volume_mounts
+            .as_ref()
+            .expect("mounts");
+        let cache_mount = mounts
+            .iter()
+            .find(|m| m.name == "model-cache")
+            .expect("model-cache mount");
+        assert_eq!(cache_mount.mount_path, "/root/.cache/huggingface");
+        // dshm must survive the addition
+        assert!(volumes.iter().any(|v| v.name == "dshm"));
+    }
+    #[test]
+    fn no_model_cache_volume_when_unset() {
+        let svc: VllmService = serde_json::from_value(json!({
+            "metadata": {
+                "name": "svc-c",
+                "namespace": "default",
+                "uid": "00000000-0000-0000-0000-000000000003"
+            },
+            "spec": {"model": "facebook/opt-125m", "gpu": 1}
+        }))
+        .expect("valid fixture");
+        let deploy = build_deployment(&svc).expect("deployment");
+        let volumes = deploy
+            .spec
+            .and_then(|s| s.template.spec)
+            .expect("pod spec")
+            .volumes
+            .expect("volumes");
+        assert!(volumes.iter().all(|v| v.name != "model-cache"));
+        assert!(volumes.iter().any(|v| v.name == "dshm"));
     }
 }

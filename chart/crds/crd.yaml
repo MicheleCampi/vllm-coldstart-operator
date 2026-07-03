@@ -61,6 +61,18 @@ spec:
               model:
                 description: HuggingFace model id to serve, e.g. "Qwen/Qwen2.5-7B-Instruct".
                 type: string
+              modelCacheHostPath:
+                description: |-
+                  Host directory mounted at the container's HuggingFace cache
+                  (/root/.cache/huggingface). Point it at a node-local path holding a
+                  pre-downloaded model so a cold start loads weights from local disk
+                  instead of re-downloading them from the HF CDN, making reschedule
+                  latency an operator property rather than a network property. Unset
+                  (the default) keeps the download-in-pod behaviour. hostPath-backed:
+                  meant for single-tenant benchmark/edge clusters, not multi-tenant
+                  production.
+                nullable: true
+                type: string
               nodeName:
                 description: |-
                   Exact node this replica must land on, as a `kubernetes.io/hostname`
@@ -243,6 +255,20 @@ spec:
                     type: integer
                   healthPath:
                     default: /health
+                    type: string
+                  image:
+                    default: vllm/vllm-openai:latest
+                    description: |-
+                      Container image for every owned VllmService. Pin a digest or exact
+                      tag for reproducible fleets; the default (vllm/vllm-openai:latest)
+                      exists for interactive convenience only and is not a reproducible
+                      reference.
+                    type: string
+                  modelCacheHostPath:
+                    description: |-
+                      Host directory mounted at the container's HuggingFace cache on every
+                      owned VllmService. See VllmServiceSpec.modelCacheHostPath.
+                    nullable: true
                     type: string
                   runtimeClassName:
                     nullable: true
