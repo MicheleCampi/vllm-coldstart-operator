@@ -62,6 +62,50 @@ Note: on kind the vLLM pods never become Ready (no GPU/image), so placement
 readiness stays Pending; this does not affect pin movement or phase transitions,
 which is what this pass governs.
 
+## Item-4 preparation block (zero GPU cost, commits c73866e..8336cbe)
+
+Production-grade review plus a full dress rehearsal of the measurement on
+kind, before spending GPU money. Findings, all fixed and validated here:
+
+- Honest fleet status (c73866e): ready_replicas was hardcoded to 0 and the
+  phase pinned to Placing; now derived (pure fleet_phase_for; Degraded
+  surfaces drain-and-hold instead of hiding it).
+- Declared drain mechanics (e4911da, ADR-0005 dec.5): explicit maxSurge=1 /
+  maxUnavailable=0 plus terminationGracePeriodSeconds=120 on serving pods —
+  make-before-break was previously inherited from k8s default rounding.
+- Owned routing surface (4f76563): the operator created no Service, so
+  dec.5's "leaves Service endpoints" had nothing to be true against. One
+  owned ClusterIP Service per VllmService, same SSA manager.
+- Reproducible child images (8aa1687): FleetServiceTemplate gained `image`;
+  children were hardcoded to vllm/vllm-openai:latest.
+- Self-aware replacement (d0234f3): candidates now fold in the fleet's own
+  placements per node. With a stale NodeState reporter the replacement
+  co-located two placements on one node while a free warm spare existed —
+  run 20260703T165327 is the committed evidence. Fresh planning now also
+  excludes preempted nodes.
+- Decision logging in the preemption pass (d0234f3): T_decision was not
+  reconstructable from the operator log (run 1's summary has it as null for
+  exactly this reason).
+
+Rehearsal result (run 20260703T211728, sim pods actually serving, load via
+NodePort/kube-proxy so endpoint changes are followed): T_decision 113 ms
+from notice to logged reschedule; surge-first honoured (old pod killed at
+T+6.2 s, after the replacement was Ready); zero request errors on the
+unaffected service in every window; max success-gap 2.57 s on the moved
+service; 10 in-flight requests cut at pod kill — the sim exits on SIGTERM
+without draining, real vLLM gets the 120 s grace window.
+
+Declared rehearsal limits — exactly what the GPU session buys: no real
+cold-start (sim readiness is immediate), no SIGTERM draining in the sim,
+kind nodes share the host CPUs so unaffected-service isolation is
+approximate. k8s event timestamps have 1 s resolution; sub-second causal
+ordering comes from the operator log.
+
 ## Open
 
-Item 4: measured behaviour under real saturation (GPU session). Not started.
+Item 4: the GPU session itself — 3 nodes (k3s, one GPU each, A/B/C =
+serving / preempted / warm spare), real vLLM pods under saturating load,
+3 repetitions. Measurement plan and harness (hack/loadgen, hack/rehearsal)
+are locked and rehearsed. Known gaps deliberately deferred: scale-down
+leaves orphan children; Helm chart RBAC/CRDs predate the fleet controller;
+placement timestamps are written empty (hysteresis deferred, ADR-0005).
