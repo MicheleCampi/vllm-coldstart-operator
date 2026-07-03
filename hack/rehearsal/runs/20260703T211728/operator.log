@@ -1,0 +1,139 @@
+[2m2026-07-03T21:16:34.760714Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m starting vllm-coldstart-operator controller
+[2m2026-07-03T21:16:34.760815Z[0m [32m INFO[0m [2mvllm_coldstart_operator::http[0m[2m:[0m metrics server listening on 0.0.0.0:8080
+[2m2026-07-03T21:16:34.760945Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m starting fleet controller
+[2m2026-07-03T21:16:34.772617Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:16:34.827451Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:34.835280Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-1' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:34.838745Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (0 preserved, 2 newly planned) across 4 candidates
+[2m2026-07-03T21:16:34.838943Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:16:34.838998Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:16:34.904580Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:16:34.904715Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:16:34.922697Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:34.922789Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:16:34.923587Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:34.925400Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:16:34.934071Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-1' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:34.934169Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-1
+[2m2026-07-03T21:16:34.934246Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-1' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:34.940469Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:34.940559Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:16:34.940616Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:34.955878Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-1' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:34.955949Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:34.955962Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-1
+[2m2026-07-03T21:16:34.956013Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:16:34.956107Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-1' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:34.956146Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:34.977830Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-1' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:34.977920Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-1
+[2m2026-07-03T21:16:34.978002Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-1' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:34.981296Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:34.981385Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:16:34.981428Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:34.998923Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:34.999002Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:16:34.999055Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:35.000949Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-1' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:35.001033Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-1
+[2m2026-07-03T21:16:35.001081Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-1' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:35.004325Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:16:35.004416Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:16:35.004489Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:16:35.007463Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:35.007535Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:16:35.009373Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-1' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:35.009456Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-1
+[2m2026-07-03T21:16:35.098045Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:16:35.098205Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:16:40.008870Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:40.011236Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-1' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:40.026323Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:40.026466Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:16:40.029670Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-1' -> Pending (0/1 ready)
+[2m2026-07-03T21:16:40.029858Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-1
+[2m2026-07-03T21:16:41.694635Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-1' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:41.707146Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-1' -> Ready (1/1 ready)
+[2m2026-07-03T21:16:41.707220Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-1
+[2m2026-07-03T21:16:41.708456Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:16:41.708528Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-1' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:41.720586Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-1' -> Ready (1/1 ready)
+[2m2026-07-03T21:16:41.720648Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-1
+[2m2026-07-03T21:16:41.723654Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:16:41.723944Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:16:41.725067Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:16:41.831563Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:16:41.831735Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:16:42.562791Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:42.576224Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (1/1 ready)
+[2m2026-07-03T21:16:42.576335Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:16:42.578044Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:16:42.578076Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:16:42.595728Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (1/1 ready)
+[2m2026-07-03T21:16:42.595850Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:16:42.600095Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:16:42.600275Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:16:42.601432Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:16:42.703639Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:16:42.703789Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:17:12.705169Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:17:12.727914Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:17:12.728077Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:17:42.729997Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:17:42.755781Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:17:42.756001Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:17:58.942258Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:17:58.946824Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': preemption notice on 'fleet-test-worker2' — rescheduling slot 0 to 'fleet-test-worker3'
+[2m2026-07-03T21:17:58.952865Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:17:58.958032Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:17:58.958219Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:17:58.958371Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:17:58.968925Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (1/1 ready)
+[2m2026-07-03T21:17:58.969127Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:17:58.969227Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:17:58.991092Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (1/1 ready)
+[2m2026-07-03T21:17:58.991229Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:17:58.991309Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:17:59.001117Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (1/1 ready)
+[2m2026-07-03T21:17:59.001223Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:17:59.001287Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:17:59.008029Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (1/1 ready)
+[2m2026-07-03T21:17:59.008106Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:17:59.056872Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:17:59.056994Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:17:59.059395Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:17:59.166762Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:17:59.166910Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:17:59.168147Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:17:59.274039Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:17:59.274178Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:18:05.756632Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:18:05.769989Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (2/1 ready)
+[2m2026-07-03T21:18:05.770086Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:18:05.770865Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:18:05.770887Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:18:05.783873Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (1/1 ready)
+[2m2026-07-03T21:18:05.784133Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:18:05.784160Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:18:05.784314Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:18:05.784366Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:18:05.785601Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:18:05.792139Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (1/1 ready)
+[2m2026-07-03T21:18:05.792449Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:18:05.792482Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciling VllmService 'rehearsal-0' in 'default': model=facebook/opt-125m replicas=1 strategy=Eager
+[2m2026-07-03T21:18:05.798855Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m status of 'rehearsal-0' -> Ready (1/1 ready)
+[2m2026-07-03T21:18:05.799025Z[0m [32m INFO[0m [2mvllm_coldstart_operator[0m[2m:[0m reconciled rehearsal-0
+[2m2026-07-03T21:18:05.888046Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:18:05.888150Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:18:35.889591Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:18:35.914256Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:18:35.914419Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:19:05.916566Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:19:05.947261Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:19:05.947446Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:19:35.949014Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:19:35.974480Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:19:35.974610Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
+[2m2026-07-03T21:20:05.976271Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciling FleetService 'rehearsal' in 'default': model=facebook/opt-125m replicas=2
+[2m2026-07-03T21:20:05.999493Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m FleetService 'rehearsal': 2 slots placed (2 preserved, 0 newly planned) across 4 candidates
+[2m2026-07-03T21:20:05.999612Z[0m [32m INFO[0m [2mvllm_coldstart_operator::fleet_controller[0m[2m:[0m reconciled FleetService rehearsal
