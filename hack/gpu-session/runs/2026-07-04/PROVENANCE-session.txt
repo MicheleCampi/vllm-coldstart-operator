@@ -18,3 +18,7 @@ vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc
 a09a35458c702b33eeacc393d103063234e8bc28
 == instance type/price
 3x gpu_1x_a10 us-east-1 $1.29/hr (Lambda, launched ~12:05 UTC)
+
+== note: T_decision quantization
+Measured T_decision (~1.46s) is dominated by k3s/kine 1s watch-poll delivery,
+not operator latency (~30ms). See NOTES-t-decision.md in this directory.
