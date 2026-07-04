@@ -20,6 +20,16 @@ RUN_DIR="hack/rehearsal/runs/$(date +%Y%m%dT%H%M%S)"
 mkdir -p "$RUN_DIR"
 echo "run dir: $RUN_DIR"
 
+# Guard: refuse to inject on a node that hosts no fleet placement — the
+# notice would be a correct no-op and the run would measure nothing.
+# (Lesson from 20260704T152258: roles rotate between runs, check first.)
+if ! kubectl --context "$CTX" get pods -o wide --no-headers | grep -q "$PREEMPT_NODE"; then
+  echo "ERROR: no pod scheduled on $PREEMPT_NODE — preempting it is a no-op."
+  echo "Current placements:"
+  kubectl --context "$CTX" get pods -o wide
+  echo "Set PREEMPT_NODE to a node that hosts a placement and retry."
+  exit 1
+fi
 python3 hack/loadgen/loadgen.py \
   --target "a=http://${ENTRY}:${NP_A}" \
   --target "b=http://${ENTRY}:${NP_B}" \

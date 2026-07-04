@@ -13,7 +13,7 @@ kubectl apply -f deploy/crd.yaml
 # 2. Operator binary -> server node, systemd unit. Runs with the node's
 #    k3s admin kubeconfig (single-tenant benchmark cluster; RBAC hardening
 #    is chart territory, tracked post-GPU).
-scp -i "$SSH_KEY" "$BIN" "ubuntu@$NODE_A_IP:/tmp/vcso"
+scp -i "$GS_SSH_KEY" "$BIN" "ubuntu@$NODE_A_IP:/tmp/vcso"
 ssh_a "sudo mv /tmp/vcso /usr/local/bin/vcso && sudo chmod +x /usr/local/bin/vcso \
   && sudo tee /etc/systemd/system/vcso.service > /dev/null <<'EOF'
 [Unit]

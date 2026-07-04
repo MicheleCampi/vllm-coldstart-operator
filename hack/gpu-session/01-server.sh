@@ -10,6 +10,17 @@ set -euo pipefail
 ssh_a "curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION='$K3S_VERSION' sh -s - server \
   --tls-san '$NODE_A_IP' --disable traefik --disable servicelb"
 
+# 1b. Fail fast if the apiserver port is not reachable from here: Lambda's
+# default firewall only allows SSH. Open 6443/tcp (plus 8472/udp, 10250/tcp
+# for inter-node, 30800-30801/tcp for the loadgen) in the dashboard first.
+for i in $(seq 1 10); do
+  timeout 3 bash -c "echo > /dev/tcp/$NODE_A_IP/6443" 2>/dev/null && break
+  [ "$i" = 10 ] && { echo "ERROR: $NODE_A_IP:6443 unreachable after 30s."; \
+    echo "k3s is installed and running on A (check: ssh_a sudo systemctl status k3s),"; \
+    echo "but the Lambda firewall is blocking the apiserver port. Add the inbound"; \
+    echo "rules in the dashboard, then re-run this script (idempotent)."; exit 1; }
+  sleep 3
+done
 # 2. kubeconfig -> optim-dev, rewritten to the public IP.
 mkdir -p ~/.kube
 ssh_a "sudo cat /etc/rancher/k3s/k3s.yaml" \

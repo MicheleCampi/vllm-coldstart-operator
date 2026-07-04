@@ -7,6 +7,8 @@ Claim under test: service continuity + bounded recovery + zero cascade
 (delta-based vs baseline, NOT absolute-zero). 3 repetitions.
 
 ## Phase 0 — before spending (optim-dev, zero cost)
+- [ ] use a DEDICATED shell for the whole session (00-env.sh exports GS_*
+      vars and ssh fns; a shared shell leaks env into other harnesses)
 - [ ] `origin/main` green, working tree clean
 - [ ] musl binary rebuilt from HEAD: `ldd` says "statically linked"
 - [ ] `hack/loadgen/loadgen.py`, `hack/rehearsal/analyze.py` present
@@ -15,6 +17,8 @@ Claim under test: service continuity + bounded recovery + zero cascade
 ## Phase 1 — launch (dashboard)
 - [ ] 3 instances, same region; note $/hr actually charged
 - [ ] fill `00-env.sh` (IPs, SSH key), `source hack/gpu-session/00-env.sh`
+- [ ] Lambda dashboard -> Firewall: inbound 6443/tcp, 8472/udp, 10250/tcp,
+      30800-30801/tcp (default allows SSH only; 01-server fails fast on 6443)
 - [ ] sanity per node: `ssh_X nvidia-smi` shows the GPU;
       `ssh_X nvidia-ctk --version` (toolkit preinstalled by Lambda Stack)
 - ABORT if: no capacity in one region for 3 nodes (try 1 other region,
@@ -23,7 +27,8 @@ Claim under test: service continuity + bounded recovery + zero cascade
 ## Phase 2 — cluster (target: <=25 min from launch)
 - [ ] `01-server.sh`, then `02-agent.sh`
 - [ ] 3 Ready nodes; `nvidia.com/gpu: 1` allocatable on each
-- [ ] `03-prepull.sh` (parallel; ~10 min: image ~10GB + model ~15GB per node)
+- [ ] `03-prepull.sh` (parallel; ~10 min; uses `k3s crictl` so it REQUIRES
+      02-agent done on all nodes first)
 - ABORT if: GPU not allocatable after device-plugin restart + 15 min of
   debugging. Teardown, take notes, retry another day — do not burn the
   budget on cluster plumbing.
@@ -31,7 +36,10 @@ Claim under test: service continuity + bounded recovery + zero cascade
 ## Phase 3 — deploy + smoke (target: <=20 min)
 - [ ] `04-deploy.sh`; operator systemd unit active, logs clean
 - [ ] map A/B/C roles to real node names; seed warmth (A,B Warm 0.0;
-      C Warm 0.3; all `isSpotInstance: true`)
+      C Warm 0.3; all `isSpotInstance: true`). The status patch MUST also
+      carry the CRD-required fields or it is rejected:
+      `gpuMemoryUsedBytes: 0`, `observedGeneration: 1`,
+      `lastReportTime: <RFC3339 now>`
 - [ ] `kubectl apply -f hack/gpu-session/fleet-gpu.yaml`
 - [ ] both children Ready; `curl <node>:30800/v1/models` answers on both
       NodePorts (any node IP works, kube-proxy routes)
