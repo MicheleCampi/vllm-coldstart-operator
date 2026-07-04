@@ -36,7 +36,7 @@ echo "notice injected on $PREEMPT_NODE at $T_NOTICE"
 
 wait "$LOADGEN_PID"
 
-kubectl --context "$CTX" get events --sort-by=.lastTimestamp -o custom-columns='TS:.lastTimestamp,TYPE:.type,REASON:.reason,OBJ:.involvedObject.name,MSG:.message' > "$RUN_DIR/events.txt"
+kubectl --context "$CTX" get events --sort-by=.lastTimestamp -o custom-columns='TS:.lastTimestamp,TYPE:.type,REASON:.reason,OBJ:.involvedObject.name,ETIME:.eventTime,MSG:.message' > "$RUN_DIR/events.txt"
 kubectl --context "$CTX" get fleetservice rehearsal -o yaml > "$RUN_DIR/fleet-final.yaml"
 kubectl --context "$CTX" get pods -o wide > "$RUN_DIR/pods-final.txt"
 cp "$OPERATOR_LOG" "$RUN_DIR/operator.log"

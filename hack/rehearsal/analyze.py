@@ -102,12 +102,19 @@ def main(run_dir: str) -> None:
     t_sched = t_kill = None
     if moved_child:
         for line in open(run / "events.txt", errors="replace"):
-            parts = line.split(None, 4)
+            parts = line.split(None, 5)
             if len(parts) < 5 or moved_child not in parts[3]:
                 continue
-            try:
-                ts = iso_to_epoch(parts[0])
-            except ValueError:
+            # scheduler events have lastTimestamp <nil>; fall back to the
+            # eventTime column (present when events.txt carries ETIME).
+            ts = None
+            for cand in (parts[0], parts[4] if len(parts) > 5 else ""):
+                try:
+                    ts = iso_to_epoch(cand)
+                    break
+                except ValueError:
+                    continue
+            if ts is None:
                 continue
             if ts < t0 - 1:
                 continue
