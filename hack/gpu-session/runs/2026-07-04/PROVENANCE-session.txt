@@ -1,0 +1,20 @@
+== date
+Sat Jul  4 01:32:11 PM UTC 2026
+== nvidia-smi (node A)
+name, driver_version, memory.total [MiB]
+NVIDIA A10, 580.105.08, 23028 MiB
+== k3s
+Client Version: v1.36.1
+Kustomize Version: v5.8.1
+Server Version: v1.36.2+k3s1
+== nodes
+NAME              STATUS   ROLES           AGE   VERSION        INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION              CONTAINER-RUNTIME
+129-80-83-89      Ready    <none>          71m   v1.36.2+k3s1   10.19.84.147   <none>        Ubuntu 22.04.5 LTS   6.8.0-1046-nvidia (amd64)   containerd://2.3.2-k3s2
+132-145-198-193   Ready    control-plane   80m   v1.36.2+k3s1   10.19.94.2     <none>        Ubuntu 22.04.5 LTS   6.8.0-1046-nvidia (amd64)   containerd://2.3.2-k3s2
+132-226-53-131    Ready    <none>          71m   v1.36.2+k3s1   10.19.95.130   <none>        Ubuntu 22.04.5 LTS   6.8.0-1046-nvidia (amd64)   containerd://2.3.2-k3s2
+== image digest
+vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f
+== model snapshot
+a09a35458c702b33eeacc393d103063234e8bc28
+== instance type/price
+3x gpu_1x_a10 us-east-1 $1.29/hr (Lambda, launched ~12:05 UTC)

@@ -1,0 +1,736 @@
+2026-07-04T12:31:39+0000 132-145-198-193 systemd[1]: Started vllm-coldstart-operator (item-4 GPU session).
+2026-07-04T12:31:39.429989Z  INFO vllm_coldstart_operator: starting vllm-coldstart-operator controller
+2026-07-04T12:31:39.430090Z  INFO vllm_coldstart_operator::http: metrics server listening on 0.0.0.0:8080
+2026-07-04T12:31:39.430154Z  INFO vllm_coldstart_operator::fleet_controller: starting fleet controller
+2026-07-04T12:33:35.845568Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:33:36.270666Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:36.274143Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:36.277530Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (0 preserved, 2 newly planned) across 3 candidates
+2026-07-04T12:33:36.277606Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:33:36.277641Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:33:36.335023Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:33:36.335626Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:33:36.335730Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:33:36.335831Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:36.335854Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:33:36.335977Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:36.346864Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:33:36.346984Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:33:36.347027Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:36.349762Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:33:36.349916Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:33:36.349958Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:36.358336Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:33:36.358438Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:33:36.362561Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:33:36.362712Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:33:36.476021Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:36.480986Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:36.481227Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:33:36.481323Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:33:36.481363Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:33:36.488162Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:33:36.488257Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:33:36.493068Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:33:36.493229Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:33:37.475944Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:33:37.476093Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:33:41.489988Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:41.495120Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:41.503062Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:33:41.503178Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:33:41.506615Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:33:41.506850Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:33:46.504448Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:46.508025Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:46.514778Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:33:46.515201Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:33:46.522461Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:33:46.522580Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:33:51.516816Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:51.524043Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:51.527815Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:33:51.527947Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:33:51.535940Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:33:51.536208Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:33:56.528520Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:56.538037Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:33:56.538394Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:33:56.538472Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:33:56.546598Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:33:56.546684Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:01.540035Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:01.547822Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:01.550613Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:01.550722Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:01.556539Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:01.556618Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:06.552374Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:06.557539Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:06.563024Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:06.563148Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:06.567995Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:06.568148Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:07.478318Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:34:07.546712Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:34:07.546830Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:34:11.565026Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:11.570196Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:11.576258Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:11.576483Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:11.580504Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:11.580828Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:16.577664Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:16.581812Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:16.587795Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:16.588005Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:16.591237Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:16.591337Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:21.588715Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:21.593106Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:21.599608Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:21.599882Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:21.603219Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:21.603345Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:26.601234Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:26.604421Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:26.615175Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:26.615411Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:26.615546Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:26.615755Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:31.616772Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:31.616969Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:31.626692Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:31.626782Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:31.627852Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:31.628062Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:36.628316Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:36.628341Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:36.638891Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:36.639012Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:36.639017Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:36.639088Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:37.549423Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:34:37.621894Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:34:37.622001Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:34:41.639339Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:41.642972Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:41.649431Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:41.649531Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:41.651450Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:41.651524Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:46.651062Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:46.652361Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:46.661596Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:46.661764Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:46.663484Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:46.663590Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:51.662981Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:51.665175Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:51.679621Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:51.679647Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:51.679882Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:51.679929Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:34:56.680851Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:56.680887Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:34:56.692775Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:34:56.692950Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:34:56.693034Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:34:56.693131Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:01.693537Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:01.694749Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:01.712252Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:01.712280Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:01.712518Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:01.712554Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:06.714405Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:06.714434Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:06.723914Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:06.724009Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:06.724013Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:06.724086Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:07.623349Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:35:07.690463Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:35:07.690545Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:35:11.724757Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:11.725828Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:11.734741Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:11.734985Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:11.735257Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:11.735407Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:16.735573Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:16.736718Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:16.745060Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:16.745205Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:16.745541Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:16.745672Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:21.746872Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:21.746925Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:21.757275Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:21.757391Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:21.758223Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:21.758305Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:26.758754Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:26.760098Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:26.773924Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:26.774046Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:26.778837Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:26.779004Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:31.775441Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:31.779854Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:31.788943Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:31.789306Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:31.792239Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:31.792385Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:36.790673Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:36.793998Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:36.802566Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:36.802982Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:36.806274Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:36.806401Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:37.692518Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:35:37.763977Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:35:37.764101Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:35:41.803452Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:41.807596Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:41.813283Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:41.813387Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:41.816177Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:41.816265Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:46.814585Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:46.817693Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:46.824551Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:46.824634Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:46.826945Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:46.827015Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:51.826428Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:51.827547Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:51.836460Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:51.836550Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:51.837909Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:51.837969Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:35:56.840167Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:56.840374Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:35:56.850806Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:35:56.850892Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:35:56.851123Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:35:56.851206Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:36:01.851380Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:36:01.852683Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:36:01.860876Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Pending (0/1 ready)
+2026-07-04T12:36:01.860994Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:36:01.861672Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:36:01.861762Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:36:03.463457Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:36:03.472498Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T12:36:03.472577Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:36:03.474036Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:36:03.475139Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:36:03.482623Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T12:36:03.482710Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:36:04.469566Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:36:04.469676Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:36:04.472480Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:36:05.466529Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:36:05.466634Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:36:06.862529Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:36:06.872634Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Pending (0/1 ready)
+2026-07-04T12:36:06.872954Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:36:10.771363Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:36:10.780517Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:36:10.780616Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:36:10.781858Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:36:10.783088Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:36:10.790732Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:36:10.790955Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:36:11.467221Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:36:11.467307Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:36:11.469638Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:36:12.467909Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:36:12.468023Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:36:42.472703Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:36:42.629547Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:36:42.629632Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:37:12.631471Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:37:12.813694Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:37:12.813797Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:37:42.816205Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:37:42.979197Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:37:42.979303Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:38:12.981805Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:38:13.049122Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:38:13.049225Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:38:43.052215Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:38:43.126144Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:38:43.126577Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:39:13.128462Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:39:13.188764Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:39:13.188872Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:39:43.190624Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:39:43.260946Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:39:43.261050Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:40:13.263197Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:40:13.333543Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:40:13.333777Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:40:43.336094Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:40:43.499504Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:40:43.499609Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:41:03.483980Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:41:03.493672Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T12:41:03.493786Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:41:10.791732Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:41:10.801876Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:41:10.802006Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:41:13.501916Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:41:13.599993Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:41:13.600102Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:41:43.602068Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:41:43.742855Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:41:43.743004Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:42:13.745255Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:42:13.926456Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:42:13.926578Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:42:43.929412Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:42:44.032518Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:42:44.032669Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:43:14.034793Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:43:14.498859Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:43:14.499077Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:43:44.500759Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:43:44.512323Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:43:44.512475Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:44:14.514974Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:44:14.676421Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:44:14.676588Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:44:44.679170Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:44:44.753994Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:44:44.754099Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:44:49.909748Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:44:50.457950Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': preemption notice on '129-80-83-89' — rescheduling slot 1 to '132-226-53-131'
+2026-07-04T12:44:50.468945Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:44:50.471107Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:44:50.471310Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:44:50.471346Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:44:50.520735Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:44:50.520802Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:44:50.520841Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:44:50.530067Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:44:50.530137Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:44:50.530168Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:44:50.540821Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:44:50.540909Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:44:50.540995Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:44:50.549167Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:44:50.549221Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:44:50.755065Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:44:50.763918Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:44:50.764077Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:44:50.850437Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:44:50.850516Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:44:50.852572Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:44:51.280926Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:44:51.281017Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:44:51.282999Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:44:51.467930Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:44:51.468149Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:45:21.469792Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:45:21.556717Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:45:21.556833Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:45:47.504969Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:45:47.516246Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (2/1 ready)
+2026-07-04T12:45:47.516390Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:45:47.516433Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:45:47.517562Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:45:47.539756Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:45:47.539890Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:45:47.539952Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:45:47.553265Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:45:47.553353Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:45:47.553397Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:45:47.563320Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:45:47.563410Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:45:48.472440Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:45:48.472585Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:45:48.472635Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:45:48.585561Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:45:48.585696Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:46:03.494764Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:46:03.507738Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T12:46:03.508025Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:46:18.587578Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:46:18.735099Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:46:18.735380Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:46:48.737894Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:46:49.467041Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:46:49.467221Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:47:19.470431Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:47:19.537867Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:47:19.538185Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:47:47.834319Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:47:47.843757Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:47:47.843864Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:47:49.542844Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:47:49.601969Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:47:49.602064Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:48:19.603736Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:48:19.615300Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:48:19.615518Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:48:49.617569Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:48:49.729119Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:48:49.729225Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:49:19.731601Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:49:19.749859Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:49:19.750042Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:49:49.751601Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:49:49.873997Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:49:49.874340Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:50:19.879389Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:50:19.940056Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:50:19.940169Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:50:49.941766Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:50:50.002052Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:50:50.002214Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:51:03.509234Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:51:03.520093Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T12:51:03.520215Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:51:20.004984Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:51:20.121416Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:51:20.121528Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:51:50.124298Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:51:50.185466Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:51:50.185558Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:52:20.188143Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:52:20.253083Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:52:20.253291Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:52:47.845037Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:52:47.859278Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:52:47.859399Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:52:50.256026Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:52:50.289640Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:52:50.289737Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:53:20.292141Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:53:20.362639Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:53:20.362736Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:53:50.365243Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:53:50.451837Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:53:50.452044Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:54:20.453484Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:54:20.520209Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:54:20.520519Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:54:50.522619Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:54:50.968854Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:54:50.968977Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:55:20.970402Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:55:21.471330Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:55:21.471466Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:55:51.473949Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:55:51.632928Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:55:51.633078Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:56:03.522288Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:56:03.534045Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T12:56:03.534360Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T12:56:21.634558Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:56:21.651164Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:56:21.651333Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:56:51.653690Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:56:51.765495Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:56:51.765677Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:57:21.767368Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:57:21.934123Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:57:21.934530Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:57:47.861047Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T12:57:47.872556Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T12:57:47.872698Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T12:57:51.937018Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:57:52.469237Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:57:52.469381Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:58:22.471793Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:58:22.536745Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:58:22.536863Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:58:52.539072Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:58:52.575642Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:58:52.575945Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:59:22.578067Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:59:22.666167Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:59:22.666297Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T12:59:52.669352Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T12:59:52.725060Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T12:59:52.725232Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:00:22.728307Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:00:22.800296Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:00:22.800429Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:00:52.802866Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:00:52.871252Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:00:52.871396Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:01:03.536167Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:01:03.546979Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T13:01:03.547075Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T13:01:22.873728Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:01:23.052102Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:01:23.052299Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:01:53.054820Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:01:53.067005Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:01:53.067099Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:02:09.952372Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:02:10.071586Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:02:10.071731Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:02:40.073554Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:02:40.085357Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:02:40.085438Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:02:47.873850Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:02:47.884838Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:02:47.885144Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:03:10.087491Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:03:10.110293Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:03:10.110391Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:03:40.113328Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:03:40.184972Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:03:40.185085Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:04:10.186844Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:04:10.350306Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:04:10.350420Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:04:27.260041Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:04:27.458418Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': preemption notice on '132-226-53-131' — rescheduling slot 1 to '129-80-83-89'
+2026-07-04T13:04:27.466507Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:04:27.467653Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:04:27.467724Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:04:27.467840Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:04:27.519808Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:04:27.519905Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:04:27.520092Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:04:27.528351Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:04:27.528436Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:04:27.528538Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:04:27.538227Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:04:27.538303Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:04:27.538332Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:04:27.547057Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:04:27.547154Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:04:28.467140Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:04:28.467278Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:04:28.467330Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:04:28.472258Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:04:28.481068Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:04:28.481160Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:04:29.474443Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:04:29.474579Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:04:29.474824Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:04:30.060391Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:04:30.060629Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:04:30.060670Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:04:30.467491Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:04:30.467604Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:04:30.467777Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:04:30.502761Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:04:30.502844Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:05:00.505020Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:05:01.049542Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:05:01.049664Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:05:25.234223Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:05:25.245096Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (2/1 ready)
+2026-07-04T13:05:25.245185Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:05:25.246532Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:05:25.247632Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:05:25.257170Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:05:25.257248Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:05:25.257283Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:05:25.265439Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:05:25.265525Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:05:25.265661Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:05:25.273845Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:05:25.273918Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:05:25.469762Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:05:25.470061Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:05:25.470122Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:05:25.481076Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:05:25.481152Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:05:55.482462Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:05:55.653998Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:05:55.654338Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:06:03.548383Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:06:03.560182Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T13:06:03.560324Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T13:06:25.656650Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:06:25.727447Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:06:25.727662Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:06:55.729895Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:06:55.742629Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:06:55.742743Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:07:25.562939Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:07:25.574844Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:07:25.574991Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:07:25.744316Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:07:26.467219Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:07:26.467368Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:07:56.469791Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:07:56.555969Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:07:56.556109Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:08:26.558154Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:08:26.710710Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:08:26.710817Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:08:56.712876Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:08:56.880284Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:08:56.880414Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:09:26.882975Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:09:27.551500Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:09:27.551615Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:09:57.553488Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:09:57.723648Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:09:57.723749Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:10:27.725512Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:10:27.894081Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:10:27.894188Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:10:57.896559Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:10:58.570723Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:10:58.571039Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:11:03.561348Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:11:03.573755Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T13:11:03.573930Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T13:11:28.572647Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:11:28.644470Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:11:28.644568Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:11:58.646939Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:11:58.811680Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:11:58.811788Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:12:25.575838Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:12:25.586352Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:12:25.586472Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:12:28.813993Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:12:28.979630Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:12:28.979932Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:12:58.982018Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:12:59.151783Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:12:59.152186Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:13:29.154424Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:13:29.274344Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:13:29.274720Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:13:59.276773Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:13:59.469333Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:13:59.469675Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:14:29.472033Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:14:29.526152Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:14:29.526428Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:14:59.528626Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:14:59.593379Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:14:59.593493Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:15:29.595866Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:15:29.684937Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:15:29.685076Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:15:59.686683Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:15:59.754642Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:15:59.754957Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:16:03.574967Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:16:03.584712Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T13:16:03.584831Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T13:16:29.756378Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:16:29.825176Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:16:29.825337Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:16:59.827419Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:16:59.965712Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:16:59.965855Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:17:25.587423Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:17:25.598936Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:17:25.599054Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:17:29.967665Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:17:30.138399Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:17:30.138512Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:17:36.425741Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:17:36.477019Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:17:36.477153Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:18:06.479228Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:18:07.548315Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:18:07.548426Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:18:37.550651Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:18:37.728185Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:18:37.728323Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:19:07.730426Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:19:07.794771Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:19:07.794874Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:19:33.220017Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:19:33.457758Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': preemption notice on '129-80-83-89' — rescheduling slot 1 to '132-226-53-131'
+2026-07-04T13:19:33.467159Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:19:33.468029Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:19:33.468083Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:19:33.468109Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:19:33.519221Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:19:33.519292Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:19:33.519319Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:19:33.529036Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:19:33.529100Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:19:33.529121Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:19:33.537379Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:19:33.537433Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:19:33.537454Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:19:33.545496Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:19:33.545545Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:19:34.472234Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:19:34.473000Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:19:34.473132Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:19:34.473240Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:19:34.481975Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:19:34.482097Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:19:35.479772Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:19:35.479895Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:20:05.481657Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:20:05.498615Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:20:05.498699Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:20:31.209307Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:20:31.223478Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (2/1 ready)
+2026-07-04T13:20:31.223602Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:20:31.225070Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:20:31.226128Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:20:31.235833Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:20:31.236008Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:20:31.237028Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:20:31.248969Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:20:31.249138Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:20:31.471337Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:20:31.471425Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:20:31.471462Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:20:31.484466Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:20:31.484590Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:21:01.486835Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:21:01.593558Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:21:01.593650Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:21:03.585867Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:21:03.595714Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T13:21:03.595810Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T13:21:31.596032Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:21:31.655431Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:21:31.655536Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:22:01.658154Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:22:02.467202Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:22:02.467286Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:22:31.584512Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-1' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:22:31.593115Z  INFO vllm_coldstart_operator: status of 'gpufleet-1' -> Ready (1/1 ready)
+2026-07-04T13:22:31.593192Z  INFO vllm_coldstart_operator: reconciled gpufleet-1
+2026-07-04T13:22:32.470158Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:22:32.544280Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:22:32.544363Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:23:02.547137Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:23:02.618940Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:23:02.619020Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:23:32.621184Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:23:32.683392Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:23:32.683470Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:24:02.685377Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:24:02.764134Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:24:02.764226Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:24:32.766282Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:24:32.778359Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:24:32.778431Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:25:02.780866Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:25:02.801118Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:25:02.801192Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:25:32.803645Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:25:32.882763Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:25:32.882859Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:26:02.884718Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:26:02.954477Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:26:02.954585Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet
+2026-07-04T13:26:03.596409Z  INFO vllm_coldstart_operator: reconciling VllmService 'gpufleet-0' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=1 strategy=Eager
+2026-07-04T13:26:03.607918Z  INFO vllm_coldstart_operator: status of 'gpufleet-0' -> Ready (1/1 ready)
+2026-07-04T13:26:03.608042Z  INFO vllm_coldstart_operator: reconciled gpufleet-0
+2026-07-04T13:26:32.956646Z  INFO vllm_coldstart_operator::fleet_controller: reconciling FleetService 'gpufleet' in 'default': model=Qwen/Qwen2.5-7B-Instruct replicas=2
+2026-07-04T13:26:33.469276Z  INFO vllm_coldstart_operator::fleet_controller: FleetService 'gpufleet': 2 slots placed (2 preserved, 0 newly planned) across 3 candidates
+2026-07-04T13:26:33.469354Z  INFO vllm_coldstart_operator::fleet_controller: reconciled FleetService gpufleet

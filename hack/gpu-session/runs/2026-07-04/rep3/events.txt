@@ -1,0 +1,44 @@
+TS                     TYPE      REASON              OBJ                           MSG
+<nil>                  Normal    Scheduled           gpufleet-1-5dfb5566b4-59hg6   Successfully assigned default/gpufleet-1-5dfb5566b4-59hg6 to 129-80-83-89
+<nil>                  Normal    Scheduled           gpufleet-1-c6dc7c445-jp269    Successfully assigned default/gpufleet-1-c6dc7c445-jp269 to 132-226-53-131
+<nil>                  Normal    Scheduled           gpufleet-1-c6dc7c445-xvc56    Successfully assigned default/gpufleet-1-c6dc7c445-xvc56 to 132-226-53-131
+<nil>                  Normal    Scheduled           gpufleet-0-599bd986d6-vs2wc   Successfully assigned default/gpufleet-0-599bd986d6-vs2wc to 132-145-198-193
+<nil>                  Normal    Scheduled           gpufleet-1-5dfb5566b4-9rrbx   Successfully assigned default/gpufleet-1-5dfb5566b4-9rrbx to 129-80-83-89
+2026-07-04T12:33:36Z   Normal    SuccessfulCreate    gpufleet-1-5dfb5566b4         Created pod: gpufleet-1-5dfb5566b4-59hg6
+2026-07-04T12:33:36Z   Normal    ScalingReplicaSet   gpufleet-0                    Scaled up replica set gpufleet-0-599bd986d6 from 0 to 1
+2026-07-04T12:33:36Z   Normal    SuccessfulCreate    gpufleet-0-599bd986d6         Created pod: gpufleet-0-599bd986d6-vs2wc
+2026-07-04T12:33:37Z   Normal    Pulling             gpufleet-0-599bd986d6-vs2wc   Pulling image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f"
+2026-07-04T12:33:37Z   Normal    Pulling             gpufleet-1-5dfb5566b4-59hg6   Pulling image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f"
+2026-07-04T12:34:57Z   Normal    Started             gpufleet-0-599bd986d6-vs2wc   Container started
+2026-07-04T12:34:57Z   Normal    Pulled              gpufleet-0-599bd986d6-vs2wc   Successfully pulled image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" in 1m19.178s (1m19.178s including waiting). Image size: 9190836942 bytes.
+2026-07-04T12:34:57Z   Normal    Created             gpufleet-0-599bd986d6-vs2wc   Container created
+2026-07-04T12:35:04Z   Normal    Created             gpufleet-1-5dfb5566b4-59hg6   Container created
+2026-07-04T12:35:04Z   Normal    Pulled              gpufleet-1-5dfb5566b4-59hg6   Successfully pulled image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" in 1m27.013s (1m27.013s including waiting). Image size: 9190836942 bytes.
+2026-07-04T12:35:05Z   Normal    Started             gpufleet-1-5dfb5566b4-59hg6   Container started
+2026-07-04T12:35:58Z   Warning   Unhealthy           gpufleet-0-599bd986d6-vs2wc   Readiness probe failed: Get "http://10.42.0.6:8000/health": dial tcp 10.42.0.6:8000: connect: connection refused
+2026-07-04T12:44:50Z   Normal    SuccessfulCreate    gpufleet-1-c6dc7c445          Created pod: gpufleet-1-c6dc7c445-jp269
+2026-07-04T12:44:51Z   Normal    Started             gpufleet-1-c6dc7c445-jp269    Container started
+2026-07-04T12:44:51Z   Normal    Created             gpufleet-1-c6dc7c445-jp269    Container created
+2026-07-04T12:44:51Z   Normal    Pulled              gpufleet-1-c6dc7c445-jp269    Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+2026-07-04T12:45:47Z   Normal    SuccessfulDelete    gpufleet-1-5dfb5566b4         Deleted pod: gpufleet-1-5dfb5566b4-59hg6
+2026-07-04T12:45:47Z   Normal    Killing             gpufleet-1-5dfb5566b4-59hg6   Stopping container inference
+2026-07-04T12:47:00Z   Warning   Unhealthy           gpufleet-1-5dfb5566b4-59hg6   Readiness probe failed: Get "http://10.42.1.3:8000/health": dial tcp 10.42.1.3:8000: connect: connection refused
+2026-07-04T13:04:27Z   Normal    ScalingReplicaSet   gpufleet-1                    Scaled up replica set gpufleet-1-5dfb5566b4 from 0 to 1
+2026-07-04T13:04:28Z   Normal    SuccessfulCreate    gpufleet-1-5dfb5566b4         Created pod: gpufleet-1-5dfb5566b4-9rrbx
+2026-07-04T13:04:29Z   Normal    Created             gpufleet-1-5dfb5566b4-9rrbx   Container created
+2026-07-04T13:04:29Z   Normal    Pulled              gpufleet-1-5dfb5566b4-9rrbx   Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+2026-07-04T13:04:30Z   Normal    Started             gpufleet-1-5dfb5566b4-9rrbx   Container started
+2026-07-04T13:05:25Z   Normal    Killing             gpufleet-1-c6dc7c445-jp269    Stopping container inference
+2026-07-04T13:05:25Z   Normal    ScalingReplicaSet   gpufleet-1                    Scaled down replica set gpufleet-1-c6dc7c445 from 1 to 0
+2026-07-04T13:05:25Z   Normal    SuccessfulDelete    gpufleet-1-c6dc7c445          Deleted pod: gpufleet-1-c6dc7c445-jp269
+2026-07-04T13:06:57Z   Warning   Unhealthy           gpufleet-1-c6dc7c445-jp269    Readiness probe failed: Get "http://10.42.2.3:8000/health": dial tcp 10.42.2.3:8000: connect: connection refused
+2026-07-04T13:19:33Z   Normal    ScalingReplicaSet   gpufleet-1                    Scaled up replica set gpufleet-1-c6dc7c445 from 0 to 1
+2026-07-04T13:19:34Z   Normal    SuccessfulCreate    gpufleet-1-c6dc7c445          Created pod: gpufleet-1-c6dc7c445-xvc56
+2026-07-04T13:19:35Z   Normal    Pulled              gpufleet-1-c6dc7c445-xvc56    Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+2026-07-04T13:19:35Z   Normal    Created             gpufleet-1-c6dc7c445-xvc56    Container created
+2026-07-04T13:19:36Z   Normal    Started             gpufleet-1-c6dc7c445-xvc56    Container started
+2026-07-04T13:20:26Z   Warning   Unhealthy           gpufleet-1-c6dc7c445-xvc56    Readiness probe failed: Get "http://10.42.2.4:8000/health": dial tcp 10.42.2.4:8000: connect: connection refused
+2026-07-04T13:20:31Z   Normal    Killing             gpufleet-1-5dfb5566b4-9rrbx   Stopping container inference
+2026-07-04T13:20:31Z   Normal    ScalingReplicaSet   gpufleet-1                    Scaled down replica set gpufleet-1-5dfb5566b4 from 1 to 0
+2026-07-04T13:20:31Z   Normal    SuccessfulDelete    gpufleet-1-5dfb5566b4         Deleted pod: gpufleet-1-5dfb5566b4-9rrbx
+2026-07-04T13:22:00Z   Warning   Unhealthy           gpufleet-1-5dfb5566b4-9rrbx   Readiness probe failed: Get "http://10.42.1.4:8000/health": dial tcp 10.42.1.4:8000: connect: connection refused

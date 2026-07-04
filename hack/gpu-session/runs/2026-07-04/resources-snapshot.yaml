@@ -1,0 +1,204 @@
+apiVersion: v1
+items:
+- apiVersion: inference.michelecampi.dev/v1alpha1
+  kind: VllmService
+  metadata:
+    creationTimestamp: "2026-07-04T12:33:36Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: fleet-controller
+      inference.michelecampi.dev/fleet: gpufleet
+    name: gpufleet-0
+    namespace: default
+    ownerReferences:
+    - apiVersion: inference.michelecampi.dev/v1alpha1
+      controller: true
+      kind: FleetService
+      name: gpufleet
+      uid: 3c3d618d-88d9-43a0-9bd2-47af31ca9a72
+    resourceVersion: "1498"
+    uid: e909b9da-7120-4daf-ab0c-201e809a4fd0
+  spec:
+    extraArgs:
+    - --max-model-len
+    - "4096"
+    - --gpu-memory-utilization
+    - "0.90"
+    gpu: 1
+    healthPath: /health
+    image: vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f
+    model: Qwen/Qwen2.5-7B-Instruct
+    modelCacheHostPath: /opt/hf-cache
+    nodeName: 132-145-198-193
+    replicas: 1
+    runtimeClassName: nvidia
+    warmupStrategy: Eager
+  status:
+    message: 1/1 replicas ready and warm
+    phase: Ready
+- apiVersion: inference.michelecampi.dev/v1alpha1
+  kind: VllmService
+  metadata:
+    creationTimestamp: "2026-07-04T12:33:36Z"
+    generation: 4
+    labels:
+      app.kubernetes.io/managed-by: fleet-controller
+      inference.michelecampi.dev/fleet: gpufleet
+    name: gpufleet-1
+    namespace: default
+    ownerReferences:
+    - apiVersion: inference.michelecampi.dev/v1alpha1
+      controller: true
+      kind: FleetService
+      name: gpufleet
+      uid: 3c3d618d-88d9-43a0-9bd2-47af31ca9a72
+    resourceVersion: "3421"
+    uid: 9e2e8dd5-f603-4e27-8d96-1fafd653fbe6
+  spec:
+    extraArgs:
+    - --max-model-len
+    - "4096"
+    - --gpu-memory-utilization
+    - "0.90"
+    gpu: 1
+    healthPath: /health
+    image: vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f
+    model: Qwen/Qwen2.5-7B-Instruct
+    modelCacheHostPath: /opt/hf-cache
+    nodeName: 132-226-53-131
+    replicas: 1
+    runtimeClassName: nvidia
+    warmupStrategy: Eager
+  status:
+    message: 1/1 replicas ready and warm
+    phase: Ready
+- apiVersion: inference.michelecampi.dev/v1alpha1
+  kind: FleetService
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"inference.michelecampi.dev/v1alpha1","kind":"FleetService","metadata":{"annotations":{},"name":"gpufleet","namespace":"default"},"spec":{"hysteresis":{"maxConcurrentReschedules":1},"model":"Qwen/Qwen2.5-7B-Instruct","replicas":2,"template":{"extraArgs":["--max-model-len","4096","--gpu-memory-utilization","0.90"],"gpu":1,"healthPath":"/health","image":"vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f","modelCacheHostPath":"/opt/hf-cache","runtimeClassName":"nvidia"}}}
+    creationTimestamp: "2026-07-04T12:33:35Z"
+    generation: 1
+    name: gpufleet
+    namespace: default
+    resourceVersion: "3343"
+    uid: 3c3d618d-88d9-43a0-9bd2-47af31ca9a72
+  spec:
+    hysteresis:
+      maxConcurrentReschedules: 1
+      stableReconcilesRequired: 3
+    model: Qwen/Qwen2.5-7B-Instruct
+    nodePool:
+      selector: {}
+      spotPolicy:
+        enabled: false
+        maxSpotFraction: 0
+    placement:
+      strategy: WarmthFirst
+    replicas: 2
+    template:
+      extraArgs:
+      - --max-model-len
+      - "4096"
+      - --gpu-memory-utilization
+      - "0.90"
+      gpu: 1
+      healthPath: /health
+      image: vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f
+      modelCacheHostPath: /opt/hf-cache
+      runtimeClassName: nvidia
+  status:
+    activeReschedules: 0
+    desiredReplicas: 2
+    phase: Ready
+    placements:
+    - lastTransitionTime: ""
+      nodeRef: 132-145-198-193
+      phase: Ready
+      stableSince: ""
+      vllmServiceRef: gpufleet-0
+    - lastTransitionTime: ""
+      nodeRef: 132-226-53-131
+      phase: Ready
+      stableSince: ""
+      vllmServiceRef: gpufleet-1
+    readyReplicas: 2
+- apiVersion: inference.michelecampi.dev/v1alpha1
+  kind: NodeState
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"inference.michelecampi.dev/v1alpha1","kind":"NodeState","metadata":{"annotations":{},"name":"129-80-83-89","namespace":"default"},"spec":{}}
+    creationTimestamp: "2026-07-04T12:31:43Z"
+    generation: 1
+    name: 129-80-83-89
+    namespace: default
+    resourceVersion: "3327"
+    uid: 33f20ce9-b6a8-4a7f-9d24-6a7ad1ef9e79
+  spec:
+    reportIntervalSeconds: 15
+  status:
+    activeServiceCount: 0
+    gpuMemoryUsedBytes: 0
+    gpuUtilization: 0
+    lastReportTime: "2026-07-04T13:02:09Z"
+    observedGeneration: 1
+    spot:
+      isSpotInstance: true
+      preemptionNoticeDetected: true
+      preemptionNoticeTime: "2026-07-04T13:19:32Z"
+    warmth: Warm
+- apiVersion: inference.michelecampi.dev/v1alpha1
+  kind: NodeState
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"inference.michelecampi.dev/v1alpha1","kind":"NodeState","metadata":{"annotations":{},"name":"132-145-198-193","namespace":"default"},"spec":{}}
+    creationTimestamp: "2026-07-04T12:31:44Z"
+    generation: 1
+    name: 132-145-198-193
+    namespace: default
+    resourceVersion: "1279"
+    uid: 75af6934-09f2-4585-817f-827eeea0adb8
+  spec:
+    reportIntervalSeconds: 15
+  status:
+    activeServiceCount: 0
+    gpuMemoryUsedBytes: 0
+    gpuUtilization: 0
+    lastReportTime: "2026-07-04T12:32:52Z"
+    observedGeneration: 1
+    spot:
+      isSpotInstance: true
+      preemptionNoticeDetected: false
+      preemptionNoticeTime: ""
+    warmth: Warm
+- apiVersion: inference.michelecampi.dev/v1alpha1
+  kind: NodeState
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"inference.michelecampi.dev/v1alpha1","kind":"NodeState","metadata":{"annotations":{},"name":"132-226-53-131","namespace":"default"},"spec":{}}
+    creationTimestamp: "2026-07-04T12:31:44Z"
+    generation: 1
+    name: 132-226-53-131
+    namespace: default
+    resourceVersion: "3256"
+    uid: c5ee8311-2415-4e62-b69d-9f249c91f80c
+  spec:
+    reportIntervalSeconds: 15
+  status:
+    activeServiceCount: 0
+    gpuMemoryUsedBytes: 0
+    gpuUtilization: 0.3
+    lastReportTime: "2026-07-04T13:17:35Z"
+    observedGeneration: 1
+    spot:
+      isSpotInstance: true
+      preemptionNoticeDetected: false
+      preemptionNoticeTime: "2026-07-04T13:04:26Z"
+    warmth: Warm
+kind: List
+metadata:
+  resourceVersion: ""

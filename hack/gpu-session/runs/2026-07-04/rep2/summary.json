@@ -1,0 +1,85 @@
+{
+  "run_dir": "hack/gpu-session/runs/2026-07-04/rep2",
+  "t_notice": 1783170266.0,
+  "config": {
+    "type": "run_config",
+    "ts_start": 1783170176.8255076,
+    "targets": {
+      "gpufleet-0": "http://132.145.198.193:30800",
+      "gpufleet-1": "http://132.145.198.193:30801"
+    },
+    "model": "Qwen/Qwen2.5-7B-Instruct",
+    "concurrency": 4,
+    "duration_s": 420.0,
+    "max_tokens": 64,
+    "prompt_words": 100,
+    "seed": 42,
+    "request_timeout_s": 180.0
+  },
+  "during_window_s": 30.0,
+  "targets": {
+    "gpufleet-0": {
+      "before": {
+        "n": 152,
+        "ok": 152,
+        "err": 0,
+        "rps": 1.7,
+        "p50_ms": 2395.4,
+        "p99_ms": 2494.1
+      },
+      "during": {
+        "n": 48,
+        "ok": 48,
+        "err": 0,
+        "rps": 1.6,
+        "p50_ms": 2405.2,
+        "p99_ms": 2425.4
+      },
+      "after": {
+        "n": 500,
+        "ok": 500,
+        "err": 0,
+        "rps": 1.65,
+        "p50_ms": 2416.0,
+        "p99_ms": 2437.4
+      }
+    },
+    "gpufleet-1": {
+      "before": {
+        "n": 152,
+        "ok": 152,
+        "err": 0,
+        "rps": 1.7,
+        "p50_ms": 2383.9,
+        "p99_ms": 2875.3
+      },
+      "during": {
+        "n": 48,
+        "ok": 48,
+        "err": 0,
+        "rps": 1.6,
+        "p50_ms": 2387.4,
+        "p99_ms": 2397.6
+      },
+      "after": {
+        "n": 300,
+        "ok": 296,
+        "err": 4,
+        "rps": 0.99,
+        "p50_ms": 2396.9,
+        "p99_ms": 2906.1
+      }
+    }
+  },
+  "t_decision_s": 1.458,
+  "moved_child": "gpufleet-1",
+  "replacement_node": "129-80-83-89",
+  "event_ts_resolution_s": 1,
+  "t_surge_scheduled_s": null,
+  "t_old_pod_kill_s": 59.0,
+  "max_success_gap_s": {
+    "gap_s": 2.27,
+    "starts_at_T_plus_s": 54.7,
+    "target": "gpufleet-1"
+  }
+}

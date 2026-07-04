@@ -3,3 +3,4 @@
 # Local benchmark logs (raw, kept off the repo)
 *.log
 BENCHMARKS-raw.txt
+__pycache__/
