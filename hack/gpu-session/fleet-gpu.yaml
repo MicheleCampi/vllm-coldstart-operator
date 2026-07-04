@@ -1,0 +1,51 @@
+# Item-4 GPU fleet: 2 serving placements + 1 warm spare on 3x single-GPU
+# Lambda nodes (A/B serving, C spare via warmth seeding, see 04-deploy.sh).
+# Image pinned by digest (v0.23.0); engine args mirror the cuda-graphs
+# experiment envelope (same vLLM version, same model family, 24GB-safe).
+# modelCacheHostPath points at the 03-prepull.sh download so reschedule
+# cold starts load weights from local disk, not the HF CDN.
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: FleetService
+metadata:
+  name: gpufleet
+  namespace: default
+spec:
+  model: Qwen/Qwen2.5-7B-Instruct
+  replicas: 2
+  hysteresis:
+    maxConcurrentReschedules: 1
+  template:
+    image: vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f
+    gpu: 1
+    healthPath: /health
+    runtimeClassName: nvidia
+    modelCacheHostPath: /opt/hf-cache
+    extraArgs: ["--max-model-len", "4096", "--gpu-memory-utilization", "0.90"]
+---
+# Measurement infra, NOT operator-owned: NodePort entries for the loadgen
+# on optim-dev. kubectl port-forward pins to a single pod and does not
+# follow endpoint changes; NodePort via kube-proxy tracks endpoints, which
+# the make-before-break measurement depends on.
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpufleet-0-np
+  namespace: default
+  labels: {gpu-session-infra: "true"}
+spec:
+  type: NodePort
+  selector: {app: gpufleet-0}
+  ports:
+  - {name: http, port: 8000, targetPort: 8000, nodePort: 30800}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpufleet-1-np
+  namespace: default
+  labels: {gpu-session-infra: "true"}
+spec:
+  type: NodePort
+  selector: {app: gpufleet-1}
+  ports:
+  - {name: http, port: 8000, targetPort: 8000, nodePort: 30801}
