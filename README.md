@@ -131,6 +131,7 @@ This section stays honest about boundaries, because the value is in what is actu
 
 ## Roadmap
 
+- Disaggregation-aware orchestration on the Gateway API Inference Extension contract: single InferencePool v1 + `llm-d.ai/role` labels, per-role warmth semantics (decode `CacheWarm` from `vllm:prefix_cache_*`), role-differentiated placement and recovery. Design accepted in [ADR-0006](docs/adr/0006-disaggregation-aware-orchestration.md); implementation scheduled next.
 - Real preemption-notice detection (cloud metadata endpoint) behind the same `NodeState` interface.
 - A node agent feeding `NodeState` warmth/utilization from live NVML data (closing the loop with inferscope).
 - Scale-down orphan handling and Helm chart alignment (RBAC/CRDs) for the fleet path.
