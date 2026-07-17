@@ -133,7 +133,7 @@ This section stays honest about boundaries, because the value is in what is actu
 
 - Disaggregation-aware orchestration on the Gateway API Inference Extension contract: single InferencePool v1 + `llm-d.ai/role` labels, per-role warmth semantics (decode `CacheWarm` from `vllm:prefix_cache_*`), role-differentiated placement and recovery. Design accepted in [ADR-0006](docs/adr/0006-disaggregation-aware-orchestration.md); implementation scheduled next.
 - Real preemption-notice detection (cloud metadata endpoint) behind the same `NodeState` interface.
-- Efficiency-aware closed-loop placement: the per-node reporter publishes window-based tokens/joule and KV-cache hit-rate from inferscope into `NodeState.status`; placement ranks them as strict lexicographic tie-breakers inside warmth classes (`EfficiencyAware` strategy). Design accepted in [ADR-0007](docs/adr/0007-efficiency-aware-closed-loop-placement.md); implementation and GPU validation post-2026-08-11.
+- Efficiency-aware closed-loop placement: the per-node reporter publishes window-based tokens/joule and KV-cache hit-rate from inferscope into `NodeState.status`; placement ranks them as strict lexicographic tie-breakers inside warmth classes (`EfficiencyAware` strategy). Design accepted in [ADR-0007](docs/adr/0007-efficiency-aware-closed-loop-placement.md). Phase A done: `EfficiencyAware` comparator as a pure function with property-tested warmth dominance and fail-open absence semantics, status fields and CRDs in place. Next: per-node reporter (phase B), GPU validation post-2026-08-11.
 - Scale-down orphan handling and Helm chart alignment (RBAC/CRDs) for the fleet path.
 - Capstone write-up linking probe, operator, and the measured preemption data.
 
