@@ -4,3 +4,4 @@
 *.log
 BENCHMARKS-raw.txt
 __pycache__/
+hack/rehearsal/runs/
