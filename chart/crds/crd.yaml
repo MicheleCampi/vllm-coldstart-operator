@@ -233,6 +233,7 @@ spec:
                     - WarmthFirst
                     - Spread
                     - BinPack
+                    - EfficiencyAware
                     type: string
                 type: object
               replicas:
@@ -386,6 +387,13 @@ spec:
               gpuUtilization:
                 format: float
                 type: number
+              kvCacheHitRate:
+                description: |-
+                  ADR-0007: raw observed KV-cache hit-rate in [0,1], written by the
+                  per-node reporter. Absent = signal not available (fail-open).
+                format: float
+                nullable: true
+                type: number
               lastReportTime:
                 description: RFC3339 timestamp of the last reporter write.
                 type: string
@@ -409,6 +417,13 @@ spec:
                     description: RFC3339 timestamp; empty string until a notice is first detected.
                     type: string
                 type: object
+              tokensPerJoule:
+                description: |-
+                  ADR-0007: raw observed tokens-per-joule, written by the per-node
+                  reporter. Absent = signal not available (fail-open).
+                format: float
+                nullable: true
+                type: number
               warmth:
                 default: Cold
                 enum:

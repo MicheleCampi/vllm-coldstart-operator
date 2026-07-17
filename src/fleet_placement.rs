@@ -1,4 +1,5 @@
-use crate::fleet_types::Warmth;
+use crate::fleet_types::{PlacementStrategy, Warmth};
+use std::cmp::Ordering;
 
 /// A node eligible for placement, already filtered by the caller for
 /// selector match, non-draining status, and spot-fraction cap. This
@@ -11,6 +12,11 @@ pub struct NodeCandidate {
     pub warmth: Warmth,
     pub gpu_utilization: f32,
     pub active_service_count: i32,
+    /// ADR-0007: raw observed KV-cache hit-rate in [0,1]. None = signal not
+    /// available; ranks below any valid observed value within a warmth class.
+    pub kv_cache_hit_rate: Option<f32>,
+    /// ADR-0007: raw observed tokens-per-joule (>= 0). Same absence semantics.
+    pub tokens_per_joule: Option<f32>,
 }
 
 fn warmth_rank(w: &Warmth) -> u8 {
@@ -33,6 +39,72 @@ pub fn select_node_for_placement(candidates: &[NodeCandidate]) -> Option<&NodeCa
             .then_with(|| b.active_service_count.cmp(&a.active_service_count))
             .then_with(|| b.gpu_utilization.total_cmp(&a.gpu_utilization))
     })
+}
+
+/// ADR-0007 signal sanitisation: a reported value outside its physical
+/// domain (or non-finite) is indistinguishable from a broken reporter, so
+/// it degrades to "signal not available" rather than poisoning the order.
+fn valid_hit_rate(v: Option<f32>) -> Option<f32> {
+    v.filter(|x| x.is_finite() && (0.0..=1.0).contains(x))
+}
+
+fn valid_tokens_per_joule(v: Option<f32>) -> Option<f32> {
+    v.filter(|x| x.is_finite() && *x >= 0.0)
+}
+
+/// Total order on an optional efficiency signal, higher is better and
+/// None sorts below any valid observed value. Using a total order here is
+/// deliberate: deciding None-vs-Some at a later tier would break
+/// transitivity and make max_by non-deterministic.
+fn cmp_signal(a: Option<f32>, b: Option<f32>) -> Ordering {
+    match (a, b) {
+        (None, None) => Ordering::Equal,
+        (None, Some(_)) => Ordering::Less,
+        (Some(_), None) => Ordering::Greater,
+        (Some(x), Some(y)) => x.total_cmp(&y),
+    }
+}
+
+/// ADR-0007 efficiency-aware placement: strict lexicographic order
+/// warmth > kvCacheHitRate > tokensPerJoule > gpuUtilization >
+/// activeServiceCount. Cache before energy (cause before effect); the two
+/// load tiers are deliberately inverted w.r.t. warmth-first. With no
+/// efficiency signal on any candidate the first two tiers are always Equal
+/// and the order degenerates to warmth > lowest util > lowest count.
+pub fn select_node_efficiency_aware(candidates: &[NodeCandidate]) -> Option<&NodeCandidate> {
+    candidates.iter().max_by(|a, b| {
+        warmth_rank(&a.warmth)
+            .cmp(&warmth_rank(&b.warmth))
+            .then_with(|| {
+                cmp_signal(
+                    valid_hit_rate(a.kv_cache_hit_rate),
+                    valid_hit_rate(b.kv_cache_hit_rate),
+                )
+            })
+            .then_with(|| {
+                cmp_signal(
+                    valid_tokens_per_joule(a.tokens_per_joule),
+                    valid_tokens_per_joule(b.tokens_per_joule),
+                )
+            })
+            .then_with(|| b.gpu_utilization.total_cmp(&a.gpu_utilization))
+            .then_with(|| b.active_service_count.cmp(&a.active_service_count))
+    })
+}
+
+/// Strategy dispatch (ADR-0007): EfficiencyAware activates the comparator
+/// above; WarmthFirst keeps today's behaviour. Spread and BinPack are still
+/// unimplemented and fall back to warmth-first, unchanged from before.
+pub fn select_node_with_strategy<'a>(
+    candidates: &'a [NodeCandidate],
+    strategy: &PlacementStrategy,
+) -> Option<&'a NodeCandidate> {
+    match strategy {
+        PlacementStrategy::EfficiencyAware => select_node_efficiency_aware(candidates),
+        PlacementStrategy::WarmthFirst | PlacementStrategy::Spread | PlacementStrategy::BinPack => {
+            select_node_for_placement(candidates)
+        }
+    }
 }
 
 /// Choose a replacement node for a placement displaced by preemption
@@ -71,6 +143,8 @@ mod tests {
             warmth,
             gpu_utilization: util,
             active_service_count: count,
+            kv_cache_hit_rate: None,
+            tokens_per_joule: None,
         }
     }
 
@@ -144,5 +218,116 @@ mod tests {
         let candidates = vec![candidate("preempted", Warmth::Warm, 0.1, 0)];
         // Excluding the only node leaves nothing => drain-and-hold.
         assert_eq!(select_replacement_node(&candidates, "preempted"), None);
+    }
+
+    // --- ADR-0007 efficiency-aware tests ---
+
+    #[allow(clippy::too_many_arguments)]
+    fn eff(
+        name: &str,
+        warmth: Warmth,
+        util: f32,
+        count: i32,
+        hit: Option<f32>,
+        tpj: Option<f32>,
+    ) -> NodeCandidate {
+        NodeCandidate {
+            name: name.to_string(),
+            warmth,
+            gpu_utilization: util,
+            active_service_count: count,
+            kv_cache_hit_rate: hit,
+            tokens_per_joule: tpj,
+        }
+    }
+
+    #[test]
+    fn ea_warmth_dominates_perfect_efficiency_signals() {
+        let candidates = vec![
+            eff("cold-perfect", Warmth::Cold, 0.0, 0, Some(0.99), Some(50.0)),
+            eff("warm-unmeasured", Warmth::Warm, 90.0, 5, None, None),
+        ];
+        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        assert_eq!(chosen.name, "warm-unmeasured");
+    }
+
+    #[test]
+    fn ea_hit_rate_beats_tokens_per_joule_within_class() {
+        // Cache before energy: higher hit-rate wins even against much
+        // higher tokens-per-joule.
+        let candidates = vec![
+            eff("high-tpj", Warmth::Warm, 10.0, 1, Some(0.30), Some(90.0)),
+            eff("high-hit", Warmth::Warm, 80.0, 4, Some(0.70), Some(5.0)),
+        ];
+        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        assert_eq!(chosen.name, "high-hit");
+    }
+
+    #[test]
+    fn ea_tokens_per_joule_breaks_hit_rate_tie() {
+        let candidates = vec![
+            eff("low-tpj", Warmth::Warm, 10.0, 1, Some(0.50), Some(5.0)),
+            eff("high-tpj", Warmth::Warm, 80.0, 4, Some(0.50), Some(9.0)),
+        ];
+        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        assert_eq!(chosen.name, "high-tpj");
+    }
+
+    #[test]
+    fn ea_measured_beats_unmeasured_within_class() {
+        // Even a poor observed hit-rate outranks an absent signal.
+        let candidates = vec![
+            eff("unmeasured", Warmth::Warm, 5.0, 0, None, None),
+            eff("measured-poor", Warmth::Warm, 50.0, 3, Some(0.05), None),
+        ];
+        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        assert_eq!(chosen.name, "measured-poor");
+    }
+
+    #[test]
+    fn ea_invalid_signal_degrades_to_absent() {
+        // NaN / out-of-domain values must not poison the order: the NaN
+        // candidate ranks as unmeasured and loses to a valid observation.
+        let candidates = vec![
+            eff(
+                "nan-hit",
+                Warmth::Warm,
+                5.0,
+                0,
+                Some(f32::NAN),
+                Some(f32::INFINITY),
+            ),
+            eff("neg-hit", Warmth::Warm, 5.0, 0, Some(-0.2), Some(-1.0)),
+            eff("valid", Warmth::Warm, 80.0, 4, Some(0.10), Some(0.5)),
+        ];
+        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        assert_eq!(chosen.name, "valid");
+    }
+
+    #[test]
+    fn ea_no_signals_degenerates_to_warmth_then_util_then_count() {
+        // Fail-open tail: with no reporter anywhere the efficiency tiers are
+        // always Equal. Note the tail is util > count per ADR-0007, the
+        // inverse of WarmthFirst's count > util — documented divergence.
+        let candidates = vec![
+            eff("high-util", Warmth::Warm, 80.0, 1, None, None),
+            eff("low-util", Warmth::Warm, 20.0, 4, None, None),
+        ];
+        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        assert_eq!(chosen.name, "low-util");
+    }
+
+    #[test]
+    fn ea_dispatch_selects_comparator_per_strategy() {
+        // Same fleet, same tie situation: EfficiencyAware resolves on the
+        // hit-rate tier, WarmthFirst ignores it and resolves on count.
+        let candidates = vec![
+            eff("good-cache-busy", Warmth::Warm, 50.0, 4, Some(0.80), None),
+            eff("bad-cache-idle", Warmth::Warm, 50.0, 1, Some(0.20), None),
+        ];
+        let ea = select_node_with_strategy(&candidates, &PlacementStrategy::EfficiencyAware);
+        let wf = select_node_with_strategy(&candidates, &PlacementStrategy::WarmthFirst);
+        assert_eq!(ea.unwrap().name, "good-cache-busy");
+        assert_eq!(wf.unwrap().name, "bad-cache-idle");
     }
 }

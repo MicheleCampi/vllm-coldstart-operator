@@ -45,6 +45,8 @@ mod tests {
             warmth,
             gpu_utilization: util,
             active_service_count: count,
+            kv_cache_hit_rate: None,
+            tokens_per_joule: None,
         }
     }
 

@@ -85,6 +85,8 @@ fn node_state_to_candidate(ns: &NodeState) -> Option<NodeCandidate> {
         warmth: status.warmth.clone(),
         gpu_utilization: status.gpu_utilization,
         active_service_count: status.active_service_count,
+        kv_cache_hit_rate: status.kv_cache_hit_rate,
+        tokens_per_joule: status.tokens_per_joule,
     })
 }
 

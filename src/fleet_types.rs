@@ -91,6 +91,12 @@ pub enum PlacementStrategy {
     WarmthFirst,
     Spread,
     BinPack,
+    /// ADR-0007: strict lexicographic ordering
+    /// warmth > kvCacheHitRate > tokensPerJoule > gpuUtilization > activeServiceCount.
+    /// Missing efficiency signals rank below any observed value within the
+    /// same warmth class (fail-open: a fleet with no reporters degenerates
+    /// to WarmthFirst behaviour).
+    EfficiencyAware,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
@@ -260,6 +266,14 @@ pub struct NodeStateStatus {
     pub gpu_utilization: f32,
     pub gpu_memory_used_bytes: i64,
     pub active_service_count: i32,
+    /// ADR-0007: raw observed KV-cache hit-rate in [0,1], written by the
+    /// per-node reporter. Absent = signal not available (fail-open).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kv_cache_hit_rate: Option<f32>,
+    /// ADR-0007: raw observed tokens-per-joule, written by the per-node
+    /// reporter. Absent = signal not available (fail-open).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokens_per_joule: Option<f32>,
     #[serde(default)]
     pub spot: SpotStatus,
 }

@@ -22,3 +22,6 @@ anyhow = "1.0.102"
 serde_yaml = "0.9.34"
 prometheus-client = "0.24"
 axum = "0.8"
+
+[dev-dependencies]
+proptest = "1.11"
