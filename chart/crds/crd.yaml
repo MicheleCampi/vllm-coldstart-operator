@@ -379,12 +379,15 @@ spec:
             nullable: true
             properties:
               activeServiceCount:
+                default: 0
                 format: int32
                 type: integer
               gpuMemoryUsedBytes:
+                default: 0
                 format: int64
                 type: integer
               gpuUtilization:
+                default: 0.0
                 format: float
                 type: number
               kvCacheHitRate:
@@ -395,9 +398,16 @@ spec:
                 nullable: true
                 type: number
               lastReportTime:
+                default: ''
                 description: RFC3339 timestamp of the last reporter write.
                 type: string
               observedGeneration:
+                default: 0
+                description: |-
+                  Every status field is schema-optional (serde defaults): the status
+                  is merge-patched by writers with disjoint field ownership (reporter
+                  vs warmth/spot writers), and a required field would force every
+                  writer to fabricate values it does not own on first write.
                 format: int64
                 type: integer
               spot:
@@ -431,12 +441,6 @@ spec:
                 - Warming
                 - Warm
                 type: string
-            required:
-            - activeServiceCount
-            - gpuMemoryUsedBytes
-            - gpuUtilization
-            - lastReportTime
-            - observedGeneration
             type: object
         required:
         - spec

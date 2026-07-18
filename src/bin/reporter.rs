@@ -200,8 +200,11 @@ async fn main() -> anyhow::Result<()> {
     );
 
     loop {
-        let interval = match api.get(&node).await {
-            Ok(ns) => ns.spec.report_interval_seconds.max(1) as u64,
+        let (interval, generation) = match api.get(&node).await {
+            Ok(ns) => (
+                ns.spec.report_interval_seconds.max(1) as u64,
+                ns.metadata.generation.unwrap_or(0),
+            ),
             Err(e) => {
                 warn!("failed to read NodeState '{node}': {e}; retrying in 15s");
                 tokio::time::sleep(std::time::Duration::from_secs(15)).await;
@@ -214,6 +217,7 @@ async fn main() -> anyhow::Result<()> {
         // the ADR-0007 contract: a signal the source cannot measure must be
         // absent on status (fail-open), not a fabricated value.
         let patch = json!({"status": {
+            "observedGeneration": generation,
             "lastReportTime": Utc::now().to_rfc3339(),
             "gpuUtilization": s.gpu_utilization,
             "gpuMemoryUsedBytes": s.gpu_memory_used_bytes,

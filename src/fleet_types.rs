@@ -268,13 +268,22 @@ pub struct SpotStatus {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeStateStatus {
+    /// Every status field is schema-optional (serde defaults): the status
+    /// is merge-patched by writers with disjoint field ownership (reporter
+    /// vs warmth/spot writers), and a required field would force every
+    /// writer to fabricate values it does not own on first write.
+    #[serde(default)]
     pub observed_generation: i64,
     /// RFC3339 timestamp of the last reporter write.
+    #[serde(default)]
     pub last_report_time: String,
     #[serde(default)]
     pub warmth: Warmth,
+    #[serde(default)]
     pub gpu_utilization: f32,
+    #[serde(default)]
     pub gpu_memory_used_bytes: i64,
+    #[serde(default)]
     pub active_service_count: i32,
     /// ADR-0007: raw observed KV-cache hit-rate in [0,1], written by the
     /// per-node reporter. Absent = signal not available (fail-open).
