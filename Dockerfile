@@ -25,8 +25,10 @@ RUN --mount=type=cache,target=/build/target,sharing=locked \
     cargo build --release --locked \
         --target x86_64-unknown-linux-musl \
         --bin vllm-coldstart-operator \
+        --bin reporter \
     && cp target/x86_64-unknown-linux-musl/release/vllm-coldstart-operator /vllm-coldstart-operator \
-    && strip /vllm-coldstart-operator
+    && cp target/x86_64-unknown-linux-musl/release/reporter /reporter \
+    && strip /vllm-coldstart-operator /reporter
 # ---- Runtime ---------------------------------------------------------------
 # distroless static: no shell, no libc, nonroot (uid 65532) by default.
 FROM gcr.io/distroless/static:nonroot AS runtime
@@ -34,5 +36,7 @@ LABEL org.opencontainers.image.source="https://github.com/MicheleCampi/vllm-cold
 LABEL org.opencontainers.image.description="Kubernetes operator for vLLM cold-start lifecycle management"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 COPY --from=builder /vllm-coldstart-operator /usr/local/bin/vllm-coldstart-operator
+# Reporter DaemonSet reuses this image with command: ["/usr/local/bin/reporter"].
+COPY --from=builder /reporter /usr/local/bin/reporter
 USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/vllm-coldstart-operator"]
