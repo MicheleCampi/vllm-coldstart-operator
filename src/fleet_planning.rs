@@ -1,4 +1,5 @@
-use crate::fleet_placement::{select_node_for_placement, NodeCandidate};
+use crate::fleet_placement::{select_node_with_strategy, NodeCandidate};
+use crate::fleet_types::PlacementStrategy;
 
 /// Plan node assignments for `slots_to_fill` new placements, given the
 /// current eligible candidates.
@@ -13,12 +14,16 @@ use crate::fleet_placement::{select_node_for_placement, NodeCandidate};
 /// Returns fewer than `slots_to_fill` entries if candidates run out or all
 /// remaining candidates are exhausted (empty list) - the caller's job to
 /// requeue and retry the remainder next reconcile.
-pub fn plan_initial_placements(slots_to_fill: i32, candidates: &[NodeCandidate]) -> Vec<String> {
+pub fn plan_initial_placements(
+    slots_to_fill: i32,
+    candidates: &[NodeCandidate],
+    strategy: &PlacementStrategy,
+) -> Vec<String> {
     let mut working: Vec<NodeCandidate> = candidates.to_vec();
     let mut chosen = Vec::new();
 
     for _ in 0..slots_to_fill {
-        let Some(best) = select_node_for_placement(&working) else {
+        let Some(best) = select_node_with_strategy(&working, strategy) else {
             break;
         };
         let best_name = best.name.clone();
@@ -53,18 +58,20 @@ mod tests {
     #[test]
     fn zero_slots_returns_empty() {
         let candidates = vec![candidate("a", Warmth::Warm, 10.0, 0)];
-        assert!(plan_initial_placements(0, &candidates).is_empty());
+        assert!(
+            plan_initial_placements(0, &candidates, &PlacementStrategy::WarmthFirst).is_empty()
+        );
     }
 
     #[test]
     fn no_candidates_returns_empty_regardless_of_slots() {
-        assert!(plan_initial_placements(3, &[]).is_empty());
+        assert!(plan_initial_placements(3, &[], &PlacementStrategy::WarmthFirst).is_empty());
     }
 
     #[test]
     fn single_warm_node_absorbs_multiple_slots() {
         let candidates = vec![candidate("only", Warmth::Warm, 10.0, 0)];
-        let plan = plan_initial_placements(3, &candidates);
+        let plan = plan_initial_placements(3, &candidates, &PlacementStrategy::WarmthFirst);
         assert_eq!(plan, vec!["only", "only", "only"]);
     }
 
@@ -74,7 +81,7 @@ mod tests {
             candidate("node-a", Warmth::Warm, 10.0, 0),
             candidate("node-b", Warmth::Warm, 10.0, 0),
         ];
-        let plan = plan_initial_placements(2, &candidates);
+        let plan = plan_initial_placements(2, &candidates, &PlacementStrategy::WarmthFirst);
         // First slot picks either (tie), second slot must go to the other
         // since the first one's simulated count is now higher.
         assert_eq!(plan.len(), 2);
@@ -89,7 +96,21 @@ mod tests {
         // non-empty, and is the seam where a future per-node capacity cap
         // would change behavior.
         let candidates = vec![candidate("only", Warmth::Cold, 0.0, 0)];
-        let plan = plan_initial_placements(5, &candidates);
+        let plan = plan_initial_placements(5, &candidates, &PlacementStrategy::WarmthFirst);
         assert_eq!(plan.len(), 5);
+    }
+    #[test]
+    fn strategy_threads_through_to_selection() {
+        // Same warmth, same util, same count: WarmthFirst is indifferent
+        // (falls to name-independent tie-breaks), EfficiencyAware must
+        // prefer the better kvCacheHitRate. This pins the *threading*, not
+        // the comparator itself (owned by fleet_placement tests).
+        let mut low = candidate("low-cache", Warmth::Warm, 0.2, 1);
+        low.kv_cache_hit_rate = Some(0.10);
+        let mut high = candidate("high-cache", Warmth::Warm, 0.2, 1);
+        high.kv_cache_hit_rate = Some(0.90);
+        let candidates = vec![low, high];
+        let plan = plan_initial_placements(1, &candidates, &PlacementStrategy::EfficiencyAware);
+        assert_eq!(plan, vec!["high-cache".to_string()]);
     }
 }

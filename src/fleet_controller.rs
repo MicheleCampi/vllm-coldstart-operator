@@ -309,7 +309,11 @@ pub async fn reconcile(
                 );
                 continue;
             }
-            match select_replacement_node(&healthy_candidates, node.as_str()) {
+            match select_replacement_node(
+                &healthy_candidates,
+                node.as_str(),
+                &fleet.spec.placement.strategy,
+            ) {
                 Some(target) => {
                     info!(
                         "FleetService '{}': preemption notice on '{}' — rescheduling slot {} to '{}'",
@@ -332,7 +336,11 @@ pub async fn reconcile(
     // Fresh slots must not land on a preempted node either — it would need
     // rescheduling on the very next pass (same exclusion rationale as
     // replacement, ADR-0005).
-    let fresh = plan_initial_placements(missing.len() as i32, &healthy_candidates);
+    let fresh = plan_initial_placements(
+        missing.len() as i32,
+        &healthy_candidates,
+        &fleet.spec.placement.strategy,
+    );
     let mut fresh_iter = fresh.into_iter();
     let mut slot_nodes: Vec<(usize, String)> = Vec::with_capacity(desired);
     for i in 0..desired {

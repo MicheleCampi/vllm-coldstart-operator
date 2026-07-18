@@ -108,8 +108,10 @@ pub fn select_node_with_strategy<'a>(
 }
 
 /// Choose a replacement node for a placement displaced by preemption
-/// (ADR-0005). Excludes the preempted node by name, then applies the same
-/// warmth-first selection as initial placement over the survivors.
+/// (ADR-0005). Excludes the preempted node by name, then applies the
+/// fleet's placement strategy over the survivors — replacement is one of
+/// the natural decision points of ADR-0007 D4, so it must honour the same
+/// strategy as initial planning or the two paths diverge semantically.
 ///
 /// Returns None when no healthy survivor exists — every remaining candidate
 /// is Cold or the candidate set is empty. The caller treats None as the
@@ -118,6 +120,7 @@ pub fn select_node_with_strategy<'a>(
 pub fn select_replacement_node(
     candidates: &[NodeCandidate],
     preempted_node: &str,
+    strategy: &PlacementStrategy,
 ) -> Option<String> {
     let survivors: Vec<NodeCandidate> = candidates
         .iter()
@@ -130,7 +133,7 @@ pub fn select_replacement_node(
         .into_iter()
         .filter(|c| !matches!(c.warmth, Warmth::Cold))
         .collect();
-    select_node_for_placement(&healthy).map(|c| c.name.clone())
+    select_node_with_strategy(&healthy, strategy).map(|c| c.name.clone())
 }
 
 #[cfg(test)]
@@ -197,7 +200,8 @@ mod tests {
             candidate("survivor-warm", Warmth::Warm, 0.2, 0),
             candidate("survivor-warming", Warmth::Warming, 0.1, 0),
         ];
-        let chosen = select_replacement_node(&candidates, "preempted");
+        let chosen =
+            select_replacement_node(&candidates, "preempted", &PlacementStrategy::WarmthFirst);
         // preempted is excluded; among survivors the Warm one wins over Warming.
         assert_eq!(chosen, Some("survivor-warm".to_string()));
     }
@@ -210,14 +214,20 @@ mod tests {
             candidate("cold-b", Warmth::Cold, 0.0, 0),
         ];
         // Every survivor is Cold: not a healthy target => drain-and-hold.
-        assert_eq!(select_replacement_node(&candidates, "preempted"), None);
+        assert_eq!(
+            select_replacement_node(&candidates, "preempted", &PlacementStrategy::WarmthFirst),
+            None
+        );
     }
 
     #[test]
     fn replacement_holds_when_preempted_was_the_only_node() {
         let candidates = vec![candidate("preempted", Warmth::Warm, 0.1, 0)];
         // Excluding the only node leaves nothing => drain-and-hold.
-        assert_eq!(select_replacement_node(&candidates, "preempted"), None);
+        assert_eq!(
+            select_replacement_node(&candidates, "preempted", &PlacementStrategy::WarmthFirst),
+            None
+        );
     }
 
     // --- ADR-0007 efficiency-aware tests ---
