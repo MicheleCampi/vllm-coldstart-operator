@@ -59,3 +59,27 @@ example:
 # -- Value of RUST_LOG for the operator (tracing EnvFilter). Matches the
 #    binary's built-in default.
 logLevel: "info,kube=warn"
+
+reporter:
+  # -- Deploy the per-node signal reporter DaemonSet (ADR-0007 D2).
+  #    Off by default: the placement planner fail-opens to warmth-first
+  #    when NodeState signals are absent, so enabling this is a pure
+  #    opt-in and changes nothing for existing installs.
+  enabled: false
+  # -- Restrict the DaemonSet to GPU nodes in production, e.g.
+  #    nvidia.com/gpu.present: "true". Empty selects every node (kind).
+  nodeSelector: {}
+  tolerations: []
+  # -- Deterministic synthetic source (kind rehearsal, falsification
+  #    level 2). Sets REPORTER_SYNTHETIC=1; per-signal values come from
+  #    REPORTER_SYNTHETIC_* entries in extraEnv.
+  synthetic: false
+  # -- Extra env vars for the reporter container (list of EnvVar).
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

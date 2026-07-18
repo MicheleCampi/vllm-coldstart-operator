@@ -1,0 +1,106 @@
+{{- if .Values.reporter.enabled -}}
+# Per-node signal reporter (ADR-0007 D2). Measurement side of the
+# measure-actuate loop: DaemonSet on GPU nodes, same image as the
+# operator with the reporter entrypoint. Least-privilege: NodeState is
+# namespaced, the reporter only ever touches its own namespace, so this
+# is a Role, not a ClusterRole.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: {{ include "vllm-coldstart-operator.fullname" . }}-reporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: {{ include "vllm-coldstart-operator.fullname" . }}-reporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
+rules:
+# create-if-absent of the NodeState named after the node, then read the
+# spec (reportIntervalSeconds) every cycle.
+- apiGroups: ["inference.michelecampi.dev"]
+  resources: ["nodestates"]
+  verbs: ["get", "create"]
+# Merge-patch of the owned status fields.
+- apiGroups: ["inference.michelecampi.dev"]
+  resources: ["nodestates/status"]
+  verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: {{ include "vllm-coldstart-operator.fullname" . }}-reporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "vllm-coldstart-operator.fullname" . }}-reporter
+subjects:
+- kind: ServiceAccount
+  name: {{ include "vllm-coldstart-operator.fullname" . }}-reporter
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "vllm-coldstart-operator.fullname" . }}-reporter
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: reporter
+spec:
+  selector:
+    matchLabels:
+      {{- include "vllm-coldstart-operator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: reporter
+  template:
+    metadata:
+      labels:
+        {{- include "vllm-coldstart-operator.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: reporter
+    spec:
+      serviceAccountName: {{ include "vllm-coldstart-operator.fullname" . }}-reporter
+      {{- with .Values.reporter.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.reporter.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: reporter
+        image: "{{ include "vllm-coldstart-operator.image" . }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/usr/local/bin/reporter"]
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        {{- if .Values.reporter.synthetic }}
+        - name: REPORTER_SYNTHETIC
+          value: "1"
+        {{- end }}
+        {{- with .Values.reporter.extraEnv }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.reporter.resources | nindent 10 }}
+{{- end }}

@@ -9,9 +9,11 @@ metadata:
     {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
 rules:
 # Watch VllmService custom resources across all namespaces (Api::all).
+# create/patch: the fleet controller server-side applies one owned
+# VllmService per placement slot.
 - apiGroups: ["inference.michelecampi.dev"]
   resources: ["vllmservices"]
-  verbs: ["get", "list", "watch"]
+  verbs: ["get", "list", "watch", "create", "patch"]
 # Write lifecycle phase back on the /status subresource.
 - apiGroups: ["inference.michelecampi.dev"]
   resources: ["vllmservices/status"]
@@ -20,6 +22,23 @@ rules:
 - apiGroups: ["apps"]
   resources: ["deployments"]
   verbs: ["get", "list", "watch", "create", "patch"]
+# The main controller also applies a Service per VllmService (ADR-0005).
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch", "create", "patch"]
+# Fleet controller: watches FleetService across namespaces (Api::all) and
+# writes phase/placements back on /status.
+- apiGroups: ["inference.michelecampi.dev"]
+  resources: ["fleetservices"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["inference.michelecampi.dev"]
+  resources: ["fleetservices/status"]
+  verbs: ["get", "patch", "update"]
+# Fleet controller reads NodeState fleet-wide (planner input + .watches
+# mapper). Status writes belong to the reporter, not the operator.
+- apiGroups: ["inference.michelecampi.dev"]
+  resources: ["nodestates"]
+  verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
