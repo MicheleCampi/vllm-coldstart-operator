@@ -32,9 +32,9 @@ pub struct FleetServiceSpec {
     /// Node pool this fleet is allowed to place onto.
     #[serde(default)]
     pub node_pool: NodePoolSpec,
-    /// Placement strategy. Only "warmth-first" is implemented in v1; the
-    /// enum exists so a future bin-packing strategy does not require an API
-    /// break, but no other variant does anything yet (see ADR).
+    /// Placement strategy. WarmthFirst (default) and EfficiencyAware
+    /// (ADR-0007) are implemented; Spread/BinPack are reserved variants
+    /// that currently degrade to warmth-first (see ADR).
     #[serde(default)]
     pub placement: PlacementSpec,
     /// Anti-oscillation controls for the reconcile loop.
