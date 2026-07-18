@@ -58,16 +58,43 @@ struct Synthetic {
 }
 
 impl Synthetic {
-    fn from_env() -> anyhow::Result<Self> {
+    /// Two-level env resolution: `REPORTER_SYNTHETIC_<SIGNAL>_NODE_<NODE>`
+    /// wins over the global `REPORTER_SYNTHETIC_<SIGNAL>`. A DaemonSet has
+    /// one pod template, so per-node signal differentiation (required to
+    /// falsify the EA comparator in the rehearsal) must happen here, keyed
+    /// on downward-API identity — not in per-node infrastructure.
+    fn from_env(node: &str) -> anyhow::Result<Self> {
+        let suffix = format!(
+            "_NODE_{}",
+            node.replace(['-', '.'], "_").to_ascii_uppercase()
+        );
+        let f32_of = |key: &str| -> anyhow::Result<Option<f32>> {
+            match env_f32(&format!("{key}{suffix}"))? {
+                Some(v) => Ok(Some(v)),
+                None => env_f32(key),
+            }
+        };
+        let i64_of = |key: &str| -> anyhow::Result<Option<i64>> {
+            match env_i64(&format!("{key}{suffix}"))? {
+                Some(v) => Ok(Some(v)),
+                None => env_i64(key),
+            }
+        };
+        let i32_of = |key: &str| -> anyhow::Result<Option<i32>> {
+            match env_i32(&format!("{key}{suffix}"))? {
+                Some(v) => Ok(Some(v)),
+                None => env_i32(key),
+            }
+        };
         Ok(Self {
             signals: Signals {
-                gpu_utilization: env_f32("REPORTER_SYNTHETIC_GPU_UTILIZATION")?.unwrap_or(0.0),
-                gpu_memory_used_bytes: env_i64("REPORTER_SYNTHETIC_GPU_MEMORY_USED_BYTES")?
+                gpu_utilization: f32_of("REPORTER_SYNTHETIC_GPU_UTILIZATION")?.unwrap_or(0.0),
+                gpu_memory_used_bytes: i64_of("REPORTER_SYNTHETIC_GPU_MEMORY_USED_BYTES")?
                     .unwrap_or(0),
-                active_service_count: env_i32("REPORTER_SYNTHETIC_ACTIVE_SERVICE_COUNT")?
+                active_service_count: i32_of("REPORTER_SYNTHETIC_ACTIVE_SERVICE_COUNT")?
                     .unwrap_or(0),
-                kv_cache_hit_rate: env_f32("REPORTER_SYNTHETIC_KV_CACHE_HIT_RATE")?,
-                tokens_per_joule: env_f32("REPORTER_SYNTHETIC_TOKENS_PER_JOULE")?,
+                kv_cache_hit_rate: f32_of("REPORTER_SYNTHETIC_KV_CACHE_HIT_RATE")?,
+                tokens_per_joule: f32_of("REPORTER_SYNTHETIC_TOKENS_PER_JOULE")?,
             },
         })
     }
@@ -159,7 +186,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let mut source: Box<dyn SignalSource> = if std::env::var("REPORTER_SYNTHETIC").is_ok() {
-        Box::new(Synthetic::from_env()?)
+        Box::new(Synthetic::from_env(&node)?)
     } else {
         Box::new(Real)
     };
