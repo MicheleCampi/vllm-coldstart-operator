@@ -234,6 +234,16 @@ fn default_report_interval() -> i32 {
     15
 }
 
+impl Default for NodeStateSpec {
+    /// Matches the serde/CRD default so a reporter-created NodeState and a
+    /// manifest-created one with an empty spec are indistinguishable.
+    fn default() -> Self {
+        Self {
+            report_interval_seconds: default_report_interval(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default, PartialEq)]
 pub enum Warmth {
     #[default]
