@@ -434,6 +434,12 @@ mod http {
 }
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Two rustls crypto providers reach the tree (kube pulls ring,
+    // reqwest's feature graph pulls aws-lc-rs): auto-detection refuses to
+    // pick one at runtime, so install explicitly before any TLS init.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("install rustls ring provider before any TLS use");
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()

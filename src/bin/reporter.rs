@@ -47,6 +47,19 @@ struct Signals {
     tokens_per_joule: Option<f32>,
 }
 
+/// Two-level env resolution shared by every source: the per-node key
+/// `<KEY>_NODE_<NODE>` wins over the global `<KEY>`. One DaemonSet pod
+/// template, per-node differentiation keyed on downward-API identity.
+fn env_for_node(key: &str, node: &str) -> Option<String> {
+    let suffix = format!(
+        "_NODE_{}",
+        node.replace(['-', '.'], "_").to_ascii_uppercase()
+    );
+    std::env::var(format!("{key}{suffix}"))
+        .or_else(|_| std::env::var(key))
+        .ok()
+}
+
 #[async_trait::async_trait]
 trait SignalSource {
     fn name(&self) -> &'static str;
@@ -126,8 +139,8 @@ impl Real {
     /// `REPORTER_SCRAPE_TARGETS`: comma-separated `/metrics` URLs of the
     /// vLLM services on this node. Unset or empty = scraping off, every
     /// signal absent — today's behaviour, no chart change required.
-    fn from_env() -> Self {
-        let targets: Vec<String> = std::env::var("REPORTER_SCRAPE_TARGETS")
+    fn from_env(node: &str) -> Self {
+        let targets: Vec<String> = env_for_node("REPORTER_SCRAPE_TARGETS", node)
             .unwrap_or_default()
             .split(',')
             .map(str::trim)
@@ -312,6 +325,12 @@ async fn ensure_node_state(api: &Api<NodeState>, node: &str) -> anyhow::Result<(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Two rustls crypto providers reach the tree (kube pulls ring,
+    // reqwest's feature graph pulls aws-lc-rs): auto-detection refuses to
+    // pick one at runtime, so install explicitly before any TLS init.
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("install rustls ring provider before any TLS use");
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -331,7 +350,7 @@ async fn main() -> anyhow::Result<()> {
     let mut source: Box<dyn SignalSource> = if std::env::var("REPORTER_SYNTHETIC").is_ok() {
         Box::new(Synthetic::from_env(&node)?)
     } else {
-        Box::new(Real::from_env())
+        Box::new(Real::from_env(&node))
     };
 
     let client = Client::try_default().await?;
