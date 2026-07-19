@@ -32,7 +32,12 @@ pub fn plan_initial_placements(
         // Simulate the load this placement adds, so the next pick in this
         // batch sees an updated picture instead of re-choosing the same node.
         if let Some(c) = working.iter_mut().find(|c| c.name == best_name) {
-            c.active_service_count += 1;
+            // Planner's own bookkeeping, not a reporter measurement: an
+            // unmeasured node the planner just loaded is "at least my own
+            // placements", so None promotes to Some(1) here on purpose —
+            // otherwise a batch would co-locate every slot on the same
+            // unmeasured node (same failure class as the item-4 finding).
+            c.active_service_count = Some(c.active_service_count.unwrap_or(0) + 1);
         }
     }
 
@@ -48,8 +53,8 @@ mod tests {
         NodeCandidate {
             name: name.to_string(),
             warmth,
-            gpu_utilization: util,
-            active_service_count: count,
+            gpu_utilization: Some(util),
+            active_service_count: Some(count),
             kv_cache_hit_rate: None,
             tokens_per_joule: None,
         }

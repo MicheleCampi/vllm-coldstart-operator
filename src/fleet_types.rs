@@ -279,12 +279,17 @@ pub struct NodeStateStatus {
     pub last_report_time: String,
     #[serde(default)]
     pub warmth: Warmth,
-    #[serde(default)]
-    pub gpu_utilization: f32,
-    #[serde(default)]
-    pub gpu_memory_used_bytes: i64,
-    #[serde(default)]
-    pub active_service_count: i32,
+    /// Raw observed GPU utilization. Absent = signal not available
+    /// (fail-open): a serde-default 0.0 would instead read as "idle node"
+    /// and bias placement toward unmeasured nodes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpu_utilization: Option<f32>,
+    /// Same absence semantics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpu_memory_used_bytes: Option<i64>,
+    /// Same absence semantics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_service_count: Option<i32>,
     /// ADR-0007: raw observed KV-cache hit-rate in [0,1], written by the
     /// per-node reporter. Absent = signal not available (fail-open).
     #[serde(default, skip_serializing_if = "Option::is_none")]

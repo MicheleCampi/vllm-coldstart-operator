@@ -10,8 +10,14 @@ use std::cmp::Ordering;
 pub struct NodeCandidate {
     pub name: String,
     pub warmth: Warmth,
-    pub gpu_utilization: f32,
-    pub active_service_count: i32,
+    /// Raw observed GPU utilization; lower is better. None = signal not
+    /// available (fail-open): ranks below any observed value, so an
+    /// unmeasured node can no longer masquerade as idle (the old
+    /// serde-default 0.0 bias).
+    pub gpu_utilization: Option<f32>,
+    /// Active service count as observed by the reporter; lower is better,
+    /// same absence semantics.
+    pub active_service_count: Option<i32>,
     /// ADR-0007: raw observed KV-cache hit-rate in [0,1]. None = signal not
     /// available; ranks below any valid observed value within a warmth class.
     pub kv_cache_hit_rate: Option<f32>,
@@ -36,8 +42,13 @@ pub fn select_node_for_placement(candidates: &[NodeCandidate]) -> Option<&NodeCa
     candidates.iter().max_by(|a, b| {
         warmth_rank(&a.warmth)
             .cmp(&warmth_rank(&b.warmth))
-            .then_with(|| b.active_service_count.cmp(&a.active_service_count))
-            .then_with(|| b.gpu_utilization.total_cmp(&a.gpu_utilization))
+            .then_with(|| cmp_count_lower(a.active_service_count, b.active_service_count))
+            .then_with(|| {
+                cmp_signal_lower(
+                    valid_gpu_utilization(a.gpu_utilization),
+                    valid_gpu_utilization(b.gpu_utilization),
+                )
+            })
     })
 }
 
@@ -65,6 +76,34 @@ fn cmp_signal(a: Option<f32>, b: Option<f32>) -> Ordering {
     }
 }
 
+/// Sanitisation for GPU utilization: non-finite or negative degrades to
+/// absent. No upper bound on purpose — the unit (fraction vs percent) is
+/// the source's contract, not the comparator's.
+fn valid_gpu_utilization(v: Option<f32>) -> Option<f32> {
+    v.filter(|x| x.is_finite() && *x >= 0.0)
+}
+
+/// Lower-is-better mirror of `cmp_signal`: higher Ordering = more
+/// preferred, None still sorts below any observed value.
+fn cmp_signal_lower(a: Option<f32>, b: Option<f32>) -> Ordering {
+    match (a, b) {
+        (None, None) => Ordering::Equal,
+        (None, Some(_)) => Ordering::Less,
+        (Some(_), None) => Ordering::Greater,
+        (Some(x), Some(y)) => y.total_cmp(&x),
+    }
+}
+
+/// Same, for integer counts.
+fn cmp_count_lower(a: Option<i32>, b: Option<i32>) -> Ordering {
+    match (a, b) {
+        (None, None) => Ordering::Equal,
+        (None, Some(_)) => Ordering::Less,
+        (Some(_), None) => Ordering::Greater,
+        (Some(x), Some(y)) => y.cmp(&x),
+    }
+}
+
 /// ADR-0007 efficiency-aware placement: strict lexicographic order
 /// warmth > kvCacheHitRate > tokensPerJoule > gpuUtilization >
 /// activeServiceCount. Cache before energy (cause before effect); the two
@@ -87,8 +126,13 @@ pub fn select_node_efficiency_aware(candidates: &[NodeCandidate]) -> Option<&Nod
                     valid_tokens_per_joule(b.tokens_per_joule),
                 )
             })
-            .then_with(|| b.gpu_utilization.total_cmp(&a.gpu_utilization))
-            .then_with(|| b.active_service_count.cmp(&a.active_service_count))
+            .then_with(|| {
+                cmp_signal_lower(
+                    valid_gpu_utilization(a.gpu_utilization),
+                    valid_gpu_utilization(b.gpu_utilization),
+                )
+            })
+            .then_with(|| cmp_count_lower(a.active_service_count, b.active_service_count))
     })
 }
 
@@ -144,8 +188,8 @@ mod tests {
         NodeCandidate {
             name: name.to_string(),
             warmth,
-            gpu_utilization: util,
-            active_service_count: count,
+            gpu_utilization: Some(util),
+            active_service_count: Some(count),
             kv_cache_hit_rate: None,
             tokens_per_joule: None,
         }
@@ -244,8 +288,8 @@ mod tests {
         NodeCandidate {
             name: name.to_string(),
             warmth,
-            gpu_utilization: util,
-            active_service_count: count,
+            gpu_utilization: Some(util),
+            active_service_count: Some(count),
             kv_cache_hit_rate: hit,
             tokens_per_joule: tpj,
         }

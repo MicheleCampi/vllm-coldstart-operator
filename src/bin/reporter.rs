@@ -38,9 +38,11 @@ use vllm_coldstart_operator::fleet_types::{NodeState, NodeStateSpec};
 /// Raw f32 signals only — no thresholds, no scoring (ADR-0007 D2).
 #[derive(Debug, Clone, Copy)]
 struct Signals {
-    gpu_utilization: f32,
-    gpu_memory_used_bytes: i64,
-    active_service_count: i32,
+    /// All signals are Option: None = not measured, and merge-patch null
+    /// deletes the status key (fail-open). A source must never fabricate.
+    gpu_utilization: Option<f32>,
+    gpu_memory_used_bytes: Option<i64>,
+    active_service_count: Option<i32>,
     kv_cache_hit_rate: Option<f32>,
     tokens_per_joule: Option<f32>,
 }
@@ -88,11 +90,11 @@ impl Synthetic {
         };
         Ok(Self {
             signals: Signals {
-                gpu_utilization: f32_of("REPORTER_SYNTHETIC_GPU_UTILIZATION")?.unwrap_or(0.0),
-                gpu_memory_used_bytes: i64_of("REPORTER_SYNTHETIC_GPU_MEMORY_USED_BYTES")?
-                    .unwrap_or(0),
-                active_service_count: i32_of("REPORTER_SYNTHETIC_ACTIVE_SERVICE_COUNT")?
-                    .unwrap_or(0),
+                // Unset env now means absent, not zero: the synthetic
+                // source must be able to rehearse a missing signal too.
+                gpu_utilization: f32_of("REPORTER_SYNTHETIC_GPU_UTILIZATION")?,
+                gpu_memory_used_bytes: i64_of("REPORTER_SYNTHETIC_GPU_MEMORY_USED_BYTES")?,
+                active_service_count: i32_of("REPORTER_SYNTHETIC_ACTIVE_SERVICE_COUNT")?,
                 kv_cache_hit_rate: f32_of("REPORTER_SYNTHETIC_KV_CACHE_HIT_RATE")?,
                 tokens_per_joule: f32_of("REPORTER_SYNTHETIC_TOKENS_PER_JOULE")?,
             },
@@ -122,9 +124,9 @@ impl SignalSource for Real {
     }
     fn sample(&mut self) -> Signals {
         Signals {
-            gpu_utilization: 0.0,
-            gpu_memory_used_bytes: 0,
-            active_service_count: 0,
+            gpu_utilization: None,
+            gpu_memory_used_bytes: None,
+            active_service_count: None,
             kv_cache_hit_rate: None,
             tokens_per_joule: None,
         }

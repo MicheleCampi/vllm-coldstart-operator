@@ -250,7 +250,14 @@ pub async fn reconcile(
     let candidates: Vec<NodeCandidate> = candidates
         .into_iter()
         .map(|mut c| {
-            c.active_service_count += own_counts.get(c.name.as_str()).copied().unwrap_or(0);
+            // Fleet's own bookkeeping folded into the observed signal.
+            // None + own 0 stays None (no fabricated measurement); any real
+            // own load promotes, because it is knowledge the controller has
+            // regardless of the reporter.
+            let own = own_counts.get(c.name.as_str()).copied().unwrap_or(0);
+            if own > 0 {
+                c.active_service_count = Some(c.active_service_count.unwrap_or(0) + own);
+            }
             c
         })
         .collect();

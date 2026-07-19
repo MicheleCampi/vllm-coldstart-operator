@@ -38,8 +38,8 @@ fn arb_signal() -> impl Strategy<Value = Option<f32>> {
 fn arb_candidate(idx: usize) -> impl Strategy<Value = NodeCandidate> {
     (
         arb_warmth(),
-        0.0f32..100.0,
-        0i32..32,
+        prop::option::weighted(0.75, 0.0f32..100.0),
+        prop::option::weighted(0.75, 0i32..32),
         arb_signal(),
         arb_signal(),
     )
@@ -106,7 +106,7 @@ proptest! {
         'outer: for c in &fleet {
             for s in &seen {
                 let same = s.warmth == c.warmth
-                    && s.gpu_utilization.to_bits() == c.gpu_utilization.to_bits()
+                    && s.gpu_utilization.map(f32::to_bits) == c.gpu_utilization.map(f32::to_bits)
                     && s.active_service_count == c.active_service_count
                     && s.kv_cache_hit_rate.map(f32::to_bits)
                         == c.kv_cache_hit_rate.map(f32::to_bits)

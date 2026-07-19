@@ -379,16 +379,22 @@ spec:
             nullable: true
             properties:
               activeServiceCount:
-                default: 0
+                description: Same absence semantics.
                 format: int32
+                nullable: true
                 type: integer
               gpuMemoryUsedBytes:
-                default: 0
+                description: Same absence semantics.
                 format: int64
+                nullable: true
                 type: integer
               gpuUtilization:
-                default: 0.0
+                description: |-
+                  Raw observed GPU utilization. Absent = signal not available
+                  (fail-open): a serde-default 0.0 would instead read as "idle node"
+                  and bias placement toward unmeasured nodes.
                 format: float
+                nullable: true
                 type: number
               kvCacheHitRate:
                 description: |-
