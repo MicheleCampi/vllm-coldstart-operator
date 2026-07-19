@@ -1,0 +1,2 @@
+PASS: all 4 reps have complete evidence
+PASS: operator log clean across all reps (teardown NotFound excluded)

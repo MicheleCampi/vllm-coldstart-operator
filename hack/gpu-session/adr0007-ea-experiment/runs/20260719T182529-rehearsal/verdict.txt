@@ -1,0 +1,2 @@
+PASS: all 4 reps have complete evidence
+FAIL: operator log clean across all reps

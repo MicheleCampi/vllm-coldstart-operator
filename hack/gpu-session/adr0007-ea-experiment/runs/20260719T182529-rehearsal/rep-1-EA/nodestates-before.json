@@ -1,0 +1,90 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "NodeState",
+            "metadata": {
+                "creationTimestamp": "2026-07-19T18:26:12Z",
+                "generation": 1,
+                "name": "adr0007exp-worker",
+                "namespace": "default",
+                "resourceVersion": "960",
+                "uid": "1d2faeaf-361f-4bad-9e1a-b99328e4faf6"
+            },
+            "spec": {
+                "reportIntervalSeconds": 15
+            },
+            "status": {
+                "activeServiceCount": 1,
+                "kvCacheHitRate": 0.8999999761581421,
+                "lastReportTime": "2026-07-19T18:26:42.573308600+00:00",
+                "observedGeneration": 1,
+                "spot": {
+                    "isSpotInstance": false,
+                    "preemptionNoticeDetected": false,
+                    "preemptionNoticeTime": ""
+                },
+                "warmth": "Warm"
+            }
+        },
+        {
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "NodeState",
+            "metadata": {
+                "creationTimestamp": "2026-07-19T18:26:12Z",
+                "generation": 1,
+                "name": "adr0007exp-worker2",
+                "namespace": "default",
+                "resourceVersion": "958",
+                "uid": "d7e84eb1-7708-40b9-901e-90261980d41a"
+            },
+            "spec": {
+                "reportIntervalSeconds": 15
+            },
+            "status": {
+                "activeServiceCount": 1,
+                "kvCacheHitRate": 0.30000001192092896,
+                "lastReportTime": "2026-07-19T18:26:42.508559790+00:00",
+                "observedGeneration": 1,
+                "spot": {
+                    "isSpotInstance": false,
+                    "preemptionNoticeDetected": false,
+                    "preemptionNoticeTime": ""
+                },
+                "warmth": "Warm"
+            }
+        },
+        {
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "NodeState",
+            "metadata": {
+                "creationTimestamp": "2026-07-19T18:26:12Z",
+                "generation": 1,
+                "name": "adr0007exp-worker3",
+                "namespace": "default",
+                "resourceVersion": "961",
+                "uid": "d4714c89-badb-48bb-a995-1da3ec256a40"
+            },
+            "spec": {
+                "reportIntervalSeconds": 15
+            },
+            "status": {
+                "activeServiceCount": 1,
+                "kvCacheHitRate": 0.550000011920929,
+                "lastReportTime": "2026-07-19T18:26:42.657331819+00:00",
+                "observedGeneration": 1,
+                "spot": {
+                    "isSpotInstance": false,
+                    "preemptionNoticeDetected": false,
+                    "preemptionNoticeTime": ""
+                },
+                "warmth": "Warm"
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}
