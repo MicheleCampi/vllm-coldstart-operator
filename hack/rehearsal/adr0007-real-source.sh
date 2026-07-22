@@ -9,11 +9,24 @@
 #   5) gpuUtilization/gpuMemoryUsedBytes ABSENT on every worker (NVML not
 #      wired = key deleted by merge-patch null, not zero)
 #   6) reporter logs free of panics
+# GPU_VARIANT=1: same asserts, but the image is the level-3 GPU build
+# (gnu target + gpu-nvidia feature + distroless/cc) with REPORTER_GPU=nvidia
+# set. kind has no GPU, so the double gate must fail open: adds assert
+#   7) every reporter logs the NVML init failure warning
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 CLUSTER="${CLUSTER:-adr0007rs}"
 CTX="kind-${CLUSTER}"
-IMG="vllm-coldstart-operator:adr0007rs"
+GPU_VARIANT="${GPU_VARIANT:-}"
+if [ -n "$GPU_VARIANT" ]; then
+  IMG="vllm-coldstart-operator:adr0007rs-gpu"
+  BUILD_ARGS=(--build-arg RUST_TARGET=x86_64-unknown-linux-gnu
+              --build-arg CARGO_FEATURES=gpu-nvidia
+              --build-arg RUNTIME_IMAGE=gcr.io/distroless/cc-debian12:nonroot)
+else
+  IMG="vllm-coldstart-operator:adr0007rs"
+  BUILD_ARGS=()
+fi
 TS="$(date -u +%Y%m%dT%H%M%S)"
 RUN_DIR="hack/rehearsal/runs/${TS}-adr0007-real-source"
 mkdir -p "$RUN_DIR"
@@ -36,7 +49,7 @@ nodes:
 KINDCFG
 
 echo "==> build + load operator image"
-docker build -t "$IMG" .
+docker build "${BUILD_ARGS[@]}" -t "$IMG" .
 kind load docker-image "$IMG" --name "$CLUSTER"
 
 echo "==> fixtures: fake vLLM /metrics with advancing counters"
@@ -82,7 +95,7 @@ echo "==> CRDs + chart install (reporter enabled, REAL source, per-node targets)
 kubectl --context "$CTX" apply --server-side -f deploy/crd.yaml
 helm --kube-context "$CTX" install adr7rs chart/ \
   --set image.repository=vllm-coldstart-operator \
-  --set image.tag=adr0007rs \
+  --set "image.tag=${IMG##*:}" \
   --set image.pullPolicy=Never \
   --set reporter.enabled=true \
   --set-string 'reporter.extraEnv[0].name=REPORTER_SCRAPE_TARGETS_NODE_ADR0007RS_WORKER' \
@@ -90,7 +103,8 @@ helm --kube-context "$CTX" install adr7rs chart/ \
   --set-string 'reporter.extraEnv[1].name=REPORTER_SCRAPE_TARGETS_NODE_ADR0007RS_WORKER2' \
   --set-string 'reporter.extraEnv[1].value=http://fixture-b.default.svc.cluster.local:9090/metrics' \
   --set-string 'reporter.extraEnv[2].name=REPORTER_SCRAPE_TARGETS_NODE_ADR0007RS_WORKER3' \
-  --set-string 'reporter.extraEnv[2].value=http://no-such-service.default.svc.cluster.local:9090/metrics'
+  --set-string 'reporter.extraEnv[2].value=http://no-such-service.default.svc.cluster.local:9090/metrics' \
+  ${GPU_VARIANT:+--set-string 'reporter.extraEnv[3].name=REPORTER_GPU' --set-string 'reporter.extraEnv[3].value=nvidia'}
 
 kubectl --context "$CTX" rollout status deployment/adr7rs-vllm-coldstart-operator --timeout=120s
 kubectl --context "$CTX" rollout status daemonset/adr7rs-vllm-coldstart-operator-reporter --timeout=120s
@@ -133,6 +147,15 @@ for p in $(kubectl --context "$CTX" get pods -l app.kubernetes.io/component=repo
   PANICS=$((PANICS + C))
 done
 ok=0; [ "$PANICS" -eq 0 ] || ok=1; verdict "reporter logs free of panics" $ok
+
+if [ -n "$GPU_VARIANT" ]; then
+  MISSING=0
+  for f in "$RUN_DIR"/reporter-*.log; do
+    grep -qi "NVML init failed" "$f" || MISSING=$((MISSING + 1))
+  done
+  ok=0; [ "$MISSING" -eq 0 ] || ok=1
+  verdict "GPU variant: NVML fail-open warning on every reporter" $ok
+fi
 
 echo "==> verdict: ${PASS} pass / ${FAIL} fail (evidence: ${RUN_DIR})"
 cat "$RUN_DIR/verdict.txt"
