@@ -133,6 +133,8 @@ impl SignalSource for Synthetic {
 /// *bad* score (see phase-A sanitization semantics).
 struct Real {
     scrape: Option<VllmScrape>,
+    #[cfg(feature = "gpu-nvidia")]
+    nvml: Option<NvmlSampler>,
 }
 
 impl Real {
@@ -147,8 +149,33 @@ impl Real {
             .filter(|t| !t.is_empty())
             .map(String::from)
             .collect();
+        // Double gate, session-a lesson codified: the binary must be
+        // built with feature `gpu-nvidia` AND the runtime must opt in
+        // via REPORTER_GPU=nvidia (ADR-005 semantics, reporter is
+        // env-driven). Either gate missing = GPU signals absent.
+        #[cfg(feature = "gpu-nvidia")]
+        let nvml = match std::env::var("REPORTER_GPU").as_deref() {
+            Ok("nvidia") => NvmlSampler::init(),
+            Ok(other) => {
+                warn!(
+                    "REPORTER_GPU='{other}' not recognized (expected \
+                     'nvidia'); GPU signals stay absent"
+                );
+                None
+            }
+            Err(_) => None,
+        };
+        #[cfg(not(feature = "gpu-nvidia"))]
+        if std::env::var("REPORTER_GPU").is_ok() {
+            warn!(
+                "REPORTER_GPU is set but this binary was built without \
+                 feature 'gpu-nvidia'; GPU signals stay absent"
+            );
+        }
         Self {
             scrape: (!targets.is_empty()).then(|| VllmScrape::new(targets)),
+            #[cfg(feature = "gpu-nvidia")]
+            nvml,
         }
     }
 }
@@ -166,11 +193,30 @@ impl SignalSource for Real {
             kv_cache_hit_rate: None,
             tokens_per_joule: None,
         };
+        let mut generation_tokens_delta: Option<f64> = None;
         if let Some(s) = &mut self.scrape {
             let round = s.sample().await;
             out.kv_cache_hit_rate = round.kv_cache_hit_rate;
             out.active_service_count = Some(round.responding_targets);
+            generation_tokens_delta = round.generation_tokens_delta;
         }
+        #[cfg(feature = "gpu-nvidia")]
+        if let Some(n) = &mut self.nvml {
+            let g = n.sample();
+            out.gpu_utilization = g.gpu_utilization;
+            out.gpu_memory_used_bytes = g.gpu_memory_used_bytes;
+            // ADR-0007 tokens/joule: cross-source join on the same round.
+            // Both deltas must exist and energy must be non-zero; anything
+            // else is honestly absent (first round, reset, no traffic,
+            // series missing). Never fabricate a 0.0.
+            if let (Some(t), Some(j)) = (generation_tokens_delta, g.energy_delta_joules) {
+                if j > 0.0 {
+                    out.tokens_per_joule = Some((t / j) as f32);
+                }
+            }
+        }
+        #[cfg(not(feature = "gpu-nvidia"))]
+        let _ = generation_tokens_delta;
         out
     }
 }
@@ -183,13 +229,18 @@ impl SignalSource for Real {
 struct VllmScrape {
     client: reqwest::Client,
     targets: Vec<String>,
-    /// Per-target counter baseline (hits, queries), keyed by URL.
-    prev: std::collections::HashMap<String, (f64, f64)>,
+    /// Per-target counter baseline (hits, queries, generation-tokens),
+    /// keyed by URL. The token series is Option: a target may expose the
+    /// prefix-cache series without `generation_tokens_total`.
+    prev: std::collections::HashMap<String, (f64, f64, Option<f64>)>,
 }
 
 struct ScrapeRound {
     kv_cache_hit_rate: Option<f32>,
     responding_targets: i32,
+    /// Summed `vllm:generation_tokens_total` delta across targets this
+    /// round. Feeds the ADR-0007 tokens/joule join in `Real::sample`.
+    generation_tokens_delta: Option<f64>,
 }
 
 impl VllmScrape {
@@ -204,13 +255,47 @@ impl VllmScrape {
         }
     }
 
+    /// Per-target delta step of the counter state machine: returns the
+    /// (hits, queries) delta and the generation-tokens delta for this
+    /// round, or None where no valid delta exists (first round, counter
+    /// reset, series missing on either side). Extracted from `sample()`
+    /// so tests drive this exact code instead of a copy.
+    fn advance(
+        &mut self,
+        url: &str,
+        h: f64,
+        q: f64,
+        g: Option<f64>,
+    ) -> (Option<(f64, f64)>, Option<f64>) {
+        let mut hq = None;
+        let mut dg_out = None;
+        if let Some(&(ph, pq, pg)) = self.prev.get(url) {
+            let (dh, dq) = (h - ph, q - pq);
+            if dh >= 0.0 && dq >= 0.0 {
+                hq = Some((dh, dq));
+            }
+            // Negative delta = counter reset (engine restart): discard
+            // this round's delta for the target, realign the baseline.
+            if let (Some(gc), Some(gp)) = (g, pg) {
+                let dg = gc - gp;
+                if dg >= 0.0 {
+                    dg_out = Some(dg);
+                }
+            }
+        }
+        self.prev.insert(url.to_string(), (h, q, g));
+        (hq, dg_out)
+    }
+
     async fn sample(&mut self) -> ScrapeRound {
         let mut responding = 0i32;
         let mut hits_delta = 0.0f64;
         let mut queries_delta = 0.0f64;
         let mut have_delta = false;
-        for url in &self.targets {
-            let body = match self.client.get(url).send().await {
+        let mut tokens_delta: Option<f64> = None;
+        for i in 0..self.targets.len() {
+            let url = self.targets[i].clone();
+            let body = match self.client.get(&url).send().await {
                 Ok(resp) => match resp.text().await {
                     Ok(b) => b,
                     Err(e) => {
@@ -231,17 +316,16 @@ impl VllmScrape {
                 continue;
             };
             responding += 1;
-            if let Some(&(ph, pq)) = self.prev.get(url.as_str()) {
-                let (dh, dq) = (h - ph, q - pq);
-                if dh >= 0.0 && dq >= 0.0 {
-                    hits_delta += dh;
-                    queries_delta += dq;
-                    have_delta = true;
-                }
-                // Negative delta = counter reset (engine restart): discard
-                // this round's delta for the target, realign the baseline.
+            let g = sum_family(&body, "vllm:generation_tokens_total");
+            let (hq, dg) = self.advance(&url, h, q, g);
+            if let Some((dh, dq)) = hq {
+                hits_delta += dh;
+                queries_delta += dq;
+                have_delta = true;
             }
-            self.prev.insert(url.clone(), (h, q));
+            if let Some(dg) = dg {
+                *tokens_delta.get_or_insert(0.0) += dg;
+            }
         }
         ScrapeRound {
             // First round has no baseline; a round with zero queries has no
@@ -250,6 +334,7 @@ impl VllmScrape {
             kv_cache_hit_rate: (have_delta && queries_delta > 0.0)
                 .then(|| (hits_delta / queries_delta) as f32),
             responding_targets: responding,
+            generation_tokens_delta: tokens_delta,
         }
     }
 }
@@ -285,6 +370,95 @@ fn sum_family(body: &str, family: &str) -> Option<f64> {
         seen = true;
     }
     seen.then_some(sum)
+}
+
+/// NVML sampler (ADR-0007 level 3). Same library and counter strategy
+/// validated in inferscope ADR-010: `total_energy_consumption` (mJ) read
+/// once per round, delta between consecutive rounds = round energy.
+/// Multi-device nodes: utilization averaged, memory and energy summed
+/// (NodeState signals are per-node). Fail-open at every stage: NVML
+/// unavailable at startup disables the sampler for the process lifetime;
+/// a failed per-round read yields absent signals for that round.
+#[cfg(feature = "gpu-nvidia")]
+struct NvmlSampler {
+    nvml: nvml_wrapper::Nvml,
+    /// Summed energy counter baseline (mJ) of the previous *complete*
+    /// round. A partial sum joined against a complete baseline would
+    /// fabricate a shrunken or negative delta, so incomplete rounds
+    /// clear the baseline instead.
+    prev_energy_mj: Option<u64>,
+}
+
+#[cfg(feature = "gpu-nvidia")]
+struct NvmlRound {
+    gpu_utilization: Option<f32>,
+    gpu_memory_used_bytes: Option<i64>,
+    energy_delta_joules: Option<f64>,
+}
+
+#[cfg(feature = "gpu-nvidia")]
+impl NvmlSampler {
+    fn init() -> Option<Self> {
+        match nvml_wrapper::Nvml::init() {
+            Ok(nvml) => Some(Self {
+                nvml,
+                prev_energy_mj: None,
+            }),
+            Err(e) => {
+                warn!(
+                    "REPORTER_GPU=nvidia but NVML init failed: {e}; \
+                     GPU signals stay absent (fail-open)"
+                );
+                None
+            }
+        }
+    }
+
+    fn sample(&mut self) -> NvmlRound {
+        let count = self.nvml.device_count().unwrap_or(0);
+        let mut util_sum = 0.0f64;
+        let mut util_n = 0u32;
+        let mut mem_sum: i64 = 0;
+        let mut mem_seen = false;
+        let mut energy_sum: u64 = 0;
+        let mut energy_all = count > 0;
+        for index in 0..count {
+            let Ok(device) = self.nvml.device_by_index(index) else {
+                energy_all = false;
+                continue;
+            };
+            if let Ok(u) = device.utilization_rates() {
+                util_sum += u.gpu as f64;
+                util_n += 1;
+            }
+            if let Ok(m) = device.memory_info() {
+                mem_sum += m.used as i64;
+                mem_seen = true;
+            }
+            match device.total_energy_consumption() {
+                Ok(mj) => energy_sum += mj,
+                Err(_) => energy_all = false,
+            }
+        }
+        let energy_delta_joules = if energy_all {
+            // checked_sub: a lower reading than the baseline (counter
+            // reset) discards this round's delta and realigns below.
+            let delta = self
+                .prev_energy_mj
+                .and_then(|prev| energy_sum.checked_sub(prev))
+                .map(|mj| mj as f64 / 1000.0);
+            self.prev_energy_mj = Some(energy_sum);
+            delta
+        } else {
+            self.prev_energy_mj = None;
+            None
+        };
+        NvmlRound {
+            gpu_utilization: (util_n > 0).then(|| (util_sum / f64::from(util_n)) as f32),
+            gpu_memory_used_bytes: mem_seen.then_some(mem_sum),
+            energy_delta_joules,
+        }
+    }
 }
 
 fn env_f32(key: &str) -> anyhow::Result<Option<f32>> {
@@ -422,23 +596,12 @@ vllm:prefix_cache_queries 40\n";
         assert_eq!(sum_family(body, "vllm:prefix_cache_hits"), Some(3.0));
     }
 
-    /// Drives the delta logic without HTTP: same VllmScrape state machine,
-    /// feeding parsed (hits, queries) pairs the way sample() would after a
-    /// successful scrape of one target.
+    /// Hit-rate view over `advance()` for a single-target round, shaped
+    /// the way `sample()` aggregates it. The tests drive the exact state
+    /// machine `sample()` uses -- no duplicated delta logic.
     fn feed(s: &mut VllmScrape, url: &str, h: f64, q: f64) -> Option<f32> {
-        let mut hits_delta = 0.0f64;
-        let mut queries_delta = 0.0f64;
-        let mut have_delta = false;
-        if let Some(&(ph, pq)) = s.prev.get(url) {
-            let (dh, dq) = (h - ph, q - pq);
-            if dh >= 0.0 && dq >= 0.0 {
-                hits_delta += dh;
-                queries_delta += dq;
-                have_delta = true;
-            }
-        }
-        s.prev.insert(url.to_string(), (h, q));
-        (have_delta && queries_delta > 0.0).then(|| (hits_delta / queries_delta) as f32)
+        let (hq, _) = s.advance(url, h, q, None);
+        hq.and_then(|(dh, dq)| (dq > 0.0).then(|| (dh / dq) as f32))
     }
 
     #[test]
@@ -455,5 +618,16 @@ vllm:prefix_cache_queries 40\n";
         let mut s = VllmScrape::new(vec!["u".into()]);
         assert_eq!(feed(&mut s, "u", 10.0, 20.0), None);
         assert_eq!(feed(&mut s, "u", 10.0, 20.0), None); // no traffic
+    }
+
+    #[test]
+    fn token_delta_fail_open_per_series_reset_and_realign() {
+        let mut s = VllmScrape::new(vec!["u".into()]);
+        assert_eq!(s.advance("u", 0.0, 0.0, Some(100.0)).1, None); // no baseline
+        assert_eq!(s.advance("u", 0.0, 0.0, Some(160.0)).1, Some(60.0)); // measured
+        assert_eq!(s.advance("u", 0.0, 0.0, None).1, None); // series missing this round
+        assert_eq!(s.advance("u", 0.0, 0.0, Some(5.0)).1, None); // missing on prev side
+        assert_eq!(s.advance("u", 0.0, 0.0, Some(2.0)).1, None); // counter reset
+        assert_eq!(s.advance("u", 0.0, 0.0, Some(9.0)).1, Some(7.0)); // realigned
     }
 }
