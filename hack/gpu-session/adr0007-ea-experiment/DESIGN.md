@@ -94,3 +94,15 @@ fixtures standing in for vLLM: scenario orchestration, scrape-window
 accounting, evidence layout, verdict logic. Only the numbers are fake;
 every moving part of the harness is real. GPU session then pays for
 execution only.
+
+## Amendment 2026-07-22 (pre-run, during RPS verify gate)
+
+Request rate 8 -> 2 RPS. The 8 RPS figure came from H100 cuda-graphs
+data and was explicitly flagged for re-verification on A10. Measured on
+the session hardware (A10, Qwen2.5-7B, this exact workload shape):
+- 8 RPS: p50 12.1s, wall 95.8s on a 60s workload -> saturated, pacing lost
+- 4 RPS: p50 10.4s, wall 65.0s -> still saturated
+- 2 RPS: p50 5.9s, p95 6.1s, wall 64.3s, per-quartile p50 flat
+  (5.8-6.0s) -> steady state, no queue growth
+Amended BEFORE any measured rep; all reps run at 2 RPS. Measurement
+window unchanged (300s -> 600 requests/rep, still >= 10 scrape rounds).

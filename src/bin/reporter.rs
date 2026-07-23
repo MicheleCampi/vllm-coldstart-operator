@@ -309,8 +309,8 @@ impl VllmScrape {
                 }
             };
             let (Some(h), Some(q)) = (
-                sum_family(&body, "vllm:prefix_cache_hits"),
-                sum_family(&body, "vllm:prefix_cache_queries"),
+                sum_family_totaled(&body, "vllm:prefix_cache_hits"),
+                sum_family_totaled(&body, "vllm:prefix_cache_queries"),
             ) else {
                 warn!("scrape '{url}': vllm prefix-cache series missing");
                 continue;
@@ -337,6 +337,15 @@ impl VllmScrape {
             generation_tokens_delta: tokens_delta,
         }
     }
+}
+
+/// vLLM >=0.10 emits Prometheus counters with the OpenMetrics `_total`
+/// suffix (`vllm:prefix_cache_hits_total`); older engines and the ADR-011
+/// validation fixtures use the bare name. Try suffixed first, then bare.
+/// (Found live on A10 + vLLM v0.23.0, level-3 session: bare-name lookup
+/// missed every real series -> kv/tpj permanently absent.)
+fn sum_family_totaled(body: &str, family: &str) -> Option<f64> {
+    sum_family(body, &format!("{family}_total")).or_else(|| sum_family(body, family))
 }
 
 /// Sum every sample of one metric family in a Prometheus text body across
@@ -588,6 +597,37 @@ vllm:prefix_cache_queries 40\n";
         assert_eq!(sum_family(body, "vllm:prefix_cache_hits"), Some(15.0));
         assert_eq!(sum_family(body, "vllm:prefix_cache_queries"), Some(40.0));
         assert_eq!(sum_family(body, "vllm:absent"), None);
+    }
+
+    #[test]
+    fn sum_family_totaled_matches_openmetrics_and_bare_schemas() {
+        // Real vLLM v0.23.0 shape (A10 session 2026-07-22): counters carry
+        // the OpenMetrics `_total` suffix, with `_created` gauges alongside
+        // that must never be summed into the family.
+        let v023 = "\
+vllm:prefix_cache_queries_total{engine=\"0\"} 135\n\
+vllm:prefix_cache_queries_created{engine=\"0\"} 1.78e9\n\
+vllm:prefix_cache_hits_total{engine=\"0\"} 62\n\
+vllm:prefix_cache_hits_created{engine=\"0\"} 1.78e9\n";
+        assert_eq!(
+            sum_family_totaled(v023, "vllm:prefix_cache_hits"),
+            Some(62.0)
+        );
+        assert_eq!(
+            sum_family_totaled(v023, "vllm:prefix_cache_queries"),
+            Some(135.0)
+        );
+        // Legacy / fixture shape: bare names, no suffix -> fallback path.
+        let bare = "vllm:prefix_cache_hits 10\nvllm:prefix_cache_queries 40\n";
+        assert_eq!(
+            sum_family_totaled(bare, "vllm:prefix_cache_hits"),
+            Some(10.0)
+        );
+        assert_eq!(
+            sum_family_totaled(bare, "vllm:prefix_cache_queries"),
+            Some(40.0)
+        );
+        assert_eq!(sum_family_totaled(v023, "vllm:absent"), None);
     }
 
     #[test]

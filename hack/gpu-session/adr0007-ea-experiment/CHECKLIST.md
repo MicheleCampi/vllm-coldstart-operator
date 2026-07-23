@@ -54,3 +54,27 @@ Same counters, different consumers — never mix the two in claims.
 - [ ] plus: one NodeState -o yaml snapshot per rep window showing the
       GPU signals populated (the level-3 claim needs reporter-fed
       status, not only inferscope evidence)
+
+## Session 2026-07-22 findings — MANDATORY for the next run
+The 22 Jul session aborted mid-rep-3 (SIGHUP: run was foreground in the
+SSH session). rep-1-EA and rep-2-WF complete, evidence in
+runs/20260722T200110/. All fixes below are already in the repo.
+- vLLM topology: apply `vllm-per-node.yaml` (this dir) — 3 standalone
+  Deployments pinned per node (DESIGN "one vLLM per node"), NOT
+  fleet-gpu.yaml (item-4 topology, conflicts with the experiment).
+  NodeSelectors carry the session node names: UPDATE THEM at launch.
+  `strategy: Recreate` is required (RollingUpdate deadlocks on 1-GPU
+  nodes). NodePorts 30800/30801/30802; Lambda firewall must allow all
+  three inbound (30802 was missing on 22 Jul: symptom = curl empty from
+  outside, fine from any node).
+- Reporter: helm install with `--set reporter.runtimeClassName=nvidia`
+  (now in the chart; no manual patch). Keep the three NVML envs.
+- RPS: 2 (DESIGN.md amendment 2026-07-22, measured on A10). gen_workload
+  default already 2; EXP_RPS env overrides.
+- run_experiment.sh GPU mode env contract: KUBE_CONTEXT, EXP_NODES
+  (real NodeState names, space-separated), VLLM_URL (full /v1/completions
+  path of the replay target), VLLM_MODEL, EXP_BETWEEN_REPS_CMD (vLLM
+  rollout-restart + status + sleep 30; kubectl reads exported KUBECONFIG).
+- RUN INSIDE TMUX on optim-dev. The 22 Jul abort was a plain SIGHUP.
+- Budget note: full 8-rep run from node launch ≈ 40 min setup + ~80 min
+  reps + evidence/teardown; ~2h45 total, ~$6.5 at A10 rates.

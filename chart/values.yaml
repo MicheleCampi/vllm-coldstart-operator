@@ -70,6 +70,12 @@ reporter:
   #    nvidia.com/gpu.present: "true". Empty selects every node (kind).
   nodeSelector: {}
   tolerations: []
+  # -- runtimeClass for the reporter pods. REQUIRED on k3s GPU nodes when
+  #    REPORTER_GPU=nvidia: the NVIDIA toolkit injects libnvidia-ml.so only
+  #    into containers running under the nvidia runtime (found live, A10
+  #    level-3 session 2026-07-22: without it NVML init fails -> fail-open).
+  #    Leave empty on kind and on managed clusters with a default GPU runtime.
+  runtimeClassName: 
   # -- Deterministic synthetic source (kind rehearsal, falsification
   #    level 2). Sets REPORTER_SYNTHETIC=1; per-signal values come from
   #    REPORTER_SYNTHETIC_* entries in extraEnv.

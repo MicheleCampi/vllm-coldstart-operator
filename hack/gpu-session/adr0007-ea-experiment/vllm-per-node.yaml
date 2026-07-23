@@ -1,0 +1,92 @@
+# ADR-0007 level-3: one standalone vLLM per node (DESIGN.md topology).
+# NOT operator-owned — the FleetService under test places pause pods only.
+# Values mirror the item-4 fleet template (digest, args, cache hostPath).
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: vllm-a, namespace: default, labels: {exp-infra: "true"}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: vllm-a}}
+  template:
+    metadata: {labels: {app: vllm-a}}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: 129-80-206-135}
+      runtimeClassName: nvidia
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f
+        args: ["--model", "Qwen/Qwen2.5-7B-Instruct", "--max-model-len", "4096", "--gpu-memory-utilization", "0.90"]
+        ports: [{containerPort: 8000}]
+        resources: {limits: {nvidia.com/gpu: 1}}
+        readinessProbe: {httpGet: {path: /health, port: 8000}, initialDelaySeconds: 30, periodSeconds: 5, failureThreshold: 60}
+        volumeMounts: [{name: hf, mountPath: /root/.cache/huggingface}]
+      volumes: [{name: hf, hostPath: {path: /opt/hf-cache, type: Directory}}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: vllm-b, namespace: default, labels: {exp-infra: "true"}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: vllm-b}}
+  template:
+    metadata: {labels: {app: vllm-b}}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: 157-151-204-197}
+      runtimeClassName: nvidia
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f
+        args: ["--model", "Qwen/Qwen2.5-7B-Instruct", "--max-model-len", "4096", "--gpu-memory-utilization", "0.90"]
+        ports: [{containerPort: 8000}]
+        resources: {limits: {nvidia.com/gpu: 1}}
+        readinessProbe: {httpGet: {path: /health, port: 8000}, initialDelaySeconds: 30, periodSeconds: 5, failureThreshold: 60}
+        volumeMounts: [{name: hf, mountPath: /root/.cache/huggingface}]
+      volumes: [{name: hf, hostPath: {path: /opt/hf-cache, type: Directory}}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: vllm-c, namespace: default, labels: {exp-infra: "true"}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector: {matchLabels: {app: vllm-c}}
+  template:
+    metadata: {labels: {app: vllm-c}}
+    spec:
+      nodeSelector: {kubernetes.io/hostname: 150-136-93-75}
+      runtimeClassName: nvidia
+      containers:
+      - name: vllm
+        image: vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f
+        args: ["--model", "Qwen/Qwen2.5-7B-Instruct", "--max-model-len", "4096", "--gpu-memory-utilization", "0.90"]
+        ports: [{containerPort: 8000}]
+        resources: {limits: {nvidia.com/gpu: 1}}
+        readinessProbe: {httpGet: {path: /health, port: 8000}, initialDelaySeconds: 30, periodSeconds: 5, failureThreshold: 60}
+        volumeMounts: [{name: hf, mountPath: /root/.cache/huggingface}]
+      volumes: [{name: hf, hostPath: {path: /opt/hf-cache, type: Directory}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: vllm-a-np, namespace: default, labels: {exp-infra: "true"}}
+spec:
+  type: NodePort
+  selector: {app: vllm-a}
+  ports: [{name: http, port: 8000, targetPort: 8000, nodePort: 30800}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: vllm-b-np, namespace: default, labels: {exp-infra: "true"}}
+spec:
+  type: NodePort
+  selector: {app: vllm-b}
+  ports: [{name: http, port: 8000, targetPort: 8000, nodePort: 30801}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: vllm-c-np, namespace: default, labels: {exp-infra: "true"}}
+spec:
+  type: NodePort
+  selector: {app: vllm-c}
+  ports: [{name: http, port: 8000, targetPort: 8000, nodePort: 30802}]

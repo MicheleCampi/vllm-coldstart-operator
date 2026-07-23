@@ -12,6 +12,7 @@ status. Output JSONL, one line per request, plus a summary line to stderr.
 import argparse
 import concurrent.futures
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -23,7 +24,7 @@ def do_request(url, mode, item, timeout):
     try:
         if mode == "vllm":
             body = json.dumps({
-                "model": item.get("model", "default"),
+                "model": item.get("model", os.environ.get("VLLM_MODEL", "default")),
                 "prompt": item["prompt"],
                 "max_tokens": item["max_tokens"],
                 "temperature": 0.0,

@@ -76,6 +76,9 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.reporter.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
       {{- with .Values.reporter.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}

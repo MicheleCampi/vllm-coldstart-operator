@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import random
+import os
 import sys
 
 CHARS_PER_TOK = 4
@@ -19,7 +20,7 @@ SHARED_FRACTION = 0.6
 SHARED_PREFIX_TOK = 1500
 TAIL_TOK = (100, 300)
 OUTPUT_TOK = 128
-RPS = 8
+RPS = int(os.environ.get("EXP_RPS", "2"))
 
 
 def words(rng, n_tokens):

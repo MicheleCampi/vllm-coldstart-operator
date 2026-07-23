@@ -12,11 +12,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 REHEARSAL=0
-[ "${1:-}" = "--rehearsal" ] && REHEARSAL=1
+if [ "${1:-}" = "--rehearsal" ]; then REHEARSAL=1; fi
 EXP_DIR="$(pwd)"
 REPO_ROOT="$(cd ../../.. && pwd)"
 TS="$(date -u +%Y%m%dT%H%M%S)"
-RUN_DIR="${EXP_DIR}/runs/${TS}$( [ $REHEARSAL -eq 1 ] && echo -rehearsal )"
+RUN_DIR="${EXP_DIR}/runs/${TS}$( if [ $REHEARSAL -eq 1 ]; then echo -rehearsal; fi )"
 mkdir -p "$RUN_DIR"
 PASS=0; FAIL=0
 verdict() {
@@ -36,6 +36,7 @@ if [ $REHEARSAL -eq 1 ]; then
 else
   PRELOAD_S=120; WINDOW_S=300; SEQUENCE=(EA WF WF EA WF EA EA WF)  # ABBA+BAAB
   CTX="${KUBE_CONTEXT:?set KUBE_CONTEXT for the GPU run}"; NS=default
+  EXP_NODES="${EXP_NODES:?set EXP_NODES (space-separated NodeState names) for the GPU run}"
 fi
 
 strategy_of() { [ "$1" = "EA" ] && echo EfficiencyAware || echo WarmthFirst; }
@@ -105,6 +106,7 @@ FIXTURE
   kubectl --context "$CTX" rollout status daemonset/exp-vllm-coldstart-operator-reporter --timeout=120s
   REPLAY_URL="http://127.0.0.1:19090/metrics"   # port-forward per rep, below
   NODE_PREFIX="${CLUSTER}"
+  EXP_NODES="${NODE_PREFIX}-worker ${NODE_PREFIX}-worker2 ${NODE_PREFIX}-worker3"
 fi
 
 # ---- rep loop ----
@@ -117,8 +119,8 @@ for S in "${SEQUENCE[@]}"; do
   echo "==> rep ${REP}/${#SEQUENCE[@]}: ${STRAT}"
 
   # warmth: all workers Warm so only the efficiency signal can decide
-  for n in worker worker2 worker3; do
-    kubectl --context "$CTX" patch nodestate "${NODE_PREFIX}-${n}" --subresource=status \
+  for n in $EXP_NODES; do
+    kubectl --context "$CTX" patch nodestate "$n" --subresource=status \
       --type=merge -p '{"status":{"warmth":"Warm","spot":{"preemptionNoticeDetected":false}}}'
   done
 
@@ -189,6 +191,11 @@ FLEET
 
   # teardown fleet between reps (GPU run also restarts vLLM: session checklist)
   kubectl --context "$CTX" delete fleetservice exp-fleet -n "$NS" --wait=true
+  # GPU run: restart vLLM on every node between reps (prefix cache reset,
+  # DESIGN.md) + fixed cool-down. No-op when EXP_BETWEEN_REPS_CMD is unset.
+  if [ -n "${EXP_BETWEEN_REPS_CMD:-}" ]; then
+    bash -c "$EXP_BETWEEN_REPS_CMD"
+  fi
   sleep 3
 done
 
@@ -206,8 +213,13 @@ done
 v=0; [ "$COMPLETE" -eq "${#SEQUENCE[@]}" ] || v=1
 verdict "all ${#SEQUENCE[@]} reps have complete evidence" $v
 
-OPERATOR_POD=$(kubectl --context "$CTX" get pods -l app.kubernetes.io/name=vllm-coldstart-operator -o jsonpath='{.items[0].metadata.name}')
-kubectl --context "$CTX" logs "$OPERATOR_POD" > "$RUN_DIR/operator.log"
+if [ $REHEARSAL -eq 1 ]; then
+  OPERATOR_POD=$(kubectl --context "$CTX" get pods -l app.kubernetes.io/name=vllm-coldstart-operator -o jsonpath='{.items[0].metadata.name}')
+  kubectl --context "$CTX" logs "$OPERATOR_POD" > "$RUN_DIR/operator.log"
+else
+  # GPU mode: operator is a systemd unit on the server node (04-deploy.sh)
+  ssh_a "sudo journalctl -u vcso --no-pager -o cat" > "$RUN_DIR/operator.log"
+fi
 # Known benign classes, excluded one by one; anything else is a hard
 # failure: (1) NotFound during between-rep teardown (queued events for
 # just-deleted objects); (2) watch 410 "too old resource version"
