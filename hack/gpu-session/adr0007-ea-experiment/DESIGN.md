@@ -106,3 +106,51 @@ the session hardware (A10, Qwen2.5-7B, this exact workload shape):
   (5.8-6.0s) -> steady state, no queue growth
 Amended BEFORE any measured rep; all reps run at 2 RPS. Measurement
 window unchanged (300s -> 600 requests/rep, still >= 10 scrape rounds).
+
+## Amendment 2026-07-23 (post-run, design limitation found in analysis)
+
+Recorded AFTER the full 8-rep run (evidence: runs/20260723T175747).
+It changes no protocol parameter — the run stands as executed. It
+scopes what the measured numbers can and cannot support.
+
+The primary metrics as specified — fleet-aggregate prefix-cache
+hit-rate and fleet-aggregate tokens/joule — cannot discriminate
+EfficiencyAware from WarmthFirst on this topology. The replay drives
+one fixed vLLM endpoint, which is deliberate: it is how the design
+manufactures the prefix-locality asymmetry that makes the placement
+decision discriminating. But no component routes requests to the
+service the strategy has just placed. The placed replica receives no
+traffic in either arm, so both arms measure the same loaded node, and
+the fleet aggregate is dominated by a term that is identical by
+construction across strategies.
+
+Measured deltas (EA - WF), 4 reps per arm, for the record:
+- hit-rate: 0.8179 (sd 0.0124) vs 0.8068 (sd 0.0290) -> +1.1pp,
+  threshold +5pp
+- tokens/joule: 1.657 (sd 0.088) vs 1.663 (sd 0.077) -> -0.4%,
+  threshold +3%
+
+Both fall in the "CI straddling zero" branch of the decision criterion.
+They are NOT reported as a negative result about EA. A negative result
+means the strategy was given a fair chance to show an effect and did
+not; here the measurement path could not carry the effect regardless of
+strategy quality, so the near-zero delta was determined before any GPU
+minute was spent. Publishing it as evidence that EA does not pay for
+its complexity would defend a number that does not measure what it
+claims to measure.
+
+What the run does establish, on real hardware:
+- the in-vivo signal chain: NVML sampler + vLLM scrape feeding
+  NodeState status on all three nodes, cross-source tokens/joule join
+  live under load
+- the comparators consume those signals and diverge deterministically
+  at both decision points, reproducibly across reps
+- harness, evidence layout, and verdict logic at full scale, 8/8 reps
+
+Testing the primary hypothesis requires closing the loop: a routing
+layer that sends traffic to the placed service, so that a placement
+decision changes which node accumulates cache. That is a distinct
+piece of work (ADR-0007 phase C or an ADR of its own), not a re-run of
+this design — repeating these reps with more repetitions or longer
+windows would tighten a confidence interval around a quantity that
+carries no signal.
