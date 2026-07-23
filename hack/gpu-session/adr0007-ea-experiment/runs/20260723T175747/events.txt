@@ -1,0 +1,297 @@
+LAST SEEN   TYPE      REASON                   OBJECT                              MESSAGE
+51m         Normal    Scheduled                pod/vllm-c-54bcc99cb-vlr2j          Successfully assigned default/vllm-c-54bcc99cb-vlr2j to 157-151-148-27
+15m         Normal    Scheduled                pod/exp-fleet-0-559747cb5c-5f672    Successfully assigned default/exp-fleet-0-559747cb5c-5f672 to 157-151-148-27
+6m28s       Normal    Scheduled                pod/vllm-b-6fb8445777-4xfwz         Successfully assigned default/vllm-b-6fb8445777-4xfwz to 129-159-182-206
+24m         Normal    Scheduled                pod/vllm-b-75f658fdb-dw9jq          Successfully assigned default/vllm-b-75f658fdb-dw9jq to 129-159-182-206
+33m         Normal    Scheduled                pod/vllm-c-978f895c5-fd2ls          Successfully assigned default/vllm-c-978f895c5-fd2ls to 157-151-148-27
+20m         Normal    Scheduled                pod/exp-fleet-0-7689fc5fb7-zw2db    Successfully assigned default/exp-fleet-0-7689fc5fb7-zw2db to 129-213-131-210
+60m         Normal    Scheduled                pod/exp-fleet-0-7689fc5fb7-h9xr6    Successfully assigned default/exp-fleet-0-7689fc5fb7-h9xr6 to 129-213-131-210
+15m         Normal    Scheduled                pod/exp-fleet-0-559747cb5c-j8z54    Successfully assigned default/exp-fleet-0-559747cb5c-j8z54 to 157-151-148-27
+51m         Normal    Scheduled                pod/vllm-a-546b7d69f4-kxmhn         Successfully assigned default/vllm-a-546b7d69f4-kxmhn to 129-213-131-210
+24m         Normal    Scheduled                pod/vllm-a-6875d55875-lj9d7         Successfully assigned default/vllm-a-6875d55875-lj9d7 to 129-213-131-210
+60m         Normal    Scheduled                pod/vllm-a-76b59976d7-gc7bd         Successfully assigned default/vllm-a-76b59976d7-gc7bd to 129-213-131-210
+47m         Normal    Scheduled                pod/exp-fleet-0-7689fc5fb7-b9h97    Successfully assigned default/exp-fleet-0-7689fc5fb7-b9h97 to 129-213-131-210
+24m         Normal    Scheduled                pod/exp-fleet-0-559747cb5c-nffmw    Successfully assigned default/exp-fleet-0-559747cb5c-nffmw to 157-151-148-27
+6m28s       Normal    Scheduled                pod/vllm-a-78b8667956-rc6fk         Successfully assigned default/vllm-a-78b8667956-rc6fk to 129-213-131-210
+60m         Normal    Scheduled                pod/vllm-c-67fdd794dc-swdgf         Successfully assigned default/vllm-c-67fdd794dc-swdgf to 157-151-148-27
+15m         Normal    Scheduled                pod/vllm-c-668f5976c5-ck7ns         Successfully assigned default/vllm-c-668f5976c5-ck7ns to 157-151-148-27
+42m         Normal    Scheduled                pod/vllm-c-5fc9f878db-5b2v4         Successfully assigned default/vllm-c-5fc9f878db-5b2v4 to 157-151-148-27
+29m         Normal    Scheduled                pod/exp-fleet-0-7689fc5fb7-b6bj8    Successfully assigned default/exp-fleet-0-7689fc5fb7-b6bj8 to 129-213-131-210
+6m28s       Normal    Scheduled                pod/vllm-c-56dcf5f9c8-b9jpj         Successfully assigned default/vllm-c-56dcf5f9c8-b9jpj to 157-151-148-27
+24m         Normal    Scheduled                pod/vllm-c-54d765789f-gnpjc         Successfully assigned default/vllm-c-54d765789f-gnpjc to 157-151-148-27
+11m         Normal    Scheduled                pod/exp-fleet-0-559747cb5c-gzkjw    Successfully assigned default/exp-fleet-0-559747cb5c-gzkjw to 157-151-148-27
+6m29s       Normal    Scheduled                pod/exp-fleet-0-5c5b4c7669-8kjvq    Successfully assigned default/exp-fleet-0-5c5b4c7669-8kjvq to 129-159-182-206
+42m         Normal    Scheduled                pod/exp-fleet-0-559747cb5c-nhvps    Successfully assigned default/exp-fleet-0-559747cb5c-nhvps to 157-151-148-27
+42m         Normal    Scheduled                pod/exp-fleet-0-559747cb5c-rtsxr    Successfully assigned default/exp-fleet-0-559747cb5c-rtsxr to 157-151-148-27
+56m         Normal    Scheduled                pod/exp-fleet-0-559747cb5c-t4hm2    Successfully assigned default/exp-fleet-0-559747cb5c-t4hm2 to 157-151-148-27
+33m         Normal    Scheduled                pod/vllm-a-799d95468c-slj8f         Successfully assigned default/vllm-a-799d95468c-slj8f to 129-213-131-210
+51m         Normal    Scheduled                pod/exp-fleet-0-7689fc5fb7-996qj    Successfully assigned default/exp-fleet-0-7689fc5fb7-996qj to 129-213-131-210
+15m         Normal    Scheduled                pod/vllm-a-b46ff4987-jxm4j          Successfully assigned default/vllm-a-b46ff4987-jxm4j to 129-213-131-210
+42m         Normal    Scheduled                pod/vllm-b-79495fd557-mtmfr         Successfully assigned default/vllm-b-79495fd557-mtmfr to 129-159-182-206
+6m29s       Normal    Scheduled                pod/exp-fleet-0-5c5b4c7669-zbb59    Successfully assigned default/exp-fleet-0-5c5b4c7669-zbb59 to 129-159-182-206
+38m         Normal    Scheduled                pod/exp-fleet-0-559747cb5c-wlb65    Successfully assigned default/exp-fleet-0-559747cb5c-wlb65 to 157-151-148-27
+33m         Normal    Scheduled                pod/vllm-b-5b59bb6674-s6dg6         Successfully assigned default/vllm-b-5b59bb6674-s6dg6 to 129-159-182-206
+42m         Normal    Scheduled                pod/vllm-a-bbdf6fd4-h6mgn           Successfully assigned default/vllm-a-bbdf6fd4-h6mgn to 129-213-131-210
+15m         Normal    Scheduled                pod/vllm-b-54fbcd8f58-nmfm9         Successfully assigned default/vllm-b-54fbcd8f58-nmfm9 to 129-159-182-206
+51m         Normal    Scheduled                pod/vllm-b-54ffc8877f-nqxk5         Successfully assigned default/vllm-b-54ffc8877f-nqxk5 to 129-159-182-206
+33m         Normal    Scheduled                pod/exp-fleet-0-5c5b4c7669-tmmxv    Successfully assigned default/exp-fleet-0-5c5b4c7669-tmmxv to 129-159-182-206
+60m         Normal    Scheduled                pod/exp-fleet-0-5c5b4c7669-hkvd6    Successfully assigned default/exp-fleet-0-5c5b4c7669-hkvd6 to 129-159-182-206
+60m         Normal    Scheduled                pod/vllm-b-7986d4cb6b-8shrg         Successfully assigned default/vllm-b-7986d4cb6b-8shrg to 129-159-182-206
+60m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-5c5b4c7669 from 0 to 1
+60m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-5c5b4c7669   Created pod: exp-fleet-0-5c5b4c7669-hkvd6
+60m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-7689fc5fb7   Created pod: exp-fleet-0-7689fc5fb7-h9xr6
+60m         Normal    Killing                  pod/exp-fleet-0-559747cb5c-p7r8d    Stopping container inference
+60m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-7689fc5fb7 from 0 to 1
+60m         Normal    SuccessfulDelete         replicaset/vllm-b-75f96c75cf        Deleted pod: vllm-b-75f96c75cf-kgzxr
+60m         Normal    ScalingReplicaSet        deployment/vllm-b                   Scaled up replica set vllm-b-7986d4cb6b from 0 to 1
+60m         Normal    ScalingReplicaSet        deployment/vllm-c                   Scaled up replica set vllm-c-67fdd794dc from 0 to 1
+60m         Normal    ScalingReplicaSet        deployment/vllm-c                   Scaled down replica set vllm-c-6b5dcc5864 from 1 to 0
+60m         Normal    SuccessfulDelete         replicaset/vllm-c-6b5dcc5864        Deleted pod: vllm-c-6b5dcc5864-4sm56
+60m         Normal    Killing                  pod/vllm-c-6b5dcc5864-4sm56         Stopping container vllm
+60m         Normal    ScalingReplicaSet        deployment/vllm-a                   Scaled up replica set vllm-a-76b59976d7 from 0 to 1
+60m         Normal    ScalingReplicaSet        deployment/vllm-a                   Scaled down replica set vllm-a-866544f58b from 1 to 0
+60m         Normal    SuccessfulCreate         replicaset/vllm-c-67fdd794dc        Created pod: vllm-c-67fdd794dc-swdgf
+60m         Normal    SuccessfulCreate         replicaset/vllm-b-7986d4cb6b        Created pod: vllm-b-7986d4cb6b-8shrg
+60m         Normal    ScalingReplicaSet        deployment/vllm-b                   Scaled down replica set vllm-b-75f96c75cf from 1 to 0
+60m         Normal    SuccessfulCreate         replicaset/vllm-a-76b59976d7        Created pod: vllm-a-76b59976d7-gc7bd
+60m         Normal    SuccessfulDelete         replicaset/vllm-a-866544f58b        Deleted pod: vllm-a-866544f58b-p7fvd
+60m         Normal    Killing                  pod/vllm-a-866544f58b-p7fvd         Stopping container vllm
+60m         Normal    Killing                  pod/vllm-b-75f96c75cf-kgzxr         Stopping container vllm
+60m         Normal    Created                  pod/vllm-c-67fdd794dc-swdgf         Container created
+60m         Normal    Started                  pod/vllm-b-7986d4cb6b-8shrg         Container started
+60m         Normal    Pulled                   pod/vllm-b-7986d4cb6b-8shrg         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+60m         Normal    Created                  pod/vllm-b-7986d4cb6b-8shrg         Container created
+60m         Normal    Created                  pod/vllm-a-76b59976d7-gc7bd         Container created
+60m         Normal    Pulled                   pod/vllm-c-67fdd794dc-swdgf         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+60m         Normal    Pulled                   pod/vllm-a-76b59976d7-gc7bd         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+60m         Normal    Started                  pod/vllm-c-67fdd794dc-swdgf         Container started
+60m         Normal    Started                  pod/vllm-a-76b59976d7-gc7bd         Container started
+59m         Warning   Unhealthy                pod/vllm-c-67fdd794dc-swdgf         Readiness probe failed: Get "http://10.42.3.8:8000/health": dial tcp 10.42.3.8:8000: connect: connection refused
+59m         Warning   Unhealthy                pod/vllm-a-76b59976d7-gc7bd         Readiness probe failed: Get "http://10.42.0.10:8000/health": dial tcp 10.42.0.10:8000: connect: connection refused
+59m         Warning   Unhealthy                pod/vllm-b-7986d4cb6b-8shrg         Readiness probe failed: Get "http://10.42.1.6:8000/health": dial tcp 10.42.1.6:8000: connect: connection refused
+56m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-559747cb5c   Created pod: exp-fleet-0-559747cb5c-t4hm2
+56m         Normal    Created                  pod/exp-fleet-0-559747cb5c-t4hm2    Container created
+56m         Normal    Started                  pod/exp-fleet-0-559747cb5c-t4hm2    Container started
+56m         Normal    Pulled                   pod/exp-fleet-0-559747cb5c-t4hm2    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+56m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-559747cb5c from 0 to 1
+51m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-7689fc5fb7 from 0 to 1
+51m         Normal    Pulled                   pod/exp-fleet-0-7689fc5fb7-996qj    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+51m         Normal    Created                  pod/exp-fleet-0-7689fc5fb7-996qj    Container created
+51m         Normal    Started                  pod/exp-fleet-0-7689fc5fb7-996qj    Container started
+51m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-7689fc5fb7   Created pod: exp-fleet-0-7689fc5fb7-996qj
+51m         Normal    Killing                  pod/vllm-b-7986d4cb6b-8shrg         Stopping container vllm
+51m         Normal    ScalingReplicaSet        deployment/vllm-a                   Scaled down replica set vllm-a-76b59976d7 from 1 to 0
+51m         Normal    ScalingReplicaSet        deployment/vllm-b                   Scaled down replica set vllm-b-7986d4cb6b from 1 to 0
+51m         Warning   Unhealthy                pod/exp-fleet-0-559747cb5c-t4hm2    Readiness probe failed: Get "http://10.42.3.9:8000/health": dial tcp 10.42.3.9:8000: connect: connection refused
+51m         Normal    SuccessfulDelete         replicaset/vllm-b-7986d4cb6b        Deleted pod: vllm-b-7986d4cb6b-8shrg
+51m         Normal    Killing                  pod/exp-fleet-0-7689fc5fb7-996qj    Stopping container inference
+51m         Normal    Killing                  pod/exp-fleet-0-559747cb5c-t4hm2    Stopping container inference
+51m         Normal    ScalingReplicaSet        deployment/vllm-c                   Scaled down replica set vllm-c-67fdd794dc from 1 to 0
+51m         Normal    SuccessfulDelete         replicaset/vllm-c-67fdd794dc        Deleted pod: vllm-c-67fdd794dc-swdgf
+51m         Normal    Killing                  pod/vllm-c-67fdd794dc-swdgf         Stopping container vllm
+51m         Normal    SuccessfulDelete         replicaset/vllm-a-76b59976d7        Deleted pod: vllm-a-76b59976d7-gc7bd
+51m         Normal    Killing                  pod/vllm-a-76b59976d7-gc7bd         Stopping container vllm
+51m         Normal    ScalingReplicaSet        deployment/vllm-c                   Scaled up replica set vllm-c-54bcc99cb from 0 to 1
+51m         Normal    Created                  pod/vllm-b-54ffc8877f-nqxk5         Container created
+51m         Normal    Started                  pod/vllm-c-54bcc99cb-vlr2j          Container started
+51m         Normal    SuccessfulCreate         replicaset/vllm-b-54ffc8877f        Created pod: vllm-b-54ffc8877f-nqxk5
+51m         Normal    ScalingReplicaSet        deployment/vllm-a                   Scaled up replica set vllm-a-546b7d69f4 from 0 to 1
+51m         Normal    ScalingReplicaSet        deployment/vllm-b                   Scaled up replica set vllm-b-54ffc8877f from 0 to 1
+51m         Normal    SuccessfulCreate         replicaset/vllm-c-54bcc99cb         Created pod: vllm-c-54bcc99cb-vlr2j
+51m         Normal    Pulled                   pod/vllm-b-54ffc8877f-nqxk5         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+51m         Normal    Pulled                   pod/vllm-c-54bcc99cb-vlr2j          Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+51m         Normal    SuccessfulCreate         replicaset/vllm-a-546b7d69f4        Created pod: vllm-a-546b7d69f4-kxmhn
+51m         Normal    Started                  pod/vllm-a-546b7d69f4-kxmhn         Container started
+51m         Normal    Created                  pod/vllm-c-54bcc99cb-vlr2j          Container created
+51m         Normal    Created                  pod/vllm-a-546b7d69f4-kxmhn         Container created
+51m         Normal    Pulled                   pod/vllm-a-546b7d69f4-kxmhn         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+51m         Normal    Started                  pod/vllm-b-54ffc8877f-nqxk5         Container started
+50m         Warning   Unhealthy                pod/vllm-c-54bcc99cb-vlr2j          Readiness probe failed: Get "http://10.42.3.10:8000/health": dial tcp 10.42.3.10:8000: connect: connection refused
+50m         Warning   Unhealthy                pod/vllm-a-546b7d69f4-kxmhn         Readiness probe failed: Get "http://10.42.0.12:8000/health": dial tcp 10.42.0.12:8000: connect: connection refused
+50m         Warning   Unhealthy                pod/vllm-b-54ffc8877f-nqxk5         Readiness probe failed: Get "http://10.42.1.7:8000/health": dial tcp 10.42.1.7:8000: connect: connection refused
+47m         Normal    Pulled                   pod/exp-fleet-0-7689fc5fb7-b9h97    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+47m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-7689fc5fb7   Created pod: exp-fleet-0-7689fc5fb7-b9h97
+47m         Normal    Started                  pod/exp-fleet-0-7689fc5fb7-b9h97    Container started
+47m         Normal    Created                  pod/exp-fleet-0-7689fc5fb7-b9h97    Container created
+47m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-7689fc5fb7 from 0 to 1
+45m         Warning   Unhealthy                pod/exp-fleet-0-7689fc5fb7-b9h97    Readiness probe failed: Get "http://10.42.0.13:8000/health": dial tcp 10.42.0.13:8000: connect: connection refused
+42m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-559747cb5c from 0 to 1
+42m         Normal    Created                  pod/exp-fleet-0-559747cb5c-nhvps    Container created
+42m         Normal    Killing                  pod/exp-fleet-0-559747cb5c-nhvps    Stopping container inference
+42m         Normal    Pulled                   pod/exp-fleet-0-559747cb5c-nhvps    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+42m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-559747cb5c   Created pod: exp-fleet-0-559747cb5c-nhvps
+42m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-559747cb5c   Created pod: exp-fleet-0-559747cb5c-rtsxr
+42m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-559747cb5c from 0 to 1
+42m         Normal    Started                  pod/exp-fleet-0-559747cb5c-nhvps    Container started
+42m         Normal    Killing                  pod/exp-fleet-0-7689fc5fb7-b9h97    Stopping container inference
+42m         Normal    ScalingReplicaSet        deployment/vllm-b                   Scaled down replica set vllm-b-54ffc8877f from 1 to 0
+42m         Normal    Killing                  pod/vllm-b-54ffc8877f-nqxk5         Stopping container vllm
+42m         Normal    SuccessfulCreate         replicaset/vllm-a-bbdf6fd4          Created pod: vllm-a-bbdf6fd4-h6mgn
+42m         Normal    ScalingReplicaSet        deployment/vllm-c                   Scaled down replica set vllm-c-54bcc99cb from 1 to 0
+42m         Normal    Killing                  pod/vllm-c-54bcc99cb-vlr2j          Stopping container vllm
+42m         Normal    SuccessfulDelete         replicaset/vllm-c-54bcc99cb         Deleted pod: vllm-c-54bcc99cb-vlr2j
+42m         Normal    SuccessfulDelete         replicaset/vllm-a-546b7d69f4        Deleted pod: vllm-a-546b7d69f4-kxmhn
+42m         Normal    Killing                  pod/vllm-a-546b7d69f4-kxmhn         Stopping container vllm
+42m         Normal    ScalingReplicaSet        deployment/vllm-a                   Scaled down replica set vllm-a-546b7d69f4 from 1 to 0
+42m         Normal    ScalingReplicaSet        deployment/vllm-a                   Scaled up replica set vllm-a-bbdf6fd4 from 0 to 1
+42m         Normal    SuccessfulDelete         replicaset/vllm-b-54ffc8877f        Deleted pod: vllm-b-54ffc8877f-nqxk5
+42m         Normal    ScalingReplicaSet        deployment/vllm-b                   Scaled up replica set vllm-b-79495fd557 from 0 to 1
+42m         Normal    Started                  pod/vllm-a-bbdf6fd4-h6mgn           Container started
+42m         Normal    Pulled                   pod/vllm-a-bbdf6fd4-h6mgn           Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+42m         Normal    Started                  pod/vllm-c-5fc9f878db-5b2v4         Container started
+42m         Normal    Created                  pod/vllm-c-5fc9f878db-5b2v4         Container created
+42m         Normal    Created                  pod/vllm-a-bbdf6fd4-h6mgn           Container created
+42m         Normal    Pulled                   pod/vllm-c-5fc9f878db-5b2v4         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+42m         Normal    SuccessfulCreate         replicaset/vllm-b-79495fd557        Created pod: vllm-b-79495fd557-mtmfr
+42m         Normal    SuccessfulCreate         replicaset/vllm-c-5fc9f878db        Created pod: vllm-c-5fc9f878db-5b2v4
+42m         Normal    ScalingReplicaSet        deployment/vllm-c                   Scaled up replica set vllm-c-5fc9f878db from 0 to 1
+42m         Normal    Pulled                   pod/vllm-b-79495fd557-mtmfr         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+42m         Normal    Started                  pod/vllm-b-79495fd557-mtmfr         Container started
+42m         Normal    Created                  pod/vllm-b-79495fd557-mtmfr         Container created
+41m         Warning   Unhealthy                pod/vllm-c-5fc9f878db-5b2v4         Readiness probe failed: Get "http://10.42.3.12:8000/health": dial tcp 10.42.3.12:8000: connect: connection refused
+41m         Warning   Unhealthy                pod/vllm-a-bbdf6fd4-h6mgn           Readiness probe failed: Get "http://10.42.0.14:8000/health": dial tcp 10.42.0.14:8000: connect: connection refused
+41m         Warning   Unhealthy                pod/vllm-b-79495fd557-mtmfr         Readiness probe failed: Get "http://10.42.1.8:8000/health": dial tcp 10.42.1.8:8000: connect: connection refused
+38m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-559747cb5c from 0 to 1
+38m         Normal    Started                  pod/exp-fleet-0-559747cb5c-wlb65    Container started
+38m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-559747cb5c   Created pod: exp-fleet-0-559747cb5c-wlb65
+38m         Normal    Pulled                   pod/exp-fleet-0-559747cb5c-wlb65    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+38m         Normal    Created                  pod/exp-fleet-0-559747cb5c-wlb65    Container created
+33m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-5c5b4c7669 from 0 to 1
+33m         Normal    Pulling                  pod/exp-fleet-0-5c5b4c7669-tmmxv    Pulling image "registry.k8s.io/pause:3.10"
+33m         Normal    Started                  pod/exp-fleet-0-5c5b4c7669-tmmxv    Container started
+33m         Normal    Created                  pod/exp-fleet-0-5c5b4c7669-tmmxv    Container created
+33m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-5c5b4c7669   Created pod: exp-fleet-0-5c5b4c7669-tmmxv
+33m         Normal    Pulled                   pod/exp-fleet-0-5c5b4c7669-tmmxv    Successfully pulled image "registry.k8s.io/pause:3.10" in 285ms (285ms including waiting). Image size: 320368 bytes.
+33m         Warning   Unhealthy                pod/exp-fleet-0-559747cb5c-wlb65    Readiness probe failed: Get "http://10.42.3.13:8000/health": dial tcp 10.42.3.13:8000: connect: connection refused
+33m         Normal    Killing                  pod/exp-fleet-0-5c5b4c7669-tmmxv    Stopping container inference
+33m         Normal    Killing                  pod/exp-fleet-0-559747cb5c-wlb65    Stopping container inference
+33m         Normal    SuccessfulDelete         replicaset/vllm-a-bbdf6fd4          Deleted pod: vllm-a-bbdf6fd4-h6mgn
+33m         Normal    ScalingReplicaSet        deployment/vllm-a                   Scaled down replica set vllm-a-bbdf6fd4 from 1 to 0
+33m         Normal    SuccessfulDelete         replicaset/vllm-b-79495fd557        Deleted pod: vllm-b-79495fd557-mtmfr
+33m         Normal    SuccessfulDelete         replicaset/vllm-c-5fc9f878db        Deleted pod: vllm-c-5fc9f878db-5b2v4
+33m         Normal    Killing                  pod/vllm-b-79495fd557-mtmfr         Stopping container vllm
+33m         Normal    Killing                  pod/vllm-a-bbdf6fd4-h6mgn           Stopping container vllm
+33m         Normal    Killing                  pod/vllm-c-5fc9f878db-5b2v4         Stopping container vllm
+33m         Normal    ScalingReplicaSet        deployment/vllm-b                   Scaled down replica set vllm-b-79495fd557 from 1 to 0
+33m         Normal    ScalingReplicaSet        deployment/vllm-c                   Scaled down replica set vllm-c-5fc9f878db from 1 to 0
+33m         Normal    Pulled                   pod/vllm-a-799d95468c-slj8f         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+33m         Normal    Created                  pod/vllm-c-978f895c5-fd2ls          Container created
+33m         Normal    SuccessfulCreate         replicaset/vllm-a-799d95468c        Created pod: vllm-a-799d95468c-slj8f
+33m         Normal    Pulled                   pod/vllm-c-978f895c5-fd2ls          Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+33m         Normal    Started                  pod/vllm-c-978f895c5-fd2ls          Container started
+33m         Normal    Started                  pod/vllm-a-799d95468c-slj8f         Container started
+33m         Normal    SuccessfulCreate         replicaset/vllm-b-5b59bb6674        Created pod: vllm-b-5b59bb6674-s6dg6
+33m         Normal    SuccessfulCreate         replicaset/vllm-c-978f895c5         Created pod: vllm-c-978f895c5-fd2ls
+33m         Normal    Created                  pod/vllm-a-799d95468c-slj8f         Container created
+33m         Normal    Started                  pod/vllm-b-5b59bb6674-s6dg6         Container started
+33m         Normal    Pulled                   pod/vllm-b-5b59bb6674-s6dg6         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+33m         Normal    Created                  pod/vllm-b-5b59bb6674-s6dg6         Container created
+32m         Warning   Unhealthy                pod/vllm-c-978f895c5-fd2ls          Readiness probe failed: Get "http://10.42.3.14:8000/health": dial tcp 10.42.3.14:8000: connect: connection refused
+32m         Warning   Unhealthy                pod/vllm-b-5b59bb6674-s6dg6         Readiness probe failed: Get "http://10.42.1.10:8000/health": dial tcp 10.42.1.10:8000: connect: connection refused
+32m         Warning   Unhealthy                pod/vllm-a-799d95468c-slj8f         Readiness probe failed: Get "http://10.42.0.15:8000/health": dial tcp 10.42.0.15:8000: connect: connection refused
+29m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-7689fc5fb7 from 0 to 1
+29m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-7689fc5fb7   Created pod: exp-fleet-0-7689fc5fb7-b6bj8
+29m         Normal    Created                  pod/exp-fleet-0-7689fc5fb7-b6bj8    Container created
+29m         Normal    Started                  pod/exp-fleet-0-7689fc5fb7-b6bj8    Container started
+29m         Normal    Pulled                   pod/exp-fleet-0-7689fc5fb7-b6bj8    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+24m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-559747cb5c from 0 to 1
+24m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-559747cb5c   Created pod: exp-fleet-0-559747cb5c-nffmw
+24m         Normal    Created                  pod/exp-fleet-0-559747cb5c-nffmw    Container created
+24m         Normal    Pulled                   pod/exp-fleet-0-559747cb5c-nffmw    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+24m         Normal    Started                  pod/exp-fleet-0-559747cb5c-nffmw    Container started
+24m         Warning   Unhealthy                pod/exp-fleet-0-7689fc5fb7-b6bj8    Readiness probe failed: Get "http://10.42.0.16:8000/health": dial tcp 10.42.0.16:8000: connect: connection refused
+24m         Normal    Killing                  pod/exp-fleet-0-7689fc5fb7-b6bj8    Stopping container inference
+24m         Normal    SuccessfulDelete         replicaset/vllm-b-5b59bb6674        Deleted pod: vllm-b-5b59bb6674-s6dg6
+24m         Normal    SuccessfulDelete         replicaset/vllm-a-799d95468c        Deleted pod: vllm-a-799d95468c-slj8f
+24m         Normal    SuccessfulDelete         replicaset/vllm-c-978f895c5         Deleted pod: vllm-c-978f895c5-fd2ls
+24m         Normal    Killing                  pod/vllm-c-978f895c5-fd2ls          Stopping container vllm
+24m         Normal    Killing                  pod/exp-fleet-0-559747cb5c-nffmw    Stopping container inference
+24m         Normal    Killing                  pod/vllm-b-5b59bb6674-s6dg6         Stopping container vllm
+24m         Normal    Killing                  pod/vllm-a-799d95468c-slj8f         Stopping container vllm
+24m         Normal    Created                  pod/vllm-b-75f658fdb-dw9jq          Container created
+24m         Normal    Created                  pod/vllm-a-6875d55875-lj9d7         Container created
+24m         Normal    SuccessfulCreate         replicaset/vllm-b-75f658fdb         Created pod: vllm-b-75f658fdb-dw9jq
+24m         Normal    SuccessfulCreate         replicaset/vllm-a-6875d55875        Created pod: vllm-a-6875d55875-lj9d7
+24m         Normal    Created                  pod/vllm-c-54d765789f-gnpjc         Container created
+24m         Normal    Pulled                   pod/vllm-a-6875d55875-lj9d7         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+24m         Normal    Pulled                   pod/vllm-b-75f658fdb-dw9jq          Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+24m         Normal    SuccessfulCreate         replicaset/vllm-c-54d765789f        Created pod: vllm-c-54d765789f-gnpjc
+24m         Normal    Started                  pod/vllm-b-75f658fdb-dw9jq          Container started
+24m         Normal    Pulled                   pod/vllm-c-54d765789f-gnpjc         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+24m         Normal    Started                  pod/vllm-a-6875d55875-lj9d7         Container started
+24m         Normal    Started                  pod/vllm-c-54d765789f-gnpjc         Container started
+23m         Warning   Unhealthy                pod/vllm-c-54d765789f-gnpjc         Readiness probe failed: Get "http://10.42.3.16:8000/health": dial tcp 10.42.3.16:8000: connect: connection refused
+23m         Warning   Unhealthy                pod/vllm-b-75f658fdb-dw9jq          Readiness probe failed: Get "http://10.42.1.11:8000/health": dial tcp 10.42.1.11:8000: connect: connection refused
+23m         Warning   Unhealthy                pod/vllm-a-6875d55875-lj9d7         Readiness probe failed: Get "http://10.42.0.17:8000/health": dial tcp 10.42.0.17:8000: connect: connection refused
+20m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-7689fc5fb7   Created pod: exp-fleet-0-7689fc5fb7-zw2db
+20m         Normal    Created                  pod/exp-fleet-0-7689fc5fb7-zw2db    Container created
+20m         Normal    Started                  pod/exp-fleet-0-7689fc5fb7-zw2db    Container started
+20m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-7689fc5fb7 from 0 to 1
+20m         Normal    Pulled                   pod/exp-fleet-0-7689fc5fb7-zw2db    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+18m         Warning   Unhealthy                pod/exp-fleet-0-7689fc5fb7-zw2db    Readiness probe failed: Get "http://10.42.0.18:8000/health": dial tcp 10.42.0.18:8000: connect: connection refused
+15m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-559747cb5c   Created pod: exp-fleet-0-559747cb5c-j8z54
+15m         Normal    Killing                  pod/exp-fleet-0-7689fc5fb7-zw2db    Stopping container inference
+15m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-559747cb5c   Created pod: exp-fleet-0-559747cb5c-5f672
+15m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-559747cb5c from 0 to 1
+15m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-559747cb5c from 0 to 1
+15m         Normal    Pulled                   pod/exp-fleet-0-559747cb5c-j8z54    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+15m         Normal    Started                  pod/exp-fleet-0-559747cb5c-j8z54    Container started
+15m         Normal    Created                  pod/exp-fleet-0-559747cb5c-j8z54    Container created
+15m         Normal    SuccessfulDelete         replicaset/vllm-b-75f658fdb         Deleted pod: vllm-b-75f658fdb-dw9jq
+15m         Normal    Killing                  pod/vllm-c-54d765789f-gnpjc         Stopping container vllm
+15m         Normal    SuccessfulDelete         replicaset/vllm-a-6875d55875        Deleted pod: vllm-a-6875d55875-lj9d7
+15m         Normal    Killing                  pod/vllm-a-6875d55875-lj9d7         Stopping container vllm
+15m         Normal    Killing                  pod/vllm-b-75f658fdb-dw9jq          Stopping container vllm
+15m         Normal    SuccessfulDelete         replicaset/vllm-c-54d765789f        Deleted pod: vllm-c-54d765789f-gnpjc
+15m         Normal    Created                  pod/vllm-b-54fbcd8f58-nmfm9         Container created
+15m         Normal    Created                  pod/vllm-a-b46ff4987-jxm4j          Container created
+15m         Normal    Started                  pod/vllm-b-54fbcd8f58-nmfm9         Container started
+15m         Normal    Started                  pod/vllm-c-668f5976c5-ck7ns         Container started
+15m         Normal    Created                  pod/vllm-c-668f5976c5-ck7ns         Container created
+15m         Normal    Pulled                   pod/vllm-c-668f5976c5-ck7ns         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+15m         Normal    Started                  pod/vllm-a-b46ff4987-jxm4j          Container started
+15m         Normal    Pulled                   pod/vllm-a-b46ff4987-jxm4j          Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+15m         Normal    Pulled                   pod/vllm-b-54fbcd8f58-nmfm9         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+15m         Normal    SuccessfulCreate         replicaset/vllm-c-668f5976c5        Created pod: vllm-c-668f5976c5-ck7ns
+15m         Normal    SuccessfulCreate         replicaset/vllm-b-54fbcd8f58        Created pod: vllm-b-54fbcd8f58-nmfm9
+15m         Normal    Killing                  pod/exp-fleet-0-559747cb5c-j8z54    Stopping container inference
+15m         Normal    SuccessfulCreate         replicaset/vllm-a-b46ff4987         Created pod: vllm-a-b46ff4987-jxm4j
+14m         Warning   Unhealthy                pod/vllm-c-668f5976c5-ck7ns         Readiness probe failed: Get "http://10.42.3.18:8000/health": dial tcp 10.42.3.18:8000: connect: connection refused
+14m         Warning   Unhealthy                pod/vllm-a-b46ff4987-jxm4j          Readiness probe failed: Get "http://10.42.0.19:8000/health": dial tcp 10.42.0.19:8000: connect: connection refused
+14m         Warning   Unhealthy                pod/vllm-b-54fbcd8f58-nmfm9         Readiness probe failed: Get "http://10.42.1.12:8000/health": dial tcp 10.42.1.12:8000: connect: connection refused
+11m         Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-559747cb5c from 0 to 1
+11m         Normal    SuccessfulCreate         replicaset/exp-fleet-0-559747cb5c   Created pod: exp-fleet-0-559747cb5c-gzkjw
+11m         Normal    Started                  pod/exp-fleet-0-559747cb5c-gzkjw    Container started
+11m         Normal    Created                  pod/exp-fleet-0-559747cb5c-gzkjw    Container created
+11m         Normal    Pulled                   pod/exp-fleet-0-559747cb5c-gzkjw    Container image "registry.k8s.io/pause:3.10" already present on machine and can be accessed by the pod
+9m32s       Warning   Unhealthy                pod/exp-fleet-0-559747cb5c-gzkjw    Readiness probe failed: Get "http://10.42.3.19:8000/health": dial tcp 10.42.3.19:8000: connect: connection refused
+6m30s       Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-5c5b4c7669 from 0 to 1
+6m30s       Normal    SuccessfulCreate         replicaset/exp-fleet-0-5c5b4c7669   Created pod: exp-fleet-0-5c5b4c7669-zbb59
+6m30s       Normal    SuccessfulCreate         replicaset/exp-fleet-0-5c5b4c7669   Created pod: exp-fleet-0-5c5b4c7669-8kjvq
+6m30s       Normal    ScalingReplicaSet        deployment/exp-fleet-0              Scaled up replica set exp-fleet-0-5c5b4c7669 from 0 to 1
+6m30s       Normal    Killing                  pod/exp-fleet-0-559747cb5c-gzkjw    Stopping container inference
+6m30s       Warning   FailedToCreateEndpoint   endpoints/exp-fleet-0               Failed to create endpoint for service default/exp-fleet-0: endpoints "exp-fleet-0" already exists
+6m29s       Normal    Killing                  pod/vllm-c-668f5976c5-ck7ns         Stopping container vllm
+6m29s       Normal    SuccessfulDelete         replicaset/vllm-c-668f5976c5        Deleted pod: vllm-c-668f5976c5-ck7ns
+6m29s       Normal    Killing                  pod/vllm-a-b46ff4987-jxm4j          Stopping container vllm
+6m29s       Normal    SuccessfulDelete         replicaset/vllm-a-b46ff4987         Deleted pod: vllm-a-b46ff4987-jxm4j
+6m29s       Normal    SuccessfulDelete         replicaset/vllm-b-54fbcd8f58        Deleted pod: vllm-b-54fbcd8f58-nmfm9
+6m29s       Normal    Killing                  pod/vllm-b-54fbcd8f58-nmfm9         Stopping container vllm
+6m28s       Normal    SuccessfulCreate         replicaset/vllm-a-78b8667956        Created pod: vllm-a-78b8667956-rc6fk
+6m28s       Normal    Created                  pod/vllm-a-78b8667956-rc6fk         Container created
+6m28s       Normal    SuccessfulCreate         replicaset/vllm-b-6fb8445777        Created pod: vllm-b-6fb8445777-4xfwz
+6m28s       Normal    ScalingReplicaSet        deployment/vllm-c                   (combined from similar events): Scaled up replica set vllm-c-56dcf5f9c8 from 0 to 1
+6m28s       Normal    Created                  pod/vllm-b-6fb8445777-4xfwz         Container created
+6m28s       Normal    Pulled                   pod/vllm-b-6fb8445777-4xfwz         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+6m28s       Normal    SuccessfulCreate         replicaset/vllm-c-56dcf5f9c8        Created pod: vllm-c-56dcf5f9c8-b9jpj
+6m28s       Normal    ScalingReplicaSet        deployment/vllm-a                   (combined from similar events): Scaled up replica set vllm-a-78b8667956 from 0 to 1
+6m28s       Normal    ScalingReplicaSet        deployment/vllm-b                   (combined from similar events): Scaled up replica set vllm-b-6fb8445777 from 0 to 1
+6m28s       Normal    Pulled                   pod/vllm-a-78b8667956-rc6fk         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+6m27s       Normal    Started                  pod/vllm-c-56dcf5f9c8-b9jpj         Container started
+6m27s       Normal    Pulled                   pod/vllm-c-56dcf5f9c8-b9jpj         Container image "vllm/vllm-openai@sha256:6d8429e38e3747723ca07ee1b17972e09bb9c51c4032b266f24fb1cc3b22ed8f" already present on machine and can be accessed by the pod
+6m27s       Normal    Started                  pod/vllm-a-78b8667956-rc6fk         Container started
+6m27s       Normal    Created                  pod/vllm-c-56dcf5f9c8-b9jpj         Container created
+6m27s       Normal    Started                  pod/vllm-b-6fb8445777-4xfwz         Container started
+5m21s       Warning   Unhealthy                pod/vllm-c-56dcf5f9c8-b9jpj         Readiness probe failed: Get "http://10.42.3.20:8000/health": dial tcp 10.42.3.20:8000: connect: connection refused
+5m16s       Warning   Unhealthy                pod/vllm-a-78b8667956-rc6fk         Readiness probe failed: Get "http://10.42.0.20:8000/health": dial tcp 10.42.0.20:8000: connect: connection refused
+5m11s       Warning   Unhealthy                pod/vllm-b-6fb8445777-4xfwz         Readiness probe failed: Get "http://10.42.1.13:8000/health": dial tcp 10.42.1.13:8000: connect: connection refused

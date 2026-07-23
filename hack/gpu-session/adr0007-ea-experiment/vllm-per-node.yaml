@@ -11,7 +11,7 @@ spec:
   template:
     metadata: {labels: {app: vllm-a}}
     spec:
-      nodeSelector: {kubernetes.io/hostname: 129-80-206-135}
+      nodeSelector: {kubernetes.io/hostname: 129-213-131-210}
       runtimeClassName: nvidia
       containers:
       - name: vllm
@@ -33,7 +33,7 @@ spec:
   template:
     metadata: {labels: {app: vllm-b}}
     spec:
-      nodeSelector: {kubernetes.io/hostname: 157-151-204-197}
+      nodeSelector: {kubernetes.io/hostname: 129-159-182-206}
       runtimeClassName: nvidia
       containers:
       - name: vllm
@@ -55,7 +55,7 @@ spec:
   template:
     metadata: {labels: {app: vllm-c}}
     spec:
-      nodeSelector: {kubernetes.io/hostname: 150-136-93-75}
+      nodeSelector: {kubernetes.io/hostname: 157-151-148-27}
       runtimeClassName: nvidia
       containers:
       - name: vllm

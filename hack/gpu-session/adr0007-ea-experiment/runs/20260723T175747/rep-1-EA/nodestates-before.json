@@ -1,0 +1,105 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "NodeState",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"inference.michelecampi.dev/v1alpha1\",\"kind\":\"NodeState\",\"metadata\":{\"annotations\":{},\"name\":\"129-159-182-206\",\"namespace\":\"default\"},\"spec\":{}}\n"
+                },
+                "creationTimestamp": "2026-07-23T17:29:12Z",
+                "generation": 1,
+                "name": "129-159-182-206",
+                "namespace": "default",
+                "resourceVersion": "2703",
+                "uid": "b13a0bd2-6a2a-4e05-8e38-4b7b229636e0"
+            },
+            "spec": {
+                "reportIntervalSeconds": 15
+            },
+            "status": {
+                "activeServiceCount": 1,
+                "gpuMemoryUsedBytes": 21110128640,
+                "gpuUtilization": 0,
+                "lastReportTime": "2026-07-23T17:57:42.097552469+00:00",
+                "observedGeneration": 1,
+                "spot": {
+                    "isSpotInstance": false,
+                    "preemptionNoticeDetected": false,
+                    "preemptionNoticeTime": ""
+                },
+                "tokensPerJoule": 0,
+                "warmth": "Warm"
+            }
+        },
+        {
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "NodeState",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"inference.michelecampi.dev/v1alpha1\",\"kind\":\"NodeState\",\"metadata\":{\"annotations\":{},\"name\":\"129-213-131-210\",\"namespace\":\"default\"},\"spec\":{}}\n"
+                },
+                "creationTimestamp": "2026-07-23T17:29:12Z",
+                "generation": 1,
+                "name": "129-213-131-210",
+                "namespace": "default",
+                "resourceVersion": "2702",
+                "uid": "1f6dfe90-283b-4ea8-a1c5-12da9570d08a"
+            },
+            "spec": {
+                "reportIntervalSeconds": 15
+            },
+            "status": {
+                "activeServiceCount": 1,
+                "gpuMemoryUsedBytes": 21112225792,
+                "gpuUtilization": 0,
+                "lastReportTime": "2026-07-23T17:57:41.628522822+00:00",
+                "observedGeneration": 1,
+                "spot": {
+                    "isSpotInstance": false,
+                    "preemptionNoticeDetected": false,
+                    "preemptionNoticeTime": ""
+                },
+                "tokensPerJoule": 0,
+                "warmth": "Warm"
+            }
+        },
+        {
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "NodeState",
+            "metadata": {
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"inference.michelecampi.dev/v1alpha1\",\"kind\":\"NodeState\",\"metadata\":{\"annotations\":{},\"name\":\"157-151-148-27\",\"namespace\":\"default\"},\"spec\":{}}\n"
+                },
+                "creationTimestamp": "2026-07-23T17:29:13Z",
+                "generation": 1,
+                "name": "157-151-148-27",
+                "namespace": "default",
+                "resourceVersion": "2706",
+                "uid": "11de0c6f-0a7b-4491-9730-f8823adb5a52"
+            },
+            "spec": {
+                "reportIntervalSeconds": 15
+            },
+            "status": {
+                "activeServiceCount": 1,
+                "gpuMemoryUsedBytes": 21110128640,
+                "gpuUtilization": 0,
+                "lastReportTime": "2026-07-23T17:57:42.004587276+00:00",
+                "observedGeneration": 1,
+                "spot": {
+                    "isSpotInstance": false,
+                    "preemptionNoticeDetected": false,
+                    "preemptionNoticeTime": ""
+                },
+                "tokensPerJoule": 0,
+                "warmth": "Warm"
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}
