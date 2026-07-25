@@ -1,7 +1,7 @@
 # -- Operator container image (public on GHCR, anonymous pull). repository/tag
-#    are the human-edited fallback; ArgoCD Image Updater (digest strategy)
-#    writes the live pinned reference into `spec` (full repo@sha256 string)
-#    via git write-back. When spec is set, the image helper uses it verbatim.
+#    are the human-edited fallback; ArgoCD Image Updater writes the resolved
+#    reference into `spec` via git write-back (semver strategy over release
+#    tags). When spec is set, the image helper uses it verbatim.
 image:
   repository: ghcr.io/michelecampi/vllm-coldstart-operator
   tag: 0.2.1

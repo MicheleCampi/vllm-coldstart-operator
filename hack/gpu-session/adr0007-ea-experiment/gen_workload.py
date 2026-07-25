@@ -1,7 +1,12 @@
 """Deterministic workload generator for the ADR-0007 EA-vs-WF experiment.
 
 Design parameters from DESIGN.md, frozen: shared-prefix fraction 0.6,
-shared prefix ~1500 tok, unique tail 100-300 tok, output 128 tok, 8 RPS.
+shared prefix ~1500 tok, unique tail 100-300 tok, output 128 tok.
+Rate is EXP_RPS (default 2): the original 8 RPS derived from H100 data
+saturated the A10s, and the 2026-07-22 amendment dropped it to 2 before
+any measured rep. Emitted count is duration_s * RPS, and the runner
+generates over PRELOAD_S + WINDOW_S, so a rep at 2 RPS emits 840 requests
+total of which 600 fall inside the 300s measurement window.
 Token lengths are approximated as chars/4 here (declared approximation:
 harness mechanics do not depend on exact token counts; the GPU session
 records the real tokenizer counts via vLLM usage stats).

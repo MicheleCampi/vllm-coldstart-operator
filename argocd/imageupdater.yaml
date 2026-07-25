@@ -9,7 +9,10 @@ spec:
     gitConfig:
       repository: "https://github.com/MicheleCampi/vllm-coldstart-operator"
       branch: "main"
-      writeBackTarget: "helmvalues:chart/values.yaml"
+      # Leading slash = path relative to the repository root. Without it the
+      # target resolves against the Application's spec.source.path (= "chart"),
+      # which wrote updates to chart/chart/values.yaml instead.
+      writeBackTarget: "helmvalues:/chart/values.yaml"
   applicationRefs:
     - namePattern: "vllm-coldstart-operator"
       images:
@@ -22,5 +25,7 @@ spec:
               - "linux/amd64"
           manifestTargets:
             helm:
-              name: "image.repository"
-              tag: "image.tag"
+              # Written as a single full image reference into image.spec, which
+              # the chart's image helper uses verbatim when set (falling back to
+              # repository/tag otherwise).
+              spec: "image.spec"
