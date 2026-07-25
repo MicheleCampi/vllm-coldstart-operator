@@ -9,6 +9,11 @@ metadata:
     {{- include "vllm-coldstart-operator.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  # Single-replica controller with no leader election: a RollingUpdate
+  # surges a second pod before the old one exits, so two reconcilers
+  # would briefly race on placement decisions. Recreate keeps exactly one.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "vllm-coldstart-operator.selectorLabels" . | nindent 6 }}

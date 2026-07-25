@@ -126,7 +126,7 @@ This section stays honest about boundaries, because the value is in what is actu
 
 ## Testing & CI
 
-- **Unit tests** (~33) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
+- **Unit tests** (47, plus 3 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
 - **End-to-end CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) on every push: `fmt --check` + `clippy -D warnings` + tests + release build, plus an ephemeral kind cluster that installs the CRDs, runs the operator, applies a `VllmService`, and asserts the full lifecycle with bounded polling (convergence, not timing luck).
 
 ## Roadmap
