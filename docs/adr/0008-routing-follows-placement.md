@@ -1,7 +1,15 @@
-# ADR-0008: Routing follows placement, and observations have a horizon
+# ADR-0008: Placement is published, and observations have a horizon
 
-Status: Accepted
+Status: Accepted, deferred
 Date: 2026-07-27
+
+Deferred means the design is settled and the implementation is not
+scheduled next. The queue ahead of it is a market-positioning call
+recorded on 2026-07-26: the corpus is vLLM-monoculture, and an
+SGLang-versus-vLLM comparison on agentic prefix reuse (ADR-014, its
+CPU-only prerequisite) answers a question that hiring teams are
+actually asking, while efficiency-aware placement — the better problem
+— answers one they are not. This ADR resumes after that block.
 
 ## Context
 
@@ -92,26 +100,40 @@ not drift upward in any downstream artefact.
 
 ## Decision
 
-### D1 — A fleet-level delivery surface, carrying no policy
+### D1 — Placement is published; the harness dispatches
 
-A `FleetService` gains one Kubernetes Service selecting all of its
-members, so that traffic reaches whichever node the strategy placed a
-replica on. This requires propagating the fleet label from the child
-`VllmService` metadata onto the pod template (fact 2), which in turn
-requires splitting the single label map in `build_deployment` into a
-`selector` map (unchanged: `app`, `managed-by`) and a superset pod-label
-map (fact 3). The selector stays byte-identical, so the change is
-additive and existing Deployments continue to apply.
+`FleetService.status` gains the current placement: per slot, the node
+it sits on, the name of the owned child, and the node attributes that
+informed the decision. This is a read-only report of a decision the
+controller has already taken, written to a resource it already owns
+and already patches.
 
-The demarcation that keeps this compatible with ADR-0007 D5: **this
-layer delivers traffic, it does not choose endpoints.** A Kubernetes
-Service load-balances by kube-proxy with no knowledge of efficiency,
-cache state, or queue depth. Endpoint-level scoring remains exactly
-where ADR-0007 D5 put it — the router layer, where llm-d's
-`endpoint-attribute-scorer` plus `customMetrics` make it configuration
-rather than code. Placement decides which node hosts a service;
-delivery makes that decision observable; routing decides which endpoint
-serves a request, elsewhere. Three concerns, still distinct.
+Traffic reaches the placed replica through the Service that exists
+today: `build_service` applies one per `VllmService` (fact 1), so every
+member is addressable by name already. The experiment's replay driver
+reads the published placement and dispatches accordingly. That
+dispatcher lives in `hack/` and is measurement instrumentation, not a
+product component — it makes the placement decision observable and it
+ships with the experiment, not with the operator.
+
+The alternative considered and rejected: one Kubernetes Service
+selecting all fleet members. It would require the fleet label
+propagated onto the pod template (fact 2) and the label map in
+`build_deployment` split so the immutable selector stays byte-identical
+(fact 3) — product code, a pod-template change, and a rollout of every
+existing Deployment on upgrade, all to serve an experimental need. The
+status field costs none of that and answers the same question.
+
+The demarcation that keeps this compatible with ADR-0007 D5: **the
+operator reports where it placed; it does not choose endpoints.**
+Endpoint-level scoring remains exactly where ADR-0007 D5 put it — the
+router layer, where llm-d's `endpoint-attribute-scorer` plus
+`customMetrics` make it configuration rather than code. Placement
+decides which node hosts a service; the published placement makes that
+decision observable; routing decides which endpoint serves a request,
+elsewhere. Three concerns, still distinct — and the operator owns
+strictly fewer of them here than the rejected alternative would have
+given it.
 
 Without D1 the experiment is unobservable, which is precisely what the
 level-3 session established empirically.
@@ -247,9 +269,9 @@ discriminating condition and is not a finding.
 
 Sequence per rep: pre-load both candidate nodes under their caps until
 the reporter has recorded tokens/joule for each; drain; trigger the
-placement decision within the declared horizon (D2); the delivery
-surface (D1) sends the replayed workload to the placed replica;
-measure.
+placement decision within the declared horizon (D2); the dispatcher
+(D1) reads the published placement and sends the replayed workload to
+the placed replica; measure.
 
 Primary metric: **tokens/joule of the placed replica**, over a
 declared window. Fleet aggregates are explicitly not primary — that is
@@ -287,8 +309,9 @@ carry the effect.
    under every combination of signals, ages, and absences; the full
    lexicographic chain in its new D4 order.
 2. Zero-cost kind rehearsal: the whole harness end to end with metrics
-   fixtures — capacity filter, delivery surface, retention and horizon,
-   the pre-load/drain/decide sequence, evidence layout, verdict logic.
+   fixtures — capacity filter, published placement and dispatcher,
+   retention and horizon, the pre-load/drain/decide sequence, evidence
+   layout, verdict logic.
    The level-3 lesson applies: exercise every flag the GPU run will
    use, including the ones only the GPU path reaches.
 3. Pre-session gate, **not yet verified and explicitly flagged**:
@@ -311,14 +334,13 @@ carry the effect.
   cover the ternary absence semantics.
 - `PlacementSpec` gains the maximum-age policy field. Its default is a
   policy choice recorded at implementation time, not here.
-- `build_deployment` splits its label map; pod labels become a superset
-  of the selector. Consequence to state plainly: changing the pod
-  template changes the template hash, so existing vLLM Deployments roll
-  once on upgrade. On a fleet this is a rolling, make-before-break move
-  per ADR-0005 semantics, but it is not free and must be in release
-  notes.
-- A `FleetService` gains an owned Service. Ownership, naming, and
-  lifecycle follow the existing owned-child pattern.
+- `FleetService.status` grows the published placement (D1). Additive to
+  a status the controller already writes: no new owned resource, no pod
+  template change, and therefore no rollout of existing Deployments on
+  upgrade. The experiment's dispatcher reads it and lives in `hack/`.
+- The CRD schema grows accordingly, and the `NodeState.status` change
+  above lands with it; both are additive and optional, so existing
+  objects remain valid.
 - The EfficiencyAware ordering changes (D4). Behaviour change to a
   v0.3.0 feature, no API break, `WarmthFirst` default untouched.
 - The planner gains a capacity precondition for GPU requests (D3),
