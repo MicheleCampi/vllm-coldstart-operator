@@ -1,0 +1,189 @@
+# ADR-0009: Replicas follow demand, and a warming replica is not capacity
+
+Status: Accepted
+Date: 2026-07-31
+
+## Context
+
+ADR-0003 made the fleet own placement: `FleetService` decides *where* a
+model runs. It does not decide *how many* replicas run. `spec.replicas`
+is a required `i32` written by a human (`src/fleet_types.rs`), and the
+fleet controller fans it out as one `VllmService` of `replicas: 1` per
+placement (`src/fleet_controller.rs`), so fleet-level replicas means
+number of placements. Nothing changes that number in response to load.
+
+That is the gap this ADR closes, and the interesting part is not the
+arithmetic of scaling but the fact that an LLM replica is useless for
+the first several seconds of its life. ADR-0002 established cold start
+as a first-class state for one service; at fleet level the same fact
+becomes a scheduling problem, because a controller that counts a
+warming replica as capacity under-provisions, and one that counts it as
+absent over-provisions.
+
+Source review before writing established six facts, each cited to the
+file that establishes it, because each closes off an option that would
+otherwise look reasonable.
+
+1. **No status field reports how many replicas exist.**
+   `ready_replicas` counts placements in phase `Ready`, and
+   `desired_replicas` is a copy of `spec.replicas`
+   (`src/fleet_controller.rs`). The Kubernetes convention for the scale
+   subresource is that the status path reports *observed* replicas,
+   ready or not; neither field carries that number, so one has to be
+   added before the subresource can be exposed honestly.
+2. **kube-derive supports the scale subresource with typed fields.**
+   `#[kube(scale(...))]` accepts `spec_replicas_path` and
+   `status_replicas_path` as *mandatory* keys and `label_selector_path`
+   as optional (kube-derive 2.0.1, `src/custom_resource.rs`). The doc
+   example in that crate spells the second key `status_replica_path`,
+   which the parser rejects; only the plural form parses.
+3. **The reporter already speaks the vLLM Prometheus dialect.**
+   `VllmScrape::sample` reads `vllm:prefix_cache_hits`,
+   `vllm:prefix_cache_queries` and `vllm:generation_tokens_total`, with
+   `_total`-suffix tolerance and per-target fail-open
+   (`src/bin/reporter.rs`). Adding series is an extension of an existing
+   parser, not a new component.
+4. **The signals published today cannot drive scaling.**
+   `NodeStateStatus` carries `gpu_utilization`, `active_service_count`,
+   `kv_cache_hit_rate` and `tokens_per_joule` (`src/fleet_types.rs`).
+   None of these is a demand signal: a GPU at 90% with an empty queue is
+   saturated and healthy, while a GPU at 40% with fifty requests waiting
+   is starved by something that adding replicas may not fix.
+5. **Anti-oscillation machinery exists and is reusable.**
+   `HysteresisSpec` provides `stable_reconciles_required` and
+   `max_concurrent_reschedules` (`src/fleet_types.rs`), and
+   `PlacementStatus.stable_since` records how long a phase has held.
+6. **Every placement signal is `Option`, and absence is not zero.**
+   ADR-0007 established this for placement; a demand signal that
+   defaults to 0.0 when a scrape fails would read as "no load" and
+   scale the fleet to its floor exactly when the engine is unreachable.
+
+## Non-goals
+
+This ADR does not build an autoscaler. The replica count is computed
+outside the operator, by HPA, KEDA, or a human with `kubectl scale`.
+Vertical sizing (GPU count per replica) stays in the template.
+Arbitration between competing fleets on one pool is out of scope. No
+KEDA `ScaledObject` is vendored: that is configuration, and shipping it
+as code would bind the operator to one autoscaler's schema.
+
+## Decision
+
+### D1 — The scale subresource is exposed; the operator does not compute the number
+
+`FleetService` gains `#[kube(scale(spec_replicas_path = ".spec.replicas",
+status_replicas_path = ".status.replicas"))]`. `kubectl scale
+fleet/<name> --replicas=N` works, and any external autoscaler can target
+the CRD the way it targets a Deployment.
+
+The status path points at total live placements, not at
+`readyReplicas`, and the distinction is the whole reason D3 exists. An
+autoscaler reads that field as "how many replicas are there now"; if it
+reported only the ready ones, a replica still loading weights would be
+invisible, the loop would see unmet demand next to a low count, and it
+would scale again — creating exactly the over-provisioning this ADR is
+written to prevent. Reporting the total is also what the convention in
+fact 1 requires.
+
+`label_selector_path` is deliberately omitted. It exists so that
+`/scale` can report which pods belong to the workload, which HPA needs
+for per-pod resource metrics. This fleet is meant to be scaled on
+*external* metrics — queue depth, in-flight requests — and fact 3 of
+ADR-0008 records why a fleet-wide pod selector does not exist today: pod
+labels and the immutable Deployment selector share one map. Omitting the
+path is therefore a scope decision, not an oversight, and it means
+per-pod-resource HPA is not supported. That limit is stated in the CRD
+docs rather than discovered.
+
+The alternative — an autoscaling loop inside the fleet controller —
+was rejected. It reimplements a decision Kubernetes has standardised,
+and it would put the replica count in two places: the spec a human
+wrote and the number the controller believed.
+
+### D2 — Demand is queue depth and in-flight requests, never GPU utilization
+
+The reporter scrapes `vllm:num_requests_waiting` and
+`vllm:num_requests_running` alongside the ADR-011 series, and publishes
+them to `NodeState.status` as `Option<f32>`, summed per target with the
+same per-target fail-open as the existing scrape.
+
+Utilization is rejected as the scaling signal for the reason in fact 4:
+it answers "is the GPU busy", and scaling answers "is work waiting".
+The two diverge in both directions, and the divergence is the normal
+case for LLM serving, not an edge case.
+
+Absent stays absent (fact 6). A fleet whose demand signal is `None` does
+not scale in either direction; it holds and says so in status. An
+autoscaler reading a missing metric is a condition its own configuration
+must handle, and the operator refuses to fabricate a zero for it.
+
+### D3 — A warming replica is neither capacity nor absent
+
+`FleetServiceStatus` gains two fields: `replicas: i32`, the count of
+live placements whatever their phase, and `warming_replicas: i32`, the
+subset not yet able to serve. `ready_replicas` and `desired_replicas`
+keep their current meaning. The three counts satisfy
+`ready + warming <= replicas`, with the remainder being placements in
+neither state (Placing, Draining).
+
+This is the decision the whole ADR exists for. A generic autoscaler
+observes demand and current ready replicas; if a replica takes ~18s to
+become useful on a 7B and considerably longer on a 32B (vllm-coldstart-probe,
+Phase A-D; cuda-graphs-experiment measured +7.0s and +15.9s of additional
+cold start with graphs enabled), then during that window demand is still
+unmet and ready count is still low, so a naive loop scales again. The
+fleet already knows the replica is coming: it publishes that, so the
+decision upstream can subtract it.
+
+The operator does not enforce the subtraction — it cannot, since it does
+not own the loop (D1). It publishes the fact that makes the correct
+decision possible, which is the same shape as ADR-0008 D1: the operator
+publishes, the consumer decides.
+
+### D4 — Scale-down is not the mirror of scale-up
+
+Scale-up is immediate: demand that exists now is real. Scale-down must
+persist for `stable_reconciles_required` before a placement is removed,
+reusing the existing hysteresis rather than adding a second mechanism,
+and `max_concurrent_reschedules` continues to cap blast radius.
+
+The asymmetry is not caution for its own sake. Removing a replica is
+cheap and instant; recreating it costs a cold start. A symmetric policy
+pays that cost on every dip in a signal that is bursty by nature.
+
+### D5 — Falsification
+
+Hypothesis: publishing warming replicas (D3) reduces over-provisioning
+against the same offered load, compared with an autoscaler that sees
+only ready replicas.
+
+Primary metric: peak replicas allocated over the run. Secondary:
+requests served per replica-second. Both arms replay one deterministic
+trace with a step increase in arrival rate, since the effect only
+appears when demand rises faster than a replica warms.
+
+Runs at zero cost on kind against `ghcr.io/llm-d/llm-d-inference-sim`
+(requires `POD_IP`, `--enable-kvcache`, `--enable-prefix-caching`),
+with an artificial warm-up delay standing in for GPU load time. The
+simulator makes the cold-start window a parameter, which is what makes
+this testable without a GPU.
+
+Declared threshold: a peak-replica reduction below 15% is not a result.
+A negative outcome is publishable and says the subtraction does not
+matter at realistic warm-up times, which would itself be worth knowing.
+
+## Consequences
+
+The scale subresource requires the status subresource, which is already
+enabled. Existing `FleetService` objects are unaffected: `spec.replicas`
+remains required and human-written until something scales it.
+
+`replicas` and `warming_replicas` are new status fields. ADR-0007
+recorded that status
+fields without `#[serde(default)]` become required in the CRD schema and
+break multi-writer merge-patch with a 422; this field carries the
+default like the rest.
+
+The fleet becomes scalable by machinery it does not contain, which is
+the point: the operator's claim moves from "it decides where" to "it
+decides where, and it tells you honestly what is not yet serving".
