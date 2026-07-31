@@ -104,12 +104,39 @@ fn cmp_count_lower(a: Option<i32>, b: Option<i32>) -> Ordering {
     }
 }
 
+/// The sanitised tuple the efficiency-aware comparator actually decides
+/// on: warmth rank, then each signal after its domain filter. Two
+/// candidates with equal keys are indistinguishable to placement however
+/// different their raw fields look — `Some(NaN)` and `None` both sanitise
+/// to `None`, so a fleet can hold two candidates that compare equal.
+///
+/// Exposed because equivalence must be defined once. A test that
+/// deduplicates on raw fields would call two candidates distinct that this
+/// comparator cannot tell apart, and would then assert a unique winner
+/// between them.
+pub fn comparison_key(
+    c: &NodeCandidate,
+) -> (u8, Option<f32>, Option<f32>, Option<f32>, Option<i32>) {
+    (
+        warmth_rank(&c.warmth),
+        valid_hit_rate(c.kv_cache_hit_rate),
+        valid_tokens_per_joule(c.tokens_per_joule),
+        valid_gpu_utilization(c.gpu_utilization),
+        c.active_service_count,
+    )
+}
+
 /// ADR-0007 efficiency-aware placement: strict lexicographic order
 /// warmth > kvCacheHitRate > tokensPerJoule > gpuUtilization >
 /// activeServiceCount. Cache before energy (cause before effect); the two
 /// load tiers are deliberately inverted w.r.t. warmth-first. With no
 /// efficiency signal on any candidate the first two tiers are always Equal
 /// and the order degenerates to warmth > lowest util > lowest count.
+///
+/// Candidates whose `comparison_key` is equal are indifferent by design;
+/// which one `max_by` returns then depends on their order in the slice.
+/// Placement has no reason to prefer one over the other, and inventing a
+/// tie-break (name, index) would encode a preference no ADR decided.
 pub fn select_node_efficiency_aware(candidates: &[NodeCandidate]) -> Option<&NodeCandidate> {
     candidates.iter().max_by(|a, b| {
         warmth_rank(&a.warmth)

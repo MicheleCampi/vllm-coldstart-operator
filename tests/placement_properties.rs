@@ -4,7 +4,9 @@
 //! order that makes max_by deterministic.
 
 use proptest::prelude::*;
-use vllm_coldstart_operator::fleet_placement::{select_node_efficiency_aware, NodeCandidate};
+use vllm_coldstart_operator::fleet_placement::{
+    comparison_key, select_node_efficiency_aware, NodeCandidate,
+};
 use vllm_coldstart_operator::fleet_types::Warmth;
 
 fn warmth_rank(w: &Warmth) -> u8 {
@@ -100,24 +102,18 @@ proptest! {
     /// (e.g. NaN handled inconsistently) without hand-picking cases.
     #[test]
     fn selection_is_rotation_invariant_on_distinct_fleets(fleet in arb_fleet(), rot in 0usize..12) {
-        // Deduplicate by the full comparison tuple (name excluded).
-        let mut seen: Vec<&NodeCandidate> = Vec::new();
+        // Deduplicate by the key the comparator decides on, not by raw
+        // fields. Sanitisation collapses hostile values (Some(NaN) ->
+        // None), so two candidates that differ raw can be indifferent to
+        // placement; asserting a unique winner between those would be
+        // asserting a preference the comparator deliberately does not have.
+        // No NaN survives comparison_key (every valid_* filters is_finite),
+        // so == on the tuple is a total comparison here.
         let mut distinct: Vec<NodeCandidate> = Vec::new();
-        'outer: for c in &fleet {
-            for s in &seen {
-                let same = s.warmth == c.warmth
-                    && s.gpu_utilization.map(f32::to_bits) == c.gpu_utilization.map(f32::to_bits)
-                    && s.active_service_count == c.active_service_count
-                    && s.kv_cache_hit_rate.map(f32::to_bits)
-                        == c.kv_cache_hit_rate.map(f32::to_bits)
-                    && s.tokens_per_joule.map(f32::to_bits)
-                        == c.tokens_per_joule.map(f32::to_bits);
-                if same {
-                    continue 'outer;
-                }
+        for c in &fleet {
+            if !distinct.iter().any(|d| comparison_key(d) == comparison_key(c)) {
+                distinct.push(c.clone());
             }
-            seen.push(c);
-            distinct.push(c.clone());
         }
         let n = distinct.len();
         let mut rotated = distinct.clone();
