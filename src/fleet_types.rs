@@ -298,6 +298,18 @@ pub struct NodeStateStatus {
     /// reporter. Absent = signal not available (fail-open).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tokens_per_joule: Option<f32>,
+    /// ADR-0009 D2: raw observed queue depth (`vllm:num_requests_waiting`,
+    /// summed across this node's scrape targets). This is the demand
+    /// signal an external autoscaler reads; utilization is not, because a
+    /// saturated GPU with an empty queue needs no replicas. Absent =
+    /// signal not available (fail-open); a 0.0 would read as "no load"
+    /// exactly when the engine is unreachable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requests_waiting: Option<f32>,
+    /// ADR-0009 D2: raw observed in-flight requests
+    /// (`vllm:num_requests_running`). Same absence semantics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requests_running: Option<f32>,
     #[serde(default)]
     pub spot: SpotStatus,
 }

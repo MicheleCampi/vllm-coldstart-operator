@@ -416,6 +416,24 @@ spec:
                   writer to fabricate values it does not own on first write.
                 format: int64
                 type: integer
+              requestsRunning:
+                description: |-
+                  ADR-0009 D2: raw observed in-flight requests
+                  (`vllm:num_requests_running`). Same absence semantics.
+                format: float
+                nullable: true
+                type: number
+              requestsWaiting:
+                description: |-
+                  ADR-0009 D2: raw observed queue depth (`vllm:num_requests_waiting`,
+                  summed across this node's scrape targets). This is the demand
+                  signal an external autoscaler reads; utilization is not, because a
+                  saturated GPU with an empty queue needs no replicas. Absent =
+                  signal not available (fail-open); a 0.0 would read as "no load"
+                  exactly when the engine is unreachable.
+                format: float
+                nullable: true
+                type: number
               spot:
                 default:
                   isSpotInstance: false

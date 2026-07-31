@@ -45,6 +45,9 @@ struct Signals {
     active_service_count: Option<i32>,
     kv_cache_hit_rate: Option<f32>,
     tokens_per_joule: Option<f32>,
+    /// ADR-0009 D2 demand signals.
+    requests_waiting: Option<f32>,
+    requests_running: Option<f32>,
 }
 
 /// Two-level env resolution shared by every source: the per-node key
@@ -111,6 +114,8 @@ impl Synthetic {
                 active_service_count: i32_of("REPORTER_SYNTHETIC_ACTIVE_SERVICE_COUNT")?,
                 kv_cache_hit_rate: f32_of("REPORTER_SYNTHETIC_KV_CACHE_HIT_RATE")?,
                 tokens_per_joule: f32_of("REPORTER_SYNTHETIC_TOKENS_PER_JOULE")?,
+                requests_waiting: f32_of("REPORTER_SYNTHETIC_REQUESTS_WAITING")?,
+                requests_running: f32_of("REPORTER_SYNTHETIC_REQUESTS_RUNNING")?,
             },
         })
     }
@@ -192,12 +197,16 @@ impl SignalSource for Real {
             active_service_count: None,
             kv_cache_hit_rate: None,
             tokens_per_joule: None,
+            requests_waiting: None,
+            requests_running: None,
         };
         let mut generation_tokens_delta: Option<f64> = None;
         if let Some(s) = &mut self.scrape {
             let round = s.sample().await;
             out.kv_cache_hit_rate = round.kv_cache_hit_rate;
             out.active_service_count = Some(round.responding_targets);
+            out.requests_waiting = round.requests_waiting;
+            out.requests_running = round.requests_running;
             generation_tokens_delta = round.generation_tokens_delta;
         }
         #[cfg(feature = "gpu-nvidia")]
@@ -237,6 +246,10 @@ struct VllmScrape {
 
 struct ScrapeRound {
     kv_cache_hit_rate: Option<f32>,
+    /// ADR-0009 D2: summed gauges, read independently of the prefix-cache
+    /// gate below — a vLLM without prefix caching still has a queue.
+    requests_waiting: Option<f32>,
+    requests_running: Option<f32>,
     responding_targets: i32,
     /// Summed `vllm:generation_tokens_total` delta across targets this
     /// round. Feeds the ADR-0007 tokens/joule join in `Real::sample`.
@@ -293,6 +306,8 @@ impl VllmScrape {
         let mut queries_delta = 0.0f64;
         let mut have_delta = false;
         let mut tokens_delta: Option<f64> = None;
+        let mut waiting: Option<f64> = None;
+        let mut running: Option<f64> = None;
         for i in 0..self.targets.len() {
             let url = self.targets[i].clone();
             let body = match self.client.get(&url).send().await {
@@ -308,6 +323,15 @@ impl VllmScrape {
                     continue;
                 }
             };
+            // ADR-0009 D2: read before the prefix-cache gate. These two
+            // are unrelated to KV caching, and a vLLM started without
+            // prefix caching must still report its queue.
+            if let Some(v) = sum_family(&body, "vllm:num_requests_waiting") {
+                *waiting.get_or_insert(0.0) += v;
+            }
+            if let Some(v) = sum_family(&body, "vllm:num_requests_running") {
+                *running.get_or_insert(0.0) += v;
+            }
             let (Some(h), Some(q)) = (
                 sum_family_totaled(&body, "vllm:prefix_cache_hits"),
                 sum_family_totaled(&body, "vllm:prefix_cache_queries"),
@@ -334,6 +358,8 @@ impl VllmScrape {
             kv_cache_hit_rate: (have_delta && queries_delta > 0.0)
                 .then(|| (hits_delta / queries_delta) as f32),
             responding_targets: responding,
+            requests_waiting: waiting.map(|v| v as f32),
+            requests_running: running.map(|v| v as f32),
             generation_tokens_delta: tokens_delta,
         }
     }
@@ -569,6 +595,8 @@ async fn main() -> anyhow::Result<()> {
             "activeServiceCount": s.active_service_count,
             "kvCacheHitRate": s.kv_cache_hit_rate,
             "tokensPerJoule": s.tokens_per_joule,
+            "requestsWaiting": s.requests_waiting,
+            "requestsRunning": s.requests_running,
         }});
         match api
             .patch_status(&node, &PatchParams::default(), &Patch::Merge(&patch))
@@ -584,6 +612,29 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn demand_gauges_are_read_without_prefix_cache_series() {
+        // ADR-0009 D2: a vLLM started without prefix caching exposes no
+        // KV series. The prefix-cache gate must not take the queue with it.
+        let body = "\
+# TYPE vllm:num_requests_waiting gauge\n\
+vllm:num_requests_waiting{model=\"a\"} 7\n\
+vllm:num_requests_waiting{model=\"b\"} 5\n\
+# TYPE vllm:num_requests_running gauge\n\
+vllm:num_requests_running 3\n";
+        assert_eq!(sum_family(body, "vllm:num_requests_waiting"), Some(12.0));
+        assert_eq!(sum_family(body, "vllm:num_requests_running"), Some(3.0));
+        assert_eq!(sum_family(body, "vllm:prefix_cache_hits"), None);
+    }
+
+    #[test]
+    fn absent_demand_series_stay_none() {
+        // Never fabricate 0.0: "no load" and "engine unreachable" must not
+        // be the same value on status.
+        let body = "# TYPE vllm:prefix_cache_hits counter\nvllm:prefix_cache_hits 1\n";
+        assert_eq!(sum_family(body, "vllm:num_requests_waiting"), None);
+    }
 
     #[test]
     fn sum_family_sums_label_sets_and_guards_prefix() {
