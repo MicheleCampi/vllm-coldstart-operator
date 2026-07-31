@@ -18,7 +18,11 @@ use serde::{Deserialize, Serialize};
     kind = "FleetService",
     namespaced,
     status = "FleetServiceStatus",
-    shortname = "fleet"
+    shortname = "fleet",
+    scale(
+        spec_replicas_path = ".spec.replicas",
+        status_replicas_path = ".status.replicas"
+    )
 )]
 #[serde(rename_all = "camelCase")]
 pub struct FleetServiceSpec {
@@ -152,6 +156,19 @@ pub struct FleetServiceStatus {
     pub phase: String,
     pub ready_replicas: i32,
     pub desired_replicas: i32,
+    /// ADR-0009 D1/D3: live placements whatever their phase. This is the
+    /// scale subresource's status path, so it must report what exists, not
+    /// what serves — pointing it at readyReplicas would hide a replica that
+    /// is still coming up and make an autoscaler scale on top of it.
+    #[serde(default)]
+    pub replicas: i32,
+    /// ADR-0009 D3 (as amended in the postscript): placements the fleet
+    /// holds that are not serving yet but are being brought up — `Pending`
+    /// or `Warming`. Excludes `Draining`/`Rescheduling`, which is capacity
+    /// on its way out. The consumer subtracts this from `replicas` to see
+    /// what will serve without scaling further.
+    #[serde(default)]
+    pub warming_replicas: i32,
     /// Counter backing the max_concurrent_reschedules cap.
     pub active_reschedules: i32,
     #[serde(default)]
@@ -354,6 +371,30 @@ mod tests {
     fn unknown_or_pending_stays_pending_without_node_ready() {
         assert_eq!(placement_phase_for("Pending", false, false), "Pending");
         assert_eq!(placement_phase_for("Warming", false, false), "Pending");
+    }
+
+    /// ADR-0009 D3 as amended: a placement reaches `Warming` only by
+    /// falling out of `Ready`; a fresh one goes `Pending -> Ready`. Both
+    /// count as warming because both are slots not serving yet that the
+    /// fleet is bringing up — counting only `Warming` would report
+    /// capacity on its way out as capacity arriving.
+    #[test]
+    fn a_fresh_placement_is_warming_before_it_is_ready() {
+        assert_eq!(placement_phase_for("Pending", false, false), "Pending");
+        assert_eq!(placement_phase_for("Pending", true, false), "Ready");
+        assert_eq!(placement_phase_for("Ready", false, false), "Warming");
+        for phase in ["Pending", "Warming"] {
+            assert!(
+                matches!(phase, "Pending" | "Warming"),
+                "{phase} must count toward warming_replicas"
+            );
+        }
+        for phase in ["Draining", "Rescheduling", "Ready"] {
+            assert!(
+                !matches!(phase, "Pending" | "Warming"),
+                "{phase} must not count toward warming_replicas"
+            );
+        }
     }
 
     #[test]

@@ -187,3 +187,33 @@ default like the rest.
 The fleet becomes scalable by machinery it does not contain, which is
 the point: the operator's claim moves from "it decides where" to "it
 decides where, and it tells you honestly what is not yet serving".
+
+## Postscript, 2026-07-31 — D3 amended: which phases count as warming
+
+D3 as written says a placement in `Warming` is counted in
+`warming_replicas`. Source review during implementation showed that
+`Warming` at fleet level does not mean what ADR-0002 means by it.
+
+`placement_phase_for` (`src/fleet_types.rs`) reaches `Warming` only from
+`Ready`, when the node stops being ready; the next reconcile without
+readiness sends it to `Pending`. A newly placed replica therefore goes
+`Pending -> Ready` and never passes through `Warming`. The cold-start
+sense of the word lives on the child `VllmService`
+(`Pending -> Warming -> Ready`, `src/main.rs`), not on the placement.
+
+Counting only `Warming` would have inverted the signal: it would report
+capacity that is *falling out* of service as capacity that is *arriving*,
+and an autoscaler subtracting that number would scale down exactly when
+demand is unmet.
+
+Amended: `warming_replicas` counts placements in `Pending` **or**
+`Warming` — slots the fleet holds that are not serving yet but that it is
+actively trying to bring up, whether that is a first cold start or a
+recovery after lost readiness. `Draining` and `Rescheduling` are
+deliberately excluded: that is capacity on its way out, and an autoscaler
+must not count it as incoming.
+
+The phase name is left alone. Renaming `Warming` to something like
+`Degrading` would describe the state machine better, but it is a public
+status string on the CRD and breaks any consumer reading it. That is a
+separate decision, not a side effect of this one.

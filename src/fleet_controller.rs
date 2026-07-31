@@ -417,6 +417,15 @@ pub async fn reconcile(
     // Degraded so the deliberate degradation of ADR-0005 dec.3 is visible in
     // `kubectl get`, not hidden behind a perpetual Placing.
     let ready_replicas = placements.iter().filter(|p| p.phase == "Ready").count() as i32;
+    // ADR-0009 D1/D3: three counts, not one. `replicas` is every live
+    // placement (the scale subresource's status path); `warming` is the
+    // subset being brought up. See the ADR postscript for why Draining and
+    // Rescheduling are excluded.
+    let replicas = placements.len() as i32;
+    let warming_replicas = placements
+        .iter()
+        .filter(|p| matches!(p.phase.as_str(), "Pending" | "Warming"))
+        .count() as i32;
     let drain_and_hold = placements
         .iter()
         .any(|p| p.phase == "Draining" && preempted.contains(p.node_ref.as_str()));
@@ -426,6 +435,8 @@ pub async fn reconcile(
             phase: fleet_phase.to_string(),
             ready_replicas,
             desired_replicas: fleet.spec.replicas,
+            replicas,
+            warming_replicas,
             active_reschedules,
             placements,
         }
