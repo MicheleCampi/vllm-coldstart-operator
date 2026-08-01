@@ -1,7 +1,7 @@
 # ADR-0009 D5 — warming-aware vs naive autoscaling (kind experiment design)
 
-Status: design frozen before execution (2026-08-01), amended by a dated
-postscript before any rep was run (see the end of this file). Everything in
+Status: design frozen before execution (2026-08-01), amended by two dated
+postscripts before any rep was run (see the end of this file). Everything in
 "Design parameters" is an input choice; everything in "Measured results"
 is an output. The two must never be conflated in the writeup.
 
@@ -198,3 +198,63 @@ therefore reported at a stated tick, not as a constant of the hypothesis.
 The 5 s tick is kept as frozen: lengthening it would have shrunk the
 effect to fit a ceiling, which is adapting the measurement to the
 instrument.
+
+## Postscript 2026-08-01 — how the load reaches a set of replicas that changes
+
+Written before any rep was run, while building the dispatcher. The body
+above is unchanged.
+
+The design says the load is replayed from a frozen trace but never says
+against what, and by this point the answer is not a single URL. Children are
+`d5probe-0..N`, each with its own ClusterIP Service, and the set of them
+varies during the run because varying it is the entire experiment.
+`replay.py` from the ADR-0007 experiment takes one `--url`, so it is left
+byte-identical — its output is committed evidence there — and
+`dispatch_d5.py` is derived from it: same pacing loop, same per-request
+accounting, multi-target discovery added.
+
+Discovery is the consumer side of ADR-0008 D1. The operator publishes
+placements in `FleetService.status`; the dispatcher reads them and sends to
+the ones in phase `Ready`. Endpoints are derived rather than guessed:
+`build_service()` in `src/main.rs` names the Service after the child
+VllmService — the string carried in `placement.vllmServiceRef` — and exposes
+port 8000, so `<vllmServiceRef>:8000` follows from the operator's own naming.
+Selection is round-robin; the policy is identical in both arms and only the
+set differs, which is the point.
+
+Reachability is a single `kubectl proxy` on localhost, with targets varying
+only in the request path. This keeps the dispatcher stdlib-only and on the
+host beside `consumer.py`, with no image to build, no RBAC to grant, and no
+per-target port-forward to die mid-run and be indistinguishable from a
+failure of the system under test. The latency the proxy adds does not reach
+the primary metric, which is peak replicas.
+
+With zero Ready targets a request fails immediately and is recorded as
+`no_ready_target` rather than waiting for capacity. Waiting would make the
+generator's timing a function of the arm, which is the open-loop property the
+design depends on. Each record also carries `target` and `n_ready_at_send`,
+which gives the requests-per-replica distribution as secondary evidence at no
+extra cost.
+
+**A rep must outlast the step by more than the warm-up, or the variation it
+exists to create is not observable.** The child readiness delay was measured
+rather than taken from the image tag: pods created at 09:55:08 reported Ready
+at 09:56:10, 62 s, against the 60 s the `llmd-sim-d5:warm60` tag names
+nominally. In a 150 s smoke with the fleet verified at one replica
+beforehand and a scale to three at t=20, the dispatcher sent 165 requests
+while one target was Ready and 135 while three were, the last single-target
+send at t=82.0 and the first three-target send at t=82.5 — the step plus the
+measured warm-up, with no intermediate value. Traffic split 210/45/45 overall
+and 45/45/45 after the transition. An earlier smoke of the same shape
+returned a perfectly uniform 100/100/100 and looked like a working
+round-robin; it was a run that had begun with three replicas already up, and
+the uniformity was the evidence that the transition had never been exercised
+at all.
+
+During that check the operator was sampled alongside the pods, which settles
+something the arms depend on: placements stayed `Pending` with
+`warmingReplicas` at 2 for the whole warm-up and turned `Ready` in the same
+tick the pods did. `readyReplicas` therefore does not count replicas that
+cannot serve, and the naive arm's arithmetic measures what this document says
+it measures. The new children sat in `Pending` and never in `Warming`, which
+is the D3 postscript's case observed rather than reasoned about.
