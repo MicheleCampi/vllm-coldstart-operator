@@ -265,3 +265,59 @@ The counter resets rather than decaying. One reconcile back in range
 discards the whole accumulated wait. This is the asymmetry D4 asks for,
 taken to its conclusion: the expensive direction is removal, so any
 evidence that the capacity is still wanted is enough to cancel it.
+
+## Postscript, 2026-08-01 — D5 corrected: the simulator has no warm-up knob
+
+D5 asserts that the simulator makes the cold-start window a parameter.
+It does not. `ghcr.io/llm-d/llm-d-inference-sim:v0.8.2` was checked at
+`--help`, whose flag list is alphabetical and complete: there is no
+`--startup-delay`, no `--warmup-time`, no `--load-time`. The latency
+flags that do exist — `--time-to-first-token`, `--prefill-overhead`,
+`--inter-token-latency` — act per request, once the server is already
+serving, and so cannot represent a replica that is not yet capacity.
+`--enable-sleep-mode` is runtime sleep/wake, a different mechanism. The
+sentence was written from the shape the experiment needed rather than
+from the image, and it is corrected here before `DESIGN.md` inherits it.
+
+The delay has to come from outside the simulator. `build_deployment`
+hardcodes the readiness probe's `initial_delay_seconds` to 5, so it is
+not reachable from spec either. What is reachable is the health
+endpoint: if it does not answer for N seconds the pod stays not-Ready,
+the placement stays `Pending`/`Warming`, and that is exactly the state
+D3 publishes. So the warm-up is injected by a wrapper image —
+`hack/rehearsal/Dockerfile.sim` already establishes the pattern of an
+entrypoint that rewrites arguments — running `sleep ${WARMUP_DELAY_S:-0}`
+before exec'ing the simulator. One build serves both arms and the delay
+becomes an environment variable. This is a property of the harness, not
+of the operator, and it does not change what D5 measures.
+
+Two facts about the scale subresource, from exercising it on kind for
+the first time (D1 declared the mechanism but never ran it):
+
+`kubectl scale` does reach the CRD: `spec.replicas` is written through
+the endpoint and read back. The toy consumer can therefore use the
+standard subresource rather than patching the CR.
+
+But the `autoscaling/v1` Scale object carries only `spec.replicas` and
+`status.replicas`. There is no field in that shape for
+`status.warmingReplicas`, so the warming-aware arm cannot read what it
+needs from `scale` alone: it reads the CR for the subtraction and writes
+through `scale`. Two reads, one write. This follows from D1's choice to
+omit `labelSelectorPath` and is not a defect, but the consumer's shape
+depends on it.
+
+One further precondition for both arms. `status.replicas` carries
+`default: 0` in the schema, so the endpoint serves 0 for a fleet whose
+status the operator has never written — absence and zero are
+indistinguishable on read. A consumer started before the first status
+write sees no capacity and asks for replicas it already has. The harness
+waits for the first status write before closing the loop, on both arms,
+since contaminating only one would be worse than contaminating both.
+
+Finally, D5 gains an assertion it did not have: both arms must show
+surplus children actually deleted after `stableReconcilesRequired`. D4's
+scale-down pass is covered only through its pure function; the delete,
+the in-window count and the 404-as-success path have no test, and the
+e2e job in CI exercises `VllmService` only, never `FleetService`. The
+falsification run is the first place that code meets an API server, so
+it should be made to say whether it works.
