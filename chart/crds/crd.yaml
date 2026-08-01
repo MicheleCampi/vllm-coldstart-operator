@@ -313,6 +313,16 @@ spec:
                         rather than Option<String> to avoid an extra null branch in the CRD
                         schema).
                       type: string
+                    surplusReconciles:
+                      default: 0
+                      description: |-
+                        ADR-0009 D4: consecutive reconciles this placement has been seen
+                        beyond `spec.replicas`. Scale-down is asymmetric: the surplus must
+                        persist for `stable_reconciles_required` before removal, because
+                        deleting a replica is instant while recreating it costs a cold
+                        start. Reset to zero as soon as the slot is back in range.
+                      format: int32
+                      type: integer
                     vllmServiceRef:
                       type: string
                   required:

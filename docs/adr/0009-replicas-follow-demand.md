@@ -1,6 +1,6 @@
 # ADR-0009: Replicas follow demand, and a warming replica is not capacity
 
-Status: Accepted
+Status: Accepted, superseded in part (see postscripts)
 Date: 2026-07-31
 
 ## Context
@@ -217,3 +217,51 @@ The phase name is left alone. Renaming `Warming` to something like
 `Degrading` would describe the state machine better, but it is a public
 status string on the CRD and breaks any consumer reading it. That is a
 separate decision, not a side effect of this one.
+
+## Postscript, 2026-08-01 — D4 implemented: there was no scale-down to gate
+
+D4 was written as if removal existed and only needed a delay in front of
+it. It did not. The apply loop runs `for i in 0..desired`, so a slot whose
+index falls beyond `spec.replicas` was never patched and never deleted:
+the child `VllmService` simply outlived the scale-down. Owner references
+do not help, because they garbage-collect when the `FleetService` is
+deleted, not when it shrinks. `README.md` had carried "scale-down orphan
+handling" as backlog since 2026-07-04, so the gap was known — what was not
+noticed is that D1 made it load-bearing.
+
+The consequence sits on D1, not on D4. `status.replicas` is the scale
+subresource's status path and is documented as every live placement. It
+was built from `placements`, which the same loop only ever filled for
+in-range slots, so after a scale-down from five to two it reported two
+while five children were still running. A consumer reading `scale` would
+have scaled on top of replicas that already existed — precisely the
+over-count D1 gives as the reason for not pointing that path at
+`readyReplicas`.
+
+Implemented as: `surplus_hysteresis` (pure, `src/fleet_types.rs`) plus a
+scale-down pass in the reconcile that deletes surplus children, with a
+per-placement `surplusReconciles` counter persisted in status. A surplus
+placement still inside the hysteresis window stays in `placements` and
+keeps being counted, because it is still serving; it disappears from the
+count when it is actually deleted. `delete` was missing from the
+`vllmservices` rule in the chart's `ClusterRole` and has been added:
+without it the pass would have passed every test and returned 403 in a
+cluster.
+
+Two properties of the mechanism are worth stating because they are not
+obvious from D4's wording:
+
+The counter counts reconciles, not seconds. `REQUEUE` is 30s, but the
+fleet controller also has `.watches(NodeState)` (ADR-0005 dec.4), so an
+event-driven burst can advance the counter far faster than the requeue
+cadence suggests. `stable_reconciles_required: 3` is therefore an upper
+bound of about 90 seconds and can be much less under node churn. This is
+the existing field's semantics, not a new choice, and ADR-0005 already
+deferred it unused; making it a duration would be a different decision
+with a different cost — it needs a clock in the reconcile, which ADR-0008
+D2 argues against.
+
+The counter resets rather than decaying. One reconcile back in range
+discards the whole accumulated wait. This is the asymmetry D4 asks for,
+taken to its conclusion: the expensive direction is removal, so any
+evidence that the capacity is still wanted is enough to cancel it.

@@ -189,6 +189,39 @@ pub struct PlacementStatus {
     /// schema).
     #[serde(default)]
     pub stable_since: String,
+    /// ADR-0009 D4: consecutive reconciles this placement has been seen
+    /// beyond `spec.replicas`. Scale-down is asymmetric: the surplus must
+    /// persist for `stable_reconciles_required` before removal, because
+    /// deleting a replica is instant while recreating it costs a cold
+    /// start. Reset to zero as soon as the slot is back in range.
+    #[serde(default)]
+    pub surplus_reconciles: i32,
+}
+
+/// ADR-0009 D4: scale-down hysteresis, pure and unit-testable.
+///
+/// `prev` is the surplus counter carried in the placement's last status,
+/// `in_surplus` whether the slot sits beyond `spec.replicas` this
+/// reconcile. Returns the counter to persist and whether the placement
+/// may be removed now.
+///
+/// Scale-up has no equivalent gate: demand that exists now is real, and a
+/// slot back in range resets to zero at once. The asymmetry is the
+/// decision -- removing a replica is instant, recreating it costs a cold
+/// start.
+///
+/// A non-positive `required` means immediate removal rather than an
+/// endless wait: zero asks for no hysteresis, and a negative value is not
+/// a longer one.
+pub fn surplus_hysteresis(prev: i32, in_surplus: bool, required: i32) -> (i32, bool) {
+    if !in_surplus {
+        return (0, false);
+    }
+    if required <= 0 {
+        return (0, true);
+    }
+    let next = prev.max(0).saturating_add(1);
+    (next, next >= required)
 }
 
 /// Placement lifecycle phase transition, pure and unit-testable — mirrors
@@ -334,6 +367,53 @@ pub struct NodeStateStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn surplus_counter_resets_when_slot_is_back_in_range() {
+        assert_eq!(surplus_hysteresis(2, false, 3), (0, false));
+    }
+
+    #[test]
+    fn surplus_must_persist_before_removal_is_allowed() {
+        let (c1, rm1) = surplus_hysteresis(0, true, 3);
+        assert_eq!((c1, rm1), (1, false));
+        let (c2, rm2) = surplus_hysteresis(c1, true, 3);
+        assert_eq!((c2, rm2), (2, false));
+        let (c3, rm3) = surplus_hysteresis(c2, true, 3);
+        assert_eq!((c3, rm3), (3, true));
+    }
+
+    #[test]
+    fn one_reconcile_back_in_range_undoes_the_whole_wait() {
+        let (c, _) = surplus_hysteresis(2, true, 3);
+        assert_eq!(c, 3);
+        // Scale-up is immediate and forgiving: the counter does not decay,
+        // it resets, so a single dip below the surplus threshold costs the
+        // full wait again.
+        assert_eq!(surplus_hysteresis(c, false, 3), (0, false));
+    }
+
+    #[test]
+    fn non_positive_required_removes_immediately() {
+        assert_eq!(surplus_hysteresis(0, true, 0), (0, true));
+        assert_eq!(surplus_hysteresis(0, true, -1), (0, true));
+    }
+
+    #[test]
+    fn required_of_one_removes_on_the_first_surplus_reconcile() {
+        assert_eq!(surplus_hysteresis(0, true, 1), (1, true));
+    }
+
+    #[test]
+    fn counter_saturates_instead_of_overflowing() {
+        assert_eq!(surplus_hysteresis(i32::MAX, true, 3), (i32::MAX, true));
+    }
+
+    #[test]
+    fn negative_persisted_counter_is_treated_as_zero() {
+        // A hand-edited status must not buy extra grace.
+        assert_eq!(surplus_hysteresis(-5, true, 3), (1, false));
+    }
 
     #[test]
     fn preemption_notice_forces_draining_even_if_warm() {

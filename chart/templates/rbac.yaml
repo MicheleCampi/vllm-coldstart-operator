@@ -10,10 +10,12 @@ metadata:
 rules:
 # Watch VllmService custom resources across all namespaces (Api::all).
 # create/patch: the fleet controller server-side applies one owned
-# VllmService per placement slot.
+# VllmService per placement slot. delete: scale-down removes the children
+# beyond spec.replicas (ADR-0009 D4) — owner references only garbage-collect
+# when the whole FleetService goes away, not when it shrinks.
 - apiGroups: ["inference.michelecampi.dev"]
   resources: ["vllmservices"]
-  verbs: ["get", "list", "watch", "create", "patch"]
+  verbs: ["get", "list", "watch", "create", "patch", "delete"]
 # Write lifecycle phase back on the /status subresource.
 - apiGroups: ["inference.michelecampi.dev"]
   resources: ["vllmservices/status"]

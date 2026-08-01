@@ -22,7 +22,8 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use kube::{
-    api::{Api, ListParams, ObjectMeta, Patch, PatchParams},
+    api::{Api, DeleteParams, ListParams, ObjectMeta, Patch, PatchParams},
+    core::ErrorResponse,
     runtime::{
         controller::{Action, Controller},
         reflector::ObjectRef,
@@ -36,8 +37,8 @@ use tracing::{info, warn};
 use vllm_coldstart_operator::fleet_placement::{select_replacement_node, NodeCandidate};
 use vllm_coldstart_operator::fleet_planning::plan_initial_placements;
 use vllm_coldstart_operator::fleet_types::{
-    fleet_phase_for, placement_phase_for, FleetService, FleetServiceStatus, NodeState,
-    PlacementStatus,
+    fleet_phase_for, placement_phase_for, surplus_hysteresis, FleetService, FleetServiceStatus,
+    NodeState, PlacementStatus,
 };
 use vllm_coldstart_operator::metrics::Metrics;
 use vllm_coldstart_operator::{VllmService, VllmServiceSpec};
@@ -241,6 +242,20 @@ pub async fn reconcile(
         })
         .unwrap_or_default();
 
+    // ADR-0009 D4: the surplus counter is carried in our own last status for
+    // the same reason the phase is — the fleet is its sole writer, and a
+    // counter reset every reconcile would never reach the threshold.
+    let prev_surplus: BTreeMap<String, i32> = fleet
+        .status
+        .as_ref()
+        .map(|s| {
+            s.placements
+                .iter()
+                .map(|p| (p.vllm_service_ref.clone(), p.surplus_reconciles))
+                .collect()
+        })
+        .unwrap_or_default();
+
     // Self-awareness: fold this fleet's own placements into the candidates'
     // load signal. Both fresh planning and replacement selection must see the
     // capacity the fleet itself has already consumed, even when the NodeState
@@ -392,8 +407,79 @@ pub async fn reconcile(
             phase: phase.to_string(),
             last_transition_time: String::new(),
             stable_since: String::new(),
+            // In range by construction: this loop runs over 0..desired.
+            surplus_reconciles: 0,
         });
     }
+
+    // 4b. Scale-down (ADR-0009 D4). Slots beyond `desired` are surplus: the
+    //     apply loop above never touches them, so without this pass they
+    //     outlive the scale-down and `status.replicas` — the scale
+    //     subresource's status path — would report `desired` instead of what
+    //     is actually running, which is exactly the over-count D1 exists to
+    //     prevent. Removal waits for `stable_reconciles_required` because
+    //     deleting a replica is instant and recreating it costs a cold start;
+    //     a surplus placement still waiting stays in `placements` and keeps
+    //     being counted, since it is still serving.
+    let dp = DeleteParams::default();
+    for (index, node_name) in &current {
+        if *index < desired {
+            continue;
+        }
+        let child_name = format!("{name}-{index}");
+        let prev = prev_surplus.get(&child_name).copied().unwrap_or(0);
+        let (surplus_reconciles, remove) =
+            surplus_hysteresis(prev, true, fleet.spec.hysteresis.stable_reconciles_required);
+        if !remove {
+            info!(
+                "FleetService '{}': slot {} is surplus ({} of {} reconciles), holding",
+                name, index, surplus_reconciles, fleet.spec.hysteresis.stable_reconciles_required
+            );
+            let current_phase = prev_phase
+                .get(&child_name)
+                .map(String::as_str)
+                .unwrap_or("Pending");
+            let node_ready = child_ready.get(&child_name).copied().unwrap_or(false);
+            let phase = placement_phase_for(current_phase, node_ready, false);
+            placements.push(PlacementStatus {
+                vllm_service_ref: child_name,
+                node_ref: node_name.clone(),
+                phase: phase.to_string(),
+                last_transition_time: String::new(),
+                stable_since: String::new(),
+                surplus_reconciles,
+            });
+            continue;
+        }
+        info!(
+            "FleetService '{}': slot {} surplus for {} reconciles, removing '{}'",
+            name, index, surplus_reconciles, child_name
+        );
+        // A child already gone is the desired end state, not an error: the
+        // reconcile must stay idempotent across a retry that lost its ack.
+        match services.delete(&child_name, &dp).await {
+            Ok(_) => {}
+            Err(kube::Error::Api(ErrorResponse { code: 404, .. })) => {
+                info!(
+                    "FleetService '{}': surplus child '{}' already gone",
+                    name, child_name
+                );
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+
+    // Two passes append to `placements` (in-range slots, then surplus slots
+    // still inside the hysteresis window), so sort by slot index to keep the
+    // status readable in `kubectl get -o yaml` and stable across reconciles.
+    // Sorting by name would order slot 10 before slot 2.
+    fn slot_index_of(p: &PlacementStatus) -> usize {
+        p.vllm_service_ref
+            .rsplit_once('-')
+            .and_then(|(_, i)| i.parse::<usize>().ok())
+            .unwrap_or(usize::MAX)
+    }
+    placements.sort_by_key(slot_index_of);
 
     // 5. Write fleet status on the /status subresource.
     let fleets: Api<FleetService> = Api::namespaced(ctx.client.clone(), &ns);
