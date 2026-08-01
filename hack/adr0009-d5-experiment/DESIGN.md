@@ -27,9 +27,9 @@ itself at realistic warm-up times — a negative result, reported as such.
   discriminating variable.
 - Serving pods are `llmd-sim-d5`, the rehearsal simulator behind an
   artificial warm-up delay (`hack/rehearsal/Dockerfile.d5`).
-- The consumer is a toy loop in this directory. It does not exist in
-  the operator by design: D1 decided the operator exposes the scale
-  subresource and does not own the scaling loop.
+- The consumer is an instrumentation-only loop in this directory. It
+  does not exist in the operator by design: D1 decided the operator
+  exposes the scale subresource and does not own the scaling loop.
 
 ## Experimental design
 
@@ -64,7 +64,7 @@ reused.
 | warm-up delay | 60 s | measured window t+0..t+61 unready, serving by t+66 |
 | consumer tick | 5 s | several ticks inside one warm-up window |
 | scale-up rule | ceil(demand / per-replica capacity) | same in both arms |
-| per-replica capacity | declared constant | a toy consumer; not a capacity model |
+| per-replica capacity | declared constant | instrumentation only; not a capacity model |
 | initial replicas | 1 | the step must find the fleet under-provisioned |
 | step | at t=120 s, rate x4 | after both arms reach steady state |
 | run length | 600 s per rep | >= 8 warm-up windows past the step |
@@ -131,10 +131,10 @@ findings of this experiment:
 
 ## Known limitations, stated before the run
 
-The consumer is a toy. It is not an HPA, not a KEDA scaler, and its
-capacity model is a constant. The claim available from this experiment
-is about the *information* the operator publishes, not about any
-particular autoscaler's quality.
+The consumer is instrumentation, not a product. It is not an HPA, not a
+KEDA scaler, and its capacity model is a constant. The claim available
+from this experiment is about the *information* the operator publishes,
+not about any particular autoscaler's quality.
 
 The warm-up delay is synthetic and uniform. Real cold starts vary
 widely — the 27s/96s spread measured on H100 is the counter-example —
