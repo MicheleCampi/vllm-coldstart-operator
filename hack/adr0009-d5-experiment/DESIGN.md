@@ -1,6 +1,7 @@
 # ADR-0009 D5 — warming-aware vs naive autoscaling (kind experiment design)
 
-Status: design frozen before execution (2026-08-01). Everything in
+Status: design frozen before execution (2026-08-01), amended by a dated
+postscript before any rep was run (see the end of this file). Everything in
 "Design parameters" is an input choice; everything in "Measured results"
 is an output. The two must never be conflated in the writeup.
 
@@ -143,3 +144,57 @@ distribution.
 
 kind schedules pods in milliseconds and pulls nothing. Everything that
 makes real capacity slow to arrive except the warm-up itself is absent.
+
+## Postscript 2026-08-01 — two constants the table did not name
+
+Written before any rep was run, while implementing the consumer. The body
+above is unchanged.
+
+The parameter table above declares "per-replica capacity: declared
+constant" without giving the constant, and does not mention a replica
+ceiling at all. Both exist in `consumer.py` and both had to be chosen, so
+they belong here rather than being discovered in the source later:
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| per-replica capacity | 2.0 RPS | with the x4 step this makes `needed` = 4 |
+| demand window | 10 s | trailing window over trace arrivals |
+| MAX_REPLICAS (fuse) | 40 | non-binding by measurement, see below |
+
+The scale-up rule also needed a form the table did not fix. It is
+incremental:
+
+    desired = spec.replicas + max(0, needed - available)
+
+not `desired = needed`. This is not a detail: a consumer that writes
+`needed` outright is insensitive to `warmingReplicas` by construction and
+the experiment could only ever return zero. The naive arm over-requests
+precisely because it re-asks on every tick for capacity that is already on
+its way.
+
+**The fuse was binding at its first value, and that is a finding about the
+design, not about the system.** Simulated against the rep-1 trace, with
+the arms' pure functions imported from `consumer.py` and only the cluster
+modelled, the naive arm hit a ceiling of 12 at t=150 and held it for 440
+of the 600 seconds. Its primary metric would then have been the ceiling —
+the same number in every rep, variance zero, and a bootstrap CI over the
+per-rep deltas computed on a constant chosen by the author. Uncapped on
+that trace the naive arm peaks at 28 against the warming-aware arm's 4.
+
+Raising the fuse was checked against the platform rather than assumed. The
+simulator holds 41.8 MB RSS idle and 42.7 MB under 30 concurrent requests
+(read from `/proc/<pid>/status` in the container, +0.9 MB: it simulates
+latency and does not allocate per token), host load was 0.24 before and
+0.20 after that burst on 4 cores, the child Deployment carries no resource
+requests at `gpu: 0`, and kind allows 110 pods per node. 28 replicas cost
+about 1.2 GB against 5.9 GB free. The fuse is 40 and the experiment cannot
+reach it.
+
+One consequence for the writeup: the naive arm's peak is a function of how
+many ticks fit inside a warm-up window, since it re-requests once per tick.
+Simulated peaks are 28 at a 5 s tick, 22 at 10 s, 16 at 15 s, 13 at 20 s,
+10 at 30 s, against a flat 4 for the warming-aware arm. The effect size is
+therefore reported at a stated tick, not as a constant of the hypothesis.
+The 5 s tick is kept as frozen: lengthening it would have shrunk the
+effect to fit a ceiling, which is adapting the measurement to the
+instrument.
