@@ -29,6 +29,52 @@ Full evidence — per-request JSONL, operator logs, Kubernetes events, resource 
 
 Method note: the entire preemption mechanic was first validated on a zero-cost kind rehearsal harness ([`hack/rehearsal/`](hack/rehearsal/)); the GPU session then reproduced it on real hardware in ~1.5h for $5.58.
 
+## Measured results: autoscaling that counts warming replicas
+
+A replica that is warming is capacity that has been paid for and has not
+arrived yet. An autoscaler that reads only ready replicas cannot see it, so it
+re-requests the same capacity on every tick for the whole warm-up.
+
+`FleetService` publishes `status.warmingReplicas` alongside `status.replicas`
+and exposes the `scale` subresource, so the consumer of that number does the
+subtracting ([ADR-0009](docs/adr/0009-replicas-follow-demand.md)). To
+find out whether publishing it changes anything, two arms of one instrumented
+consumer were run against the same workload: one counting ready replicas
+only, one counting ready plus warming.
+
+Four pairs on kind, 3 workers, a 60 s synthetic warm-up, demand stepping x4
+at t=120 s, each pair replaying one frozen trace whose hash was checked
+identical in both arms, order alternated NW/WN
+([evidence](hack/adr0009-d5-experiment/runs), [design and
+results](hack/adr0009-d5-experiment/DESIGN.md)):
+
+| | ready-only | ready + warming |
+|---|---|---|
+| peak replicas | 27, 28, 28, 28 | 4, 4, 4, 4 |
+| replica-seconds held | 12,364 | 2,113 |
+| requests served per replica-second | 0.330 | 1.931 |
+| requests served / failed | 4080 / 0 | 4080 / 0 |
+
+Peak allocation falls 85.6% (bootstrap 95% CI [85.3%, 85.7%]) and held
+allocation falls 5.85x, with 10,252 replica-seconds per run that no request
+used. The replica-second ratio is the smaller figure and the one to quote:
+peak flatters the result, since the ready-only arm also spends the pre-step
+part of each run at low counts. Both arms served every request with no
+failures, so the excess buys nothing.
+
+Two limits stated with the number. The confidence interval is narrow because
+the warming-aware arm sits at exactly 4 in every rep, so it describes the
+reproducibility of the mechanism more than the uncertainty of the effect. And
+the effect is quoted at the consumer's 5 s tick: the ready-only peak is a
+function of how many ticks fit inside a warm-up window, falling to 22, 16 and
+13 at 10, 15 and 20 s ticks. The mechanism is the claim; the percentage is
+the claim at one tick and one warm-up time.
+
+The consumer is instrumentation, not a product — not an HPA, not a KEDA
+scaler, and its capacity model is a constant. What is measured is the value
+of the information the operator publishes, not the quality of any particular
+autoscaler.
+
 ## What it does
 
 The operator manages two custom resources.
@@ -126,7 +172,7 @@ This section stays honest about boundaries, because the value is in what is actu
 
 ## Testing & CI
 
-- **Unit tests** (47, plus 3 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
+- **Unit tests** (57: 44 lib, 8 reporter, 5 main, plus 3 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
 - **End-to-end CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) on every push: `fmt --check` + `clippy -D warnings` + tests + release build, plus an ephemeral kind cluster that installs the CRDs, runs the operator, applies a `VllmService`, and asserts the full lifecycle with bounded polling (convergence, not timing luck).
 
 ## Roadmap
