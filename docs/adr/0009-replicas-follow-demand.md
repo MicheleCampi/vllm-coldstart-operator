@@ -321,3 +321,51 @@ the in-window count and the 404-as-success path have no test, and the
 e2e job in CI exercises `VllmService` only, never `FleetService`. The
 falsification run is the first place that code meets an API server, so
 it should be made to say whether it works.
+
+## Postscript, 2026-08-01 — D5 mechanisms exercised on kind
+
+The correction above got the lever right and the plumbing wrong. It says
+the delay "becomes an environment variable", which implied it could be
+set per deployment. It cannot: `FleetService.spec.template` exposes only
+`image`, `gpu`, `healthPath`, `extraArgs`, `modelCacheHostPath` and
+`runtimeClassName`. There is no `env` field, so nothing in the fleet spec
+reaches the container's environment. The value is baked at build time
+with `--build-arg` instead, and since both arms share one warm-up window
+this costs nothing. Adding `env` to the template to make a harness
+convenient would be widening the CRD's public API for an experiment, and
+was rejected on that ground.
+
+With that settled, all four mechanisms D5 depends on were run against an
+API server for the first time. Each had been decided on paper and none
+had been observed.
+
+The scale subresource writes in both directions. `kubectl scale` raised
+`spec.replicas` from two to five and later lowered it to one, read back
+correctly each time.
+
+The wrapper produces the window. With `WARMUP_DELAY_S=60`, the placements
+stayed unready from t+0 to t+61 and were serving by t+66, sampled every
+five seconds — the delay plus the simulator's own start-up, which is the
+shape wanted. During the delay the port is not listening at all, so the
+probe sees a refused connection rather than an unhealthy response; a
+replica that is not yet capacity is exactly that.
+
+Warming counts, and only because D3 was amended. Throughout the window
+`warmingReplicas` was 2 and `readyReplicas` 0, then both flipped. The
+placements went `Pending -> Ready` and never entered `Warming` even once,
+precisely as the 2026-07-31 postscript predicted for a fresh placement.
+Had D3 shipped as first written, `warmingReplicas` would have read zero
+for all sixty-one seconds, both arms of D5 would have subtracted nothing,
+and the experiment would have reported no difference between them. That
+would have looked like a clean negative result. The amendment is what
+gives D5 a signal at all.
+
+Scale-down removes, and faster than the field name suggests. Scaling from
+two to one, the surplus child was still present with
+`surplusReconciles: 2` at the first sample and gone by t+11, with
+`status.replicas` following the live children down to one. The
+over-count D1 warns about did not appear. Eleven seconds against a
+`stableReconcilesRequired` of 3 and a 30s requeue is the counter's
+event-driven behaviour, already stated in the D4 postscript and now
+measured: the hysteresis window is not a duration and D5 must not be
+tuned as though it were.
