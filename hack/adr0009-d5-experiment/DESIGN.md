@@ -1,7 +1,8 @@
 # ADR-0009 D5 — warming-aware vs naive autoscaling (kind experiment design)
 
 Status: design frozen before execution (2026-08-01), amended by two dated
-postscripts before any rep was run (see the end of this file). Everything in
+postscripts before any rep was run and a third recording the measured
+results (see the end of this file). Everything in
 "Design parameters" is an input choice; everything in "Measured results"
 is an output. The two must never be conflated in the writeup.
 
@@ -258,3 +259,69 @@ tick the pods did. `readyReplicas` therefore does not count replicas that
 cannot serve, and the naive arm's arithmetic measures what this document says
 it measures. The new children sat in `Pending` and never in `Warming`, which
 is the D3 postscript's case observed rather than reasoned about.
+
+## Postscript 2026-08-01 — measured results, four pairs
+
+Written after the series completed. Everything above, including the two
+earlier postscripts, is unchanged; this section holds outputs only.
+
+Four pairs, each arm replaying one rep's trace against a cluster rebuilt by
+`setup-cluster.sh` between runs, the hash of the trace checked identical in
+both arms of a pair. Order alternated NW, WN, NW, WN.
+
+| rep | order | naive peak | warming-aware peak | delta |
+|---|---|---|---|---|
+| 1 | NW | 27 | 4 | 23 |
+| 2 | WN | 28 | 4 | 24 |
+| 3 | NW | 28 | 4 | 24 |
+| 4 | WN | 28 | 4 | 24 |
+
+Primary, by the criterion fixed above: mean peak reduction 85.6%, bootstrap
+95% CI [85.3%, 85.7%], against a 15% relevance threshold. Above threshold.
+The hypothesis is not falsified — publishing warming replicas changes
+allocation at this warm-up time, and changes it by a wide margin. Order shows
+no effect.
+
+Secondary, replica-seconds integrated over each run: the naive arm held
+12,364 replica-seconds on average against the warming-aware arm's 2,113, a
+ratio of 5.85 and 10,252 replica-seconds of allocation that no request used.
+Served per replica-second: 0.330 naive against 1.931 warming-aware. This
+number is the more defensible of the two and it is the smaller one — the peak
+ratio near 6.75 overstates the advantage, because the naive arm spends the
+pre-step part of every run at low replica counts too. Where a single figure
+is quoted, it should be this one.
+
+Guardrail: zero failed and zero starved requests in all eight runs, 4080
+served in each. The warming-aware arm does not buy its lower allocation by
+under-provisioning into errors, and the naive arm's excess buys nothing.
+
+Mechanism assertions: `final_scale_down` reported ok in all eight runs and
+every run ends at one replica with one placement, including the descents from
+28. That path — the delete, the in-window count, 404-as-success — is unit
+tested only through `surplus_hysteresis` and is never reached by the e2e job,
+which covers `VllmService` and not `FleetService`. It has now met a live API
+server eight times. `warmingReplicas` was non-zero during warm-up in both
+arms, and only the warming-aware arm acted on it, which is visible in the
+traces: from t=133 in rep 1 it reads `avail 4` against `need 4` and stops
+asking, while the naive arm re-requests +2 every tick with warming climbing
+2, 4, 6 ... 23 outside its arithmetic.
+
+Two limits on how far the primary number travels. The CI is narrow because
+with n=4 and a control arm constant at 4 the only variability in the series is
+rep-1's 27; it describes the reproducibility of the mechanism rather than the
+uncertainty of the effect. And the size is stated at the frozen 5 s tick, per
+the first postscript: simulated naive peaks fall to 22, 16, 13 at 10, 15 and
+20 s ticks, so 85.6% is a property of this tick and this warm-up, not of the
+hypothesis.
+
+One behaviour of the warming-aware arm that the earlier text did not
+anticipate: it has no variance in peak but does vary in writes, twice in reps
+1-3 and three times in rep 4. The cause is where the step falls relative to a
+tick rather than the arm's arithmetic. In rep 4 the trailing window read 4.1
+RPS mid-step and asked for 3, then 7.1 and asked for 4, stopping at
+`avail == need` as in the other reps. It climbs in two steps rather than one
+and never overshoots.
+
+Evidence: `runs/rep{1..4}-{N,W}/`, holding the trace, the consumer tick
+series and the dispatch record for every run. All numbers above are
+regenerable from those files alone.
