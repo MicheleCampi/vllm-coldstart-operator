@@ -1,0 +1,19 @@
+# Fleet-level counterpart of ci-placeholder.yaml: one placement, no GPU,
+# an image that starts and exposes nothing. The e2e asserts that the fleet
+# controller plans a placement, creates a VllmService child pinned to the
+# node it chose, and that deleting the fleet garbage-collects the child.
+#
+# gpu: 0 and an empty healthPath mirror ci-placeholder: CI has no GPUs and
+# no engine, so readiness must not be gated on an endpoint nothing serves.
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: FleetService
+metadata:
+  name: ci-fleet
+  namespace: default
+spec:
+  model: ci-placeholder-model
+  replicas: 1
+  template:
+    gpu: 0
+    healthPath: ""
+    image: registry.k8s.io/pause:3.10

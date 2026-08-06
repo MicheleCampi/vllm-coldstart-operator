@@ -131,6 +131,90 @@ jobs:
           echo "ERROR: Deployment not garbage-collected within 30s"
           exit 1
 
+      - name: Seed a NodeState for the fleet planner
+        run: |
+          # The per-node reporter does not run in CI, and without a NodeState
+          # carrying a status the fleet controller logs "no reported NodeState
+          # objects, nothing to place" and places nothing — a fleet e2e without
+          # this asserts on a system that was never asked to do anything.
+          #
+          # The name must be the real node's: the child VllmService is pinned
+          # with a kubernetes.io/hostname nodeSelector (ADR-0004), so a fixed
+          # name in a manifest schedules nothing the moment the cluster is
+          # named differently. Rehearsed locally on 2026-08-06, where exactly
+          # that produced FailedScheduling for 90s.
+          NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          echo "seeding NodeState for node: $NODE"
+          kubectl create -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: NodeState
+          metadata:
+            name: $NODE
+          spec: {}
+          EOF
+          # status is a subresource: an apply carrying it drops it silently.
+          # Only `warmth` matters here — node_state_to_candidate requires the
+          # status to exist and treats every signal inside as Option.
+          kubectl patch nodestate "$NODE" --subresource=status --type=merge \
+            -p '{"status":{"warmth":"Warm"}}'
+      - name: Apply a FleetService and wait for Ready
+        run: |
+          kubectl apply -f deploy/examples/ci-fleet.yaml
+          for i in $(seq 1 40); do
+            phase=$(kubectl get fleetservice ci-fleet -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            ready=$(kubectl get fleetservice ci-fleet -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)
+            echo "[$i] phase=${phase:-<none>} ready=${ready:-<none>}"
+            if [ "$phase" = "Ready" ] && [ "$ready" = "1" ]; then
+              echo "FleetService reached Ready after ~$((i*3))s"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "ERROR: FleetService did not reach Ready within 120s"
+          kubectl get fleetservice ci-fleet -o yaml
+          kubectl get vllmservice -o yaml
+          kubectl describe pods
+          cat operator.log
+          exit 1
+      - name: Verify the child is owned and pinned
+        run: |
+          # Two properties the VllmService e2e cannot reach: the fleet owns
+          # its children (so deleting a fleet does not orphan capacity), and
+          # the planner's choice actually reaches the pod spec. A placement
+          # that plans correctly but does not pin schedules anywhere, which
+          # is the failure the 3xA10 item-4 rehearsal was built to catch.
+          NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          owner=$(kubectl get vllmservice ci-fleet-0 -o jsonpath='{.metadata.ownerReferences[0].kind}')
+          [ "$owner" = "FleetService" ] || { echo "ERROR: bad owner ref: $owner"; exit 1; }
+          pin=$(kubectl get vllmservice ci-fleet-0 -o jsonpath='{.spec.nodeName}')
+          [ "$pin" = "$NODE" ] || { echo "ERROR: child pinned to '$pin', node is '$NODE'"; exit 1; }
+          echo "child owned by FleetService and pinned to $pin"
+      - name: Verify the scale subresource
+        run: |
+          # ADR-0009 puts replicas on the scale subresource so an external
+          # autoscaler can drive the fleet. Nothing tested that path before.
+          kubectl scale fleetservice ci-fleet --replicas=2
+          for i in $(seq 1 20); do
+            n=$(kubectl get fleetservice ci-fleet -o jsonpath='{.status.replicas}' 2>/dev/null || true)
+            echo "[$i] status.replicas=${n:-<none>}"
+            if [ "$n" = "2" ]; then echo "scale reflected after ~$((i*2))s"; exit 0; fi
+            sleep 2
+          done
+          echo "ERROR: scale to 2 not reflected in status.replicas within 40s"
+          kubectl get fleetservice ci-fleet -o yaml
+          cat operator.log
+          exit 1
+      - name: Verify fleet garbage collection
+        run: |
+          kubectl delete fleetservice ci-fleet
+          for i in $(seq 1 30); do
+            n=$(kubectl get vllmservice --no-headers 2>/dev/null | wc -l)
+            if [ "$n" = "0" ]; then echo "children garbage-collected after ${i}s"; exit 0; fi
+            sleep 1
+          done
+          echo "ERROR: fleet children not garbage-collected within 30s"
+          kubectl get vllmservice -o yaml
+          exit 1
       - name: Stop operator
         if: always()
         run: kill "$(cat operator.pid)" 2>/dev/null || true

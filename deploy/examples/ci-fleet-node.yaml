@@ -1,0 +1,20 @@
+# A NodeState the e2e writes by hand, standing in for the per-node reporter
+# that does not run in CI. Without at least one NodeState carrying a status
+# the fleet controller logs "no reported NodeState objects, nothing to place"
+# and places nothing, so a fleet e2e without this asserts on a system that
+# was never asked to do anything.
+#
+# The status block here is deliberately minimal: node_state_to_candidate
+# (src/fleet_controller.rs) requires only that `status` exists — every
+# signal inside it is Option and absent means absent, per the ADR-0007
+# fail-open contract. A candidate with no efficiency signal is exactly what
+# a freshly joined node looks like before its first report.
+#
+# Applied in two steps: `kubectl apply` for the object, then
+# `kubectl patch --subresource=status` for the status, because status is a
+# subresource and an apply that carries it silently drops it.
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: NodeState
+metadata:
+  name: e2e-control-plane
+spec: {}
