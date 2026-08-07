@@ -168,6 +168,8 @@ This section stays honest about boundaries, because the value is in what is actu
 
 **Real and measured:** the control plane end-to-end (reconcile, server-side apply, GC, status machines), the fleet orchestration under preemption (measured on 3x A10 above), real vLLM serving with GPU scheduling (`runtimeClassName`, digest-pinned image, model cache on hostPath) — validated both on this fleet and on GKE with GPU node pools in a separate GitOps deployment. It also covers the per-node signal chain feeding `NodeState.status`: NVML energy and utilization plus vLLM prefix-cache scrape, joined into `tokensPerJoule` on the same reporting round, exercised in vivo on 3x A10 across 8 reps ([evidence](hack/gpu-session/adr0007-ea-experiment/runs/20260723T175747)).
 
+**Covered in CI, not just in a session:** the `e2e` job on kind exercises both CRDs — `VllmService` end to end, and `FleetService` through placement, child ownership, the hostname pin the planner chose, the scale subresource ADR-0009 introduces, and garbage collection. It also restarts the operator over a live child and asserts the child survives with the same UID *and* the same metadata generation: recreation would cycle every replica on every upgrade, and a generation bump on an unchanged spec would mean each restart is a rollout. Nineteen steps, about ninety seconds, no GPU.
+
 **Simulated:** the preemption *notice* (status patch, as disclosed above). It is an input boundary: everything downstream of it is real. Earlier runs also seeded `NodeState` warmth and utilization by hand; the level-3 session replaced that with the reporter DaemonSet reading real hardware, so the seeding survives only in the kind rehearsals, where it is deterministic by design.
 
 ## Testing & CI
