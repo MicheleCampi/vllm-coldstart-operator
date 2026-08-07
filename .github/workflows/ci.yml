@@ -215,6 +215,90 @@ jobs:
           echo "ERROR: fleet children not garbage-collected within 30s"
           kubectl get vllmservice -o yaml
           exit 1
+      - name: Restart the operator over live children
+        run: |
+          # ADR-0008 lists "no upgrade path exercised" among the non-goals.
+          # The property an operator has to have and nobody had checked here:
+          # a new process picks up existing children instead of recreating
+          # them. Reconcile applies server-side onto deterministic names with
+          # an owner reference derived from the CR (src/main.rs), so adoption
+          # should be transparent — "should" being exactly what makes it worth
+          # a test. Recreation would mean every operator upgrade cycles every
+          # replica in the fleet, which is the difference between a rolling
+          # upgrade and an outage.
+          kubectl apply -f deploy/examples/ci-placeholder.yaml
+          for i in $(seq 1 30); do
+            kubectl get deployment ci-placeholder >/dev/null 2>&1 && break
+            sleep 1
+          done
+          UID_BEFORE=$(kubectl get deployment ci-placeholder -o jsonpath='{.metadata.uid}')
+          GEN_BEFORE=$(kubectl get deployment ci-placeholder -o jsonpath='{.metadata.generation}')
+          echo "before restart: uid=$UID_BEFORE generation=$GEN_BEFORE"
+
+          kill "$(cat operator.pid)"
+          sleep 3
+          ./target/debug/vllm-coldstart-operator > operator-restarted.log 2>&1 &
+          echo $! > operator.pid
+          sleep 10
+
+          UID_AFTER=$(kubectl get deployment ci-placeholder -o jsonpath='{.metadata.uid}')
+          GEN_AFTER=$(kubectl get deployment ci-placeholder -o jsonpath='{.metadata.generation}')
+          echo "after restart:  uid=$UID_AFTER generation=$GEN_AFTER"
+
+          [ "$UID_BEFORE" = "$UID_AFTER" ] || {
+            echo "ERROR: Deployment was recreated across the restart"
+            echo "       (uid $UID_BEFORE -> $UID_AFTER). Every operator"
+            echo "       upgrade would cycle every replica."
+            cat operator-restarted.log
+            exit 1
+          }
+          # Generation bumps only on a spec change. A restart that rewrites
+          # the spec identically must not bump it: if it does, the apply is
+          # not idempotent and every restart is a rollout.
+          [ "$GEN_BEFORE" = "$GEN_AFTER" ] || {
+            echo "ERROR: generation moved $GEN_BEFORE -> $GEN_AFTER on a"
+            echo "       restart with no spec change — the apply is not"
+            echo "       idempotent and each restart triggers a rollout."
+            kubectl get deployment ci-placeholder -o yaml
+            cat operator-restarted.log
+            exit 1
+          }
+          echo "operator restart adopted the child without recreating it"
+      - name: Pin the selector immutability constraint
+        run: |
+          # ADR-0008 fact 3: build_deployment feeds one `labels` map to the
+          # pod template, the LabelSelector and the Deployment metadata
+          # (src/main.rs, three clones of the same BTreeMap). A Deployment's
+          # selector is immutable after creation, so any future version that
+          # adds a key to that map — fleet membership being the obvious
+          # candidate, which fact 2 says is missing — breaks apply on every
+          # Deployment that already exists.
+          #
+          # This step does not test the operator. It pins the constraint the
+          # operator has to evolve within, by proving the API server rejects
+          # exactly the change a careless version would make. A note in an ADR
+          # asks to be remembered; a failing apply asks nothing.
+          set +e
+          out=$(kubectl patch deployment ci-placeholder --type=merge \
+            -p '{"spec":{"selector":{"matchLabels":{"app":"ci-placeholder","inference.michelecampi.dev/fleet":"x"}}}}' 2>&1)
+          rc=$?
+          set -e
+          echo "$out"
+          [ $rc -ne 0 ] || {
+            echo "ERROR: the API server accepted a selector change."
+            echo "       Either this cluster does not enforce selector"
+            echo "       immutability, or the patch did not reach the field —"
+            echo "       both make this step meaningless and it must be fixed"
+            echo "       rather than left passing."
+            exit 1
+          }
+          echo "$out" | grep -qi 'immutable\|invalid' || {
+            echo "ERROR: apply failed for some reason other than immutability"
+            exit 1
+          }
+          echo "selector immutability confirmed: adding a label to the shared"
+          echo "map is a breaking change for existing Deployments, and any"
+          echo "version that needs one has to migrate rather than apply"
       - name: Stop operator
         if: always()
         run: kill "$(cat operator.pid)" 2>/dev/null || true
