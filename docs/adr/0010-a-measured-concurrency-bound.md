@@ -1,6 +1,6 @@
 # ADR-0010: A measured concurrency bound, and the experiment that can falsify it
 
-Status: Proposed
+Status: Proposed, D4 amended (see postscript)
 Date: 2026-08-04
 
 ## Context
@@ -145,3 +145,49 @@ that limitation is structural, not an omission.
   other than vLLM.
 - A supported bound is evidence for one model, one GPU class and one
   trajectory shape. The generalisation is the design, not the number.
+
+## Postscript, 2026-08-07 — D4 amended: ceil(bound) is not enough to pick a cell
+
+D4 says the test arm runs at `n = ceil(bound)`. Working the arithmetic
+before booking a node shows that under-specifies the experiment, and at
+three of the four latencies the campaign measured it makes D3
+undecidable.
+
+`ceil(bound)` is 2 at every cell of the sweep — the bound runs 1.02 to
+1.59, so it always rounds to two trajectories. But D3's two criteria are
+bands, and whether they separate depends on `f_nongen`, not on N:
+
+| tool latency | f_nongen | predicted (N=2) | +15% band | −10% of N | gap |
+|---|---|---|---|---|---|
+| 0.2 s | 2.30% | 1.954 | 2.247 | 1.800 | **−0.447** |
+| 0.5 s | 5.55% | 1.889 | 2.172 | 1.800 | **−0.372** |
+| 2.0 s | 19.01% | 1.620 | 1.863 | 1.800 | **−0.063** |
+| 5.0 s | 37.01% | 1.260 | 1.449 | 1.800 | +0.351 |
+
+A negative gap means the bands overlap: an observed mean landing in the
+overlap satisfies "within 15% of N*(1−f_nongen)" *and* "within 10% of N"
+at once, so D3 would return two opposite verdicts on the same number.
+That is not a noisy experiment, it is an undecidable one, and no amount
+of replicas fixes it.
+
+**D4 is amended: the test arm runs at 5.0 s/tool, N=2.** It is the only
+cell of the campaign where the criteria separate, with 0.351 of clear
+space between the bands — and it is also the cell where the effect under
+test is largest, since 37% of the trajectory is non-generating there.
+The two happen to coincide, which is not luck: the further `f_nongen`
+sits from zero, the further the prediction sits from N.
+
+The anchor arm stays at N=1 as D4 states, at the same 5.0 s/tool, so the
+single-trajectory span can be compared against the cost campaign's cell
+directly.
+
+What this does not change: the thresholds themselves. Widening the 15%
+or narrowing the 10% to make a lower-latency cell decidable would be
+choosing a criterion to fit the cell, which is the thing D3 exists to
+prevent. The cell moves, the criteria do not.
+
+One consequence to state now rather than discover on the node: at 5.0
+s/tool a trajectory spans roughly 40 seconds, so an arm of N=2 with
+three replicas is about four minutes of node time. The session is
+minutes of GPU, not hours; the cost is in getting there, not in running
+it.
