@@ -369,3 +369,47 @@ over-count D1 warns about did not appear. Eleven seconds against a
 event-driven behaviour, already stated in the D4 postscript and now
 measured: the hysteresis window is not a duration and D5 must not be
 tuned as though it were.
+
+## Postscript, 2026-08-07 — the e2e now exercises FleetService
+
+The D5 correction above notes that "the e2e job in CI exercises
+`VllmService` only, never `FleetService`", and reasons from it that the
+falsification run would be the first place the fleet code meets an API
+server. That is no longer true, and the reasoning it supported is
+weaker than it was — which is worth recording, because the conclusion it
+justified (spend GPU time to find out whether the plumbing works) is
+exactly the kind of conclusion that should get cheaper when a cheaper
+test exists.
+
+Five steps were added to the `e2e` job, reusing the kind cluster and the
+operator process the `VllmService` scenario already brings up, so the
+added CI cost is about thirty seconds. They assert four properties the
+single-service scenario cannot reach: the planner places, the child is
+owned by the fleet, the child is pinned to the node the planner chose,
+and deleting the fleet collects its children. The scale subresource this
+ADR introduces is covered too — `kubectl scale` to 2, reflected in
+`status.replicas` — which nothing tested before.
+
+Two things the fixture has to do that a manifest alone cannot, both
+worth stating because both are properties of the system rather than of
+the test. The per-node reporter does not run in CI, so a `NodeState` is
+seeded by hand: without one, `reconcile_fleet` logs "no reported
+NodeState objects, nothing to place" and places nothing, so a fleet e2e
+lacking it would assert on a system that was never asked to do anything.
+And `NodeState.status` is a subresource, so it goes in by
+`kubectl patch --subresource=status`: an apply carrying a status block
+drops it silently, which would leave `node_state_to_candidate` returning
+`None` and produce the same empty-candidate path with no visible cause.
+
+The `NodeState` name is read from the live node rather than fixed in the
+manifest. Rehearsed locally on a cluster named differently from CI's, a
+hardcoded name produced `FailedScheduling` for 90 seconds against a
+`kubernetes.io/hostname` selector that could never match — the fixture
+cannot assume the cluster's name, because ADR-0004 pins placements by
+hostname and the hostname is the cluster's to choose.
+
+First green run: `FleetService reached Ready after ~6s`, the same figure
+the local rehearsal produced. What this does **not** cover is D4's
+scale-down delete path, which still meets an API server for the first
+time in the falsification run: the e2e scales up, not down. The
+assertion the D5 correction asks for stands.
