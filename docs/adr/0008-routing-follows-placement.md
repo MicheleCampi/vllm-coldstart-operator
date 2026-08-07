@@ -1,6 +1,6 @@
 # ADR-0008: Placement is published, and observations have a horizon
 
-Status: Accepted, deferred
+Status: Accepted, deferred, amended in part (see postscript)
 Date: 2026-07-27
 
 Deferred means the design is settled and the implementation is not
@@ -350,3 +350,53 @@ carry the effect.
   stays exactly where the level-3 amendment left it: level-3 mechanism
   validated, primary hypothesis open. This ADR is design only;
   implementation and the session are post-2026-08-11 blocks.
+
+## Postscript, 2026-08-07 — half a non-goal closed, and the deferral's premise falsified
+
+Two things changed since this was written, and they pull in opposite
+directions on the same decision.
+
+**The upgrade path is exercised now.** The non-goals list says "no soak,
+no upgrade path exercised". The soak still needs calendar time rather
+than code. The upgrade path needed twenty seconds of CI: the `e2e` job
+now restarts the operator over a live child and asserts the child
+survives with the same UID and the same metadata generation — the first
+because recreation would cycle every replica in a fleet on every
+operator upgrade, the second because generation moves only on a spec
+change, so a restart that rewrites the spec identically and still bumps
+it means the apply is not idempotent and every restart is a rollout.
+First green run in CI on 2026-08-07: uid and generation both unchanged.
+
+Fact 3 of this ADR also stopped being only a note. It records that one
+`BTreeMap` feeds the pod template, the `LabelSelector` and the Deployment
+metadata, and that a Deployment's selector is immutable — so any future
+version adding a key to that map breaks apply on every Deployment that
+already exists, fleet membership (fact 2) being the obvious candidate.
+The `e2e` job now proves the rejection rather than describing it, and
+asserts the reason, because an apply failing for some other cause would
+pass a naive check and leave the constraint unpinned. The API server
+rejects with both `field is immutable` and `selector does not match
+template labels`, the second showing that changing only one of the two
+points does not escape either.
+
+**The reason for deferring is no longer true.** The header records a
+market-positioning call: efficiency-aware placement is "the better
+problem" but "answers one they are not [asking]". That was a defensible
+reading in July and the cost campaign of 2026-08-04 falsified it. On an
+agentic trajectory, 19.01% of the cost at 2.0 s/tool and 37.01% at 5.0
+s/tool is GPU allocated and not generating, while the cost of generating
+holds flat within a 0.5% band — so the entire +56% in $/M token across
+that sweep is placement-and-scheduling territory, not engine territory.
+The question "where should this replica go, and what else can share it"
+now has a dollar figure attached, which is the form in which platform
+teams do ask it.
+
+This postscript does not un-defer the ADR: scheduling is a separate
+decision and the GPU session it needs is a September block. It records
+that the queue ahead of it was ordered on a premise the measurements
+have since removed, so the next re-ordering starts from that and not
+from the July reading.
+
+What has not changed: constraint P stands, the primary hypothesis of
+ADR-0007 stays open, and the funnel claim stays where the level-3
+amendment left it.
