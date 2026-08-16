@@ -1,0 +1,25 @@
+{
+ "samples": 91,
+ "hours": 1.52,
+ "gaps_metrics": 0,
+ "gaps_rss": 0,
+ "thresholds": {
+  "rss_band_pct": 15.0,
+  "rate_factor": 1.5,
+  "settle_frac": 0.1
+ },
+ "rss_first_kb": 22308,
+ "rss_last_kb": 22464,
+ "rss_min_kb": 22308,
+ "rss_max_kb": 22464,
+ "rss_drift_pct": 0.7,
+ "H1": "HOLDS",
+ "reconcile_rate_first_per_s": 0.03675696197736713,
+ "reconcile_rate_last_per_s": 0.037184107494026716,
+ "reconcile_rate_ratio": 1.012,
+ "H2": "HOLDS",
+ "distinct_child_sets": 1,
+ "distinct_placement_sets": 1,
+ "H3": "HOLDS",
+ "samples_with_failures": 0
+}
