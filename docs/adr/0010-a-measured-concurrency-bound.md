@@ -1,6 +1,6 @@
 # ADR-0010: A measured concurrency bound, and the experiment that can falsify it
 
-Status: Proposed, D4 amended (see postscript)
+Status: Accepted, measured 2026-08-16 (see postscripts)
 Date: 2026-08-04
 
 ## Context
@@ -191,3 +191,55 @@ s/tool a trajectory spans roughly 40 seconds, so an arm of N=2 with
 three replicas is about four minutes of node time. The session is
 minutes of GPU, not hours; the cost is in getting there, not in running
 it.
+
+## Postscript, 2026-08-16 — measured: the bound holds, and the reason is not the one D2 assumed
+
+Both arms ran on 1×A10 24GB (driver 580.105.08), vLLM 0.23.0,
+Qwen2.5-7B-Instruct, `--enforce-eager`, at the 5.0 s/tool cell the
+2026-08-07 postscript fixed. Three replicas each at the cost campaign's
+seeds. Zero failed scrapes across 166–167 samples per arm; observed spans
+40.4–40.7s against the 40.53s the campaign measured.
+
+| arm | f_nongen | predicted | observed | delta |
+|---|---|---|---|---|
+| N=1 (anchor) | 36.91% | 0.6309 | 0.6148 | −2.6% |
+| N=2 (test) | 36.81% | 1.2639 | 1.2434 | −1.6% |
+
+**D3 returns `BOUND SUPPORTED` on all six replicas**, against a 15%
+tolerance and an exclusion threshold of 1.80. The anchor arm cleared its
+own gate first: 0.61 against 0.90, so the engine does not hold a request
+in `running` through the driver's tool sleeps and D2's observable means
+what this ADR assumed it meant.
+
+**And then the sample series says something the summary statistic hides.**
+
+Within the measurement window the running count is almost never 1. In one
+N=2 replica it is only ever 0 or 2 — 62% of samples at 2, 38% at 0 — and
+in the other two the intermediate value appears but stays rare. The
+idle fraction is 36.8–38.0% across all six arms, which is `f_nongen` to
+within a point.
+
+That is not two trajectories filling each other's gaps. It is two
+trajectories marching in step: identical structure, identical sleep
+durations, launched milliseconds apart, so they generate together and
+wait together. The mean of 1.2434 is `2 × 0.62`, not a smoothed overlap.
+
+So the arithmetic prediction is confirmed and the mechanism behind it is
+not the one the design had in mind. `N × (1 − f_nongen)` is right here
+because the trajectories share their idle time rather than because they
+stagger it. A replica hosting N synchronised trajectories is idle for the
+same fraction as one hosting a single trajectory — the GPU is not being
+packed, it is being multiplied.
+
+This does not weaken the capacity claim: the observed count tracks the
+prediction, and D3's criterion was declared before the run. It narrows
+what the claim covers. The bound is confirmed for trajectories of this
+shape driven this way, and the interesting case — trajectories whose idle
+windows genuinely interleave — remains unmeasured. Deliberate replay
+determinism is what makes the two arms comparable and it is also what
+makes them synchronous; the two cannot be had at once in this design.
+
+The natural follow-up is one line of harness: a randomised start offset
+per trajectory, large enough to break the lockstep and small enough to
+preserve the all-in-flight window. That is a new experiment with its own
+falsification criterion, not an amendment to this one.
