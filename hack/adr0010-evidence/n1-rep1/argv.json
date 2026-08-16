@@ -1,0 +1,24 @@
+{
+ "replay-0": [
+  "/home/ubuntu/agentic-kv-energy-experiment/driver/.venv/bin/python",
+  "/home/ubuntu/agentic-kv-energy-experiment/driver/run_replay.py",
+  "--base-url",
+  "http://127.0.0.1:8000/v1",
+  "--model",
+  "Qwen/Qwen2.5-7B-Instruct",
+  "--steps-file",
+  "/home/ubuntu/exp-results/20260816-a10-cost/adr0010/n1-rep1/steps-0.jsonl",
+  "--tool-latency-s",
+  "5.0",
+  "--tool-latency-cv",
+  "0.0",
+  "--n-llm",
+  "4",
+  "--n-tool",
+  "3",
+  "--max-tokens",
+  "192",
+  "--seed",
+  "42"
+ ]
+}
