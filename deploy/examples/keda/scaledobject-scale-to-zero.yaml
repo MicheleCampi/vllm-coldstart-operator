@@ -1,0 +1,39 @@
+# Scale-to-zero for a FleetService, driven by KEDA.
+#
+# Perimeter, from the 2026-08-17 postscript on ADR-0009: KEDA handles the
+# transitions to and from zero by writing the scale subresource directly,
+# which is all D1 provides and all this needs. It does NOT scale 1 -> N:
+# that path goes through the HPA, and the HPA rejects a FleetService with
+# `InvalidSelector` because the fleet has no label query over pods to
+# give. minReplicaCount is therefore 0 and maxReplicaCount is 1 — writing
+# a larger max would promise proportional scaling that does not happen.
+#
+# The trigger here reads a queue-depth endpoint. In a real deployment that
+# is the vLLM `/metrics` scrape or an aggregator over it; the stub in this
+# directory exists so the behaviour can be rehearsed without a GPU.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ci-fleet-scaler
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: inference.michelecampi.dev/v1alpha1
+    kind: FleetService
+    name: ci-fleet
+  minReplicaCount: 0
+  maxReplicaCount: 1
+  pollingInterval: 10
+  # Cooldown before draining: a replica costs ~18s to come back (the
+  # cold-start probe measured it), so idling early is not free.
+  cooldownPeriod: 20
+  initialCooldownPeriod: 20
+  triggers:
+    - type: metrics-api
+      metadata:
+        url: "http://queue-stub.default.svc.cluster.local/queue"
+        valueLocation: "waiting"
+        # Any waiting request activates the fleet; targetValue only
+        # matters for the HPA path, which does not run here.
+        activationTargetValue: "0"
+        targetValue: "2"
