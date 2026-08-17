@@ -400,3 +400,53 @@ from the July reading.
 What has not changed: constraint P stands, the primary hypothesis of
 ADR-0007 stays open, and the funnel claim stays where the level-3
 amendment left it.
+
+## Postscript, 2026-08-16 — gate 3 is the next step, and it is the cheap one
+
+The 2026-08-07 postscript recorded that the premise for deferring this
+ADR had gone. Picking it up again turned up something worth writing down
+before any of the work starts: **the sequence is wrong if the DESIGN.md
+comes first.**
+
+Gate 3 of D5 says, in the ADR's own words, that whether a GPU power cap
+can be set on Lambda instances at all is "not yet verified and explicitly
+flagged", and that if no cap mechanism is available "the design returns
+here for an alternative asymmetry". The whole experiment rests on an
+asymmetric cap: it is what manufactures a difference between two
+otherwise identical idle nodes, which constraint P forces the difference
+to be.
+
+So a DESIGN.md written now would be two or three hours spent specifying a
+sequence that a single unverified fact can invalidate — and it would be
+invalidated at exactly the point where the specification is most detailed,
+because the pre-load/drain/decide sequence is built around the cap.
+
+Gate 3 costs minutes and cannot be closed off-node: it depends on the
+instance's privileges and on whether persistence mode can be set, neither
+of which is knowable from here. It is therefore the first item of the
+next session that boots a node for any reason, not a session of its own —
+a GPU booked solely to run three commands is the wrong trade at $1.29/h.
+
+What to check, with the abort criterion the ADR already declares:
+
+- whether the enforced power limit can be lowered at all on the instance,
+  and whether it survives the engine starting
+- whether the setting persists across the run rather than being reset
+- what the achievable spread is between two caps, since the asymmetry has
+  to place the expected effect clear of run-to-run noise, and D5 requires
+  that tuning to be recorded as an input rather than discovered afterwards
+
+If the answer is no, this ADR reopens on the design question — what other
+property of two idle single-GPU nodes is measurable before a placement
+decision, persists after it, and moves tokens/joule — and the DESIGN.md
+waits for that answer. If the answer is yes, the DESIGN.md is written
+against a verified mechanism instead of a hoped-for one.
+
+Nothing else about the design changes here. D1-D5 stand as written, and
+the one product change D1 implies — `PlacementStatus` today carries
+`vllmServiceRef`, `nodeRef`, `phase` and the hysteresis fields, but not
+the node attributes that informed the decision — is noted for the
+DESIGN.md rather than made now. Without those attributes the dispatcher
+knows where a replica landed but not why, and the experiment could not
+tell a correct choice on bad signals from a bad choice on good ones,
+which is the distinction ADR-0007 was unable to draw.
