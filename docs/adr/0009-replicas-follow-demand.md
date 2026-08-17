@@ -413,3 +413,64 @@ the local rehearsal produced. What this does **not** cover is D4's
 scale-down delete path, which still meets an API server for the first
 time in the falsification run: the e2e scales up, not down. The
 assertion the D5 correction asks for stands.
+
+## Postscript, 2026-08-17 — KEDA drives the fleet, but only to and from zero
+
+D1 exposes the `scale` subresource so an external autoscaler can drive the
+fleet. Nothing had ever tried one. KEDA 2.x on kind, against `ci-fleet`,
+with a `metrics-api` trigger reading a queue-depth stub:
+
+| behaviour | result |
+|---|---|
+| KEDA resolves the target and reads its scale | yes — `SucceededGetScale` |
+| KEDA writes `spec.replicas: 0`, fleet drains to zero children | yes, within ~20s |
+| KEDA reactivates from zero when the queue grows | yes, under 10s |
+| Fleet scales 1 → N under load | **no** |
+
+The last row is the finding, and it is structural rather than a missing
+field.
+
+**Why 0↔1 works.** KEDA does not route those transitions through the HPA.
+`scaleExecutor.scaleFromZeroOrIdle` and `scaleToZeroOrIdle` call
+`scaleClient.Scales(ns).Update(...)` directly against the scale
+subresource (`pkg/scaling/executor/scale_scaledobjects.go`), so the only
+thing required is the subresource D1 already provides. Confirmed on the
+cluster: `spec.replicas` went to 0 and back to 1 with no HPA involvement.
+
+**Why 1→N does not.** Everything above the activation boundary is the
+HPA's, stated in KEDA's own source: *"Try to scale the deployment down,
+HPA will handle other scale in operations."* And the HPA refuses this
+target: `ScalingActive=False InvalidSelector — the HPA target's scale is
+missing a selector`. The autoscaling `ScaleStatus.selector` is defined as
+"the label query over pods that should match the replicas count", and a
+`FleetService` has no such query to give.
+
+That is not an oversight in the CRD. The fleet labels its children —
+`VllmService` objects — with `inference.michelecampi.dev/fleet=<name>` in
+their *metadata*; the pods carry `app=<child>` and `managed-by`, and
+nothing ties a pod to a fleet. ADR-0008 fact 2 recorded this, and fact 3
+records why it cannot simply be fixed: the label map in
+`build_deployment` also feeds the Deployment's `LabelSelector`, which is
+immutable after creation, so adding the fleet key would break apply on
+every existing Deployment. The e2e job asserts exactly that rejection.
+
+**What was deliberately not done.** `kube-derive` supports
+`label_selector_path`, so a `.status.selector` field could be added and
+the HPA would accept it — the metric KEDA registers is `external`, with
+its own `scaledobject.keda.sh/name` selector, so the value is never used
+to aggregate pods. It would work, and it would be a field that claims to
+select pods and does not. That is the failure mode ADR-0010 D1 rejected
+when it declined to publish a `packingBound` no writer could produce.
+
+**What this means for the claim.** D1's "an external autoscaler can drive
+the fleet" is true for the transition that matters most here and false
+for the rest. Scale-to-zero is the case this operator exists for — the
+cold-start arc is built on a replica costing ~18s to come back — and a
+fleet that drops to zero on an idle queue and returns on demand is now
+demonstrated against the autoscaler the ecosystem actually uses, not
+against the simulator D5 was measured with. Proportional scaling above
+one remains the controller's own, driven by `spec.replicas`.
+
+Not measured here: behaviour under a real vLLM workload rather than a
+queue stub, and whether the activation latency holds when the replica has
+to load weights rather than start a pause container.
