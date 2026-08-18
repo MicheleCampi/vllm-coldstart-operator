@@ -450,3 +450,47 @@ DESIGN.md rather than made now. Without those attributes the dispatcher
 knows where a replica landed but not why, and the experiment could not
 tell a correct choice on bad signals from a bad choice on good ones,
 which is the distinction ADR-0007 was unable to draw.
+
+## Postscript, 2026-08-18 — gate 3 passes, and the asymmetry is large
+
+The 2026-08-16 postscript put gate 3 ahead of the DESIGN.md: whether a GPU
+power cap can be set on Lambda at all was flagged as unverified, and the
+whole experiment rests on it. Checked on a 1×A10 instance, driver
+580.105.08.
+
+**The cap can be set.** `sudo` is available, persistence mode is already
+enabled, and the enforced limit moves: 150W → 130W → back, and 150W →
+100W → back, each confirmed by reading `power.limit` after the write. The
+hardware reports a range of 100W to 150W with a default of 150W, so the
+usable asymmetry is bounded at 1.5×.
+
+**And it bites under load, by a wide margin.** Two arms of the cost
+campaign's replay trajectory, same model, same seed, same engine
+instance, 5.0 s/tool — the only thing changed between them is the cap:
+
+| cap | span | tool wall | generating | throughput |
+|---|---|---|---|---|
+| 150W | 41.06s | 15.00s | 26.06s | 29.5 tok/s |
+| 100W | 54.35s | 15.00s | 39.35s | 19.5 tok/s |
+
+Tool wall is identical by construction, so the entire difference is
+generating time: **+51%** at the lower cap, throughput falling by a third.
+Zero failed scrapes in either arm.
+
+That answers what D5 asks of this gate — the asymmetry has to place the
+expected effect clear of run-to-run noise, and it does by a wide margin:
+the cost campaign measured 1.8% spread between replicas of an identical
+cell, against a 51% separation here. The tuning is therefore recorded as
+an input rather than discovered afterwards: **100W against 150W**, the
+widest the hardware allows.
+
+**What this does not settle.** The measurement above is wall-clock, not
+tokens per joule: it shows the cap changes how fast the GPU works, not yet
+by how much it changes efficiency, which is D5's primary metric. A capped
+GPU drawing less power while taking proportionally longer could land
+anywhere on tok/J, and that is a measurement the session itself will make
+rather than an assumption this postscript is entitled to.
+
+Gate 3 is closed as passed. The DESIGN.md can now be written against a
+verified mechanism, with its asymmetry parameter fixed at values the
+hardware accepts.

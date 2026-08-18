@@ -1,0 +1,5 @@
+steps: 7 (llm_call=4, tool=3)
+overlapping consecutive segments: 0
+non-positive spans: 0
+span: 41.1s (tool wall 15.0s measured, 5.0s/tool requested, 36.5% of span)
+meta: /home/ubuntu/exp-results/20260818-a10-cost/gate3-cap150/steps-0.jsonl.meta.json
