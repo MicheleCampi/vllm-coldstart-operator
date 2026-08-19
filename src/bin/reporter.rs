@@ -562,6 +562,15 @@ async fn main() -> anyhow::Result<()> {
         Box::new(Real::from_env(&node))
     };
 
+    // ADR-0008 D2 retention. Only the two ADR-0007 signals are retained: they
+    // are the ones constraint P makes unobservable at decision time, because a
+    // node producing them cannot simultaneously be a placement target. NVML's
+    // utilisation and memory remain available on an idle node and must not
+    // acquire a horizon. Retention is unconditional — a reporter-side timeout
+    // would be a threshold, and thresholds belong to the planner.
+    let mut last_hit_rate: Option<(f32, String)> = None;
+    let mut last_tokens_per_joule: Option<(f32, String)> = None;
+
     let client = Client::try_default().await?;
     let api: Api<NodeState> = Api::namespaced(client, &namespace);
     ensure_node_state(&api, &node).await?;
@@ -587,14 +596,28 @@ async fn main() -> anyhow::Result<()> {
         // merge-patch semantics *delete* the key on null. That is exactly
         // the ADR-0007 contract: a signal the source cannot measure must be
         // absent on status (fail-open), not a fabricated value.
+        // A fresh measurement replaces the retained one and stamps *now* as the
+        // instant it was taken; a sample that produced nothing leaves the
+        // previous pair untouched, so the value republished below keeps the
+        // timestamp of when it was actually measured.
+        let measured_at = Utc::now().to_rfc3339();
+        if let Some(v) = s.kv_cache_hit_rate {
+            last_hit_rate = Some((v, measured_at.clone()));
+        }
+        if let Some(v) = s.tokens_per_joule {
+            last_tokens_per_joule = Some((v, measured_at.clone()));
+        }
+
         let patch = json!({"status": {
             "observedGeneration": generation,
             "lastReportTime": Utc::now().to_rfc3339(),
             "gpuUtilization": s.gpu_utilization,
             "gpuMemoryUsedBytes": s.gpu_memory_used_bytes,
             "activeServiceCount": s.active_service_count,
-            "kvCacheHitRate": s.kv_cache_hit_rate,
-            "tokensPerJoule": s.tokens_per_joule,
+            "kvCacheHitRate": last_hit_rate.as_ref().map(|(v, _)| *v),
+            "kvCacheHitRateObservedAt": last_hit_rate.as_ref().map(|(_, t)| t.clone()),
+            "tokensPerJoule": last_tokens_per_joule.as_ref().map(|(v, _)| *v),
+            "tokensPerJouleObservedAt": last_tokens_per_joule.as_ref().map(|(_, t)| t.clone()),
             "requestsWaiting": s.requests_waiting,
             "requestsRunning": s.requests_running,
         }});

@@ -21,8 +21,45 @@ pub struct NodeCandidate {
     /// ADR-0007: raw observed KV-cache hit-rate in [0,1]. None = signal not
     /// available; ranks below any valid observed value within a warmth class.
     pub kv_cache_hit_rate: Option<f32>,
+    /// ADR-0008 D2: age of that observation in seconds at the evaluation
+    /// instant, or None when the reporter published no timestamp. Seconds
+    /// rather than an RFC3339 string, and an age rather than an instant,
+    /// because time must enter the comparator as *data*: a clock read inside
+    /// the ordering would make it non-deterministic and destroy the property
+    /// tests, which are the strongest guarantee this comparator has. The caller
+    /// resolves "now" once, before ranking.
+    pub kv_cache_hit_rate_age_secs: Option<i64>,
     /// ADR-0007: raw observed tokens-per-joule (>= 0). Same absence semantics.
     pub tokens_per_joule: Option<f32>,
+    /// ADR-0008 D2: age of that observation. Same reasoning.
+    pub tokens_per_joule_age_secs: Option<i64>,
+}
+
+/// ADR-0008 D2: a signal older than the horizon ranks exactly as one never
+/// observed. Applied here, in the validity filter, rather than in the
+/// comparator — so the equivalence holds by construction and cannot drift as a
+/// convention someone remembers to honour.
+///
+/// `horizon_secs` of None disables the horizon entirely, which is what a fleet
+/// with no configured policy gets: today's behaviour, unchanged.
+fn fresh_hit_rate(c: &NodeCandidate, horizon_secs: Option<i64>) -> Option<f32> {
+    valid_hit_rate(c.kv_cache_hit_rate)
+        .filter(|_| within_horizon(c.kv_cache_hit_rate_age_secs, horizon_secs))
+}
+
+fn fresh_tokens_per_joule(c: &NodeCandidate, horizon_secs: Option<i64>) -> Option<f32> {
+    valid_tokens_per_joule(c.tokens_per_joule)
+        .filter(|_| within_horizon(c.tokens_per_joule_age_secs, horizon_secs))
+}
+
+fn within_horizon(age_secs: Option<i64>, horizon_secs: Option<i64>) -> bool {
+    match (horizon_secs, age_secs) {
+        (None, _) => true,
+        // A horizon is configured and the reporter published no timestamp: the
+        // observation cannot be shown to be fresh, so it is not treated as such.
+        (Some(_), None) => false,
+        (Some(h), Some(a)) => a >= 0 && a <= h,
+    }
 }
 
 fn warmth_rank(w: &Warmth) -> u8 {
@@ -137,7 +174,10 @@ pub fn comparison_key(
 /// which one `max_by` returns then depends on their order in the slice.
 /// Placement has no reason to prefer one over the other, and inventing a
 /// tie-break (name, index) would encode a preference no ADR decided.
-pub fn select_node_efficiency_aware(candidates: &[NodeCandidate]) -> Option<&NodeCandidate> {
+pub fn select_node_efficiency_aware(
+    candidates: &[NodeCandidate],
+    horizon_secs: Option<i64>,
+) -> Option<&NodeCandidate> {
     candidates.iter().max_by(|a, b| {
         warmth_rank(&a.warmth)
             .cmp(&warmth_rank(&b.warmth))
@@ -150,14 +190,14 @@ pub fn select_node_efficiency_aware(candidates: &[NodeCandidate]) -> Option<&Nod
             // replica placed there does inherit.
             .then_with(|| {
                 cmp_signal(
-                    valid_tokens_per_joule(a.tokens_per_joule),
-                    valid_tokens_per_joule(b.tokens_per_joule),
+                    fresh_tokens_per_joule(a, horizon_secs),
+                    fresh_tokens_per_joule(b, horizon_secs),
                 )
             })
             .then_with(|| {
                 cmp_signal(
-                    valid_hit_rate(a.kv_cache_hit_rate),
-                    valid_hit_rate(b.kv_cache_hit_rate),
+                    fresh_hit_rate(a, horizon_secs),
+                    fresh_hit_rate(b, horizon_secs),
                 )
             })
             .then_with(|| {
@@ -176,9 +216,16 @@ pub fn select_node_efficiency_aware(candidates: &[NodeCandidate]) -> Option<&Nod
 pub fn select_node_with_strategy<'a>(
     candidates: &'a [NodeCandidate],
     strategy: &PlacementStrategy,
+    horizon_secs: Option<i64>,
 ) -> Option<&'a NodeCandidate> {
     match strategy {
-        PlacementStrategy::EfficiencyAware => select_node_efficiency_aware(candidates),
+        // The horizon reaches only EfficiencyAware: it is the sole strategy
+        // ranking on the two ADR-0007 signals. WarmthFirst orders on warmth,
+        // active service count and utilisation, none of which need one — NVML
+        // reports the last two on an idle node.
+        PlacementStrategy::EfficiencyAware => {
+            select_node_efficiency_aware(candidates, horizon_secs)
+        }
         PlacementStrategy::WarmthFirst | PlacementStrategy::Spread | PlacementStrategy::BinPack => {
             select_node_for_placement(candidates)
         }
@@ -199,6 +246,7 @@ pub fn select_replacement_node(
     candidates: &[NodeCandidate],
     preempted_node: &str,
     strategy: &PlacementStrategy,
+    horizon_secs: Option<i64>,
 ) -> Option<String> {
     let survivors: Vec<NodeCandidate> = candidates
         .iter()
@@ -211,7 +259,7 @@ pub fn select_replacement_node(
         .into_iter()
         .filter(|c| !matches!(c.warmth, Warmth::Cold))
         .collect();
-    select_node_with_strategy(&healthy, strategy).map(|c| c.name.clone())
+    select_node_with_strategy(&healthy, strategy, horizon_secs).map(|c| c.name.clone())
 }
 
 #[cfg(test)]
@@ -225,7 +273,9 @@ mod tests {
             gpu_utilization: Some(util),
             active_service_count: Some(count),
             kv_cache_hit_rate: None,
+            kv_cache_hit_rate_age_secs: None,
             tokens_per_joule: None,
+            tokens_per_joule_age_secs: None,
         }
     }
 
@@ -278,8 +328,12 @@ mod tests {
             candidate("survivor-warm", Warmth::Warm, 0.2, 0),
             candidate("survivor-warming", Warmth::Warming, 0.1, 0),
         ];
-        let chosen =
-            select_replacement_node(&candidates, "preempted", &PlacementStrategy::WarmthFirst);
+        let chosen = select_replacement_node(
+            &candidates,
+            "preempted",
+            &PlacementStrategy::WarmthFirst,
+            None,
+        );
         // preempted is excluded; among survivors the Warm one wins over Warming.
         assert_eq!(chosen, Some("survivor-warm".to_string()));
     }
@@ -293,7 +347,12 @@ mod tests {
         ];
         // Every survivor is Cold: not a healthy target => drain-and-hold.
         assert_eq!(
-            select_replacement_node(&candidates, "preempted", &PlacementStrategy::WarmthFirst),
+            select_replacement_node(
+                &candidates,
+                "preempted",
+                &PlacementStrategy::WarmthFirst,
+                None
+            ),
             None
         );
     }
@@ -303,7 +362,12 @@ mod tests {
         let candidates = vec![candidate("preempted", Warmth::Warm, 0.1, 0)];
         // Excluding the only node leaves nothing => drain-and-hold.
         assert_eq!(
-            select_replacement_node(&candidates, "preempted", &PlacementStrategy::WarmthFirst),
+            select_replacement_node(
+                &candidates,
+                "preempted",
+                &PlacementStrategy::WarmthFirst,
+                None
+            ),
             None
         );
     }
@@ -325,8 +389,68 @@ mod tests {
             gpu_utilization: Some(util),
             active_service_count: Some(count),
             kv_cache_hit_rate: hit,
+            // Freshly measured: these tests predate the horizon and assert
+            // ordering, not staleness.
+            kv_cache_hit_rate_age_secs: Some(0),
             tokens_per_joule: tpj,
+            tokens_per_joule_age_secs: Some(0),
         }
+    }
+
+    /// Same, with an age on both efficiency signals — for the D2 horizon.
+    fn eff_aged(
+        name: &str,
+        warmth: Warmth,
+        hit: Option<f32>,
+        tpj: Option<f32>,
+        age_secs: Option<i64>,
+    ) -> NodeCandidate {
+        NodeCandidate {
+            name: name.to_string(),
+            warmth,
+            gpu_utilization: Some(50.0),
+            active_service_count: Some(1),
+            kv_cache_hit_rate: hit,
+            kv_cache_hit_rate_age_secs: age_secs,
+            tokens_per_joule: tpj,
+            tokens_per_joule_age_secs: age_secs,
+        }
+    }
+
+    #[test]
+    fn ea_expired_signal_loses_to_fresh_one() {
+        // ADR-0008 D2: the stale node has the better number and still loses,
+        // because past the horizon it ranks as if it had never been measured.
+        let candidates = vec![
+            eff_aged(
+                "stale-excellent",
+                Warmth::Warm,
+                Some(0.9),
+                Some(90.0),
+                Some(600),
+            ),
+            eff_aged("fresh-poor", Warmth::Warm, Some(0.1), Some(5.0), Some(10)),
+        ];
+        let chosen = select_node_efficiency_aware(&candidates, Some(60)).unwrap();
+        assert_eq!(chosen.name, "fresh-poor");
+    }
+
+    #[test]
+    fn ea_without_horizon_age_is_ignored() {
+        // Unset horizon is today's behaviour: the better signal wins whatever
+        // its age. A field that changed ranking by existing would be a trap.
+        let candidates = vec![
+            eff_aged(
+                "stale-excellent",
+                Warmth::Warm,
+                Some(0.9),
+                Some(90.0),
+                Some(86_400),
+            ),
+            eff_aged("fresh-poor", Warmth::Warm, Some(0.1), Some(5.0), Some(0)),
+        ];
+        let chosen = select_node_efficiency_aware(&candidates, None).unwrap();
+        assert_eq!(chosen.name, "stale-excellent");
     }
 
     #[test]
@@ -335,7 +459,7 @@ mod tests {
             eff("cold-perfect", Warmth::Cold, 0.0, 0, Some(0.99), Some(50.0)),
             eff("warm-unmeasured", Warmth::Warm, 90.0, 5, None, None),
         ];
-        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        let chosen = select_node_efficiency_aware(&candidates, None).unwrap();
         assert_eq!(chosen.name, "warm-unmeasured");
     }
 
@@ -349,7 +473,7 @@ mod tests {
             eff("high-tpj", Warmth::Warm, 10.0, 1, Some(0.30), Some(90.0)),
             eff("high-hit", Warmth::Warm, 80.0, 4, Some(0.70), Some(5.0)),
         ];
-        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        let chosen = select_node_efficiency_aware(&candidates, None).unwrap();
         assert_eq!(chosen.name, "high-tpj");
     }
 
@@ -361,7 +485,7 @@ mod tests {
             eff("low-hit", Warmth::Warm, 10.0, 1, Some(0.30), Some(7.0)),
             eff("high-hit", Warmth::Warm, 80.0, 4, Some(0.70), Some(7.0)),
         ];
-        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        let chosen = select_node_efficiency_aware(&candidates, None).unwrap();
         assert_eq!(chosen.name, "high-hit");
     }
 
@@ -372,7 +496,7 @@ mod tests {
             eff("unmeasured", Warmth::Warm, 5.0, 0, None, None),
             eff("measured-poor", Warmth::Warm, 50.0, 3, Some(0.05), None),
         ];
-        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        let chosen = select_node_efficiency_aware(&candidates, None).unwrap();
         assert_eq!(chosen.name, "measured-poor");
     }
 
@@ -392,7 +516,7 @@ mod tests {
             eff("neg-hit", Warmth::Warm, 5.0, 0, Some(-0.2), Some(-1.0)),
             eff("valid", Warmth::Warm, 80.0, 4, Some(0.10), Some(0.5)),
         ];
-        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        let chosen = select_node_efficiency_aware(&candidates, None).unwrap();
         assert_eq!(chosen.name, "valid");
     }
 
@@ -405,7 +529,7 @@ mod tests {
             eff("high-util", Warmth::Warm, 80.0, 1, None, None),
             eff("low-util", Warmth::Warm, 20.0, 4, None, None),
         ];
-        let chosen = select_node_efficiency_aware(&candidates).unwrap();
+        let chosen = select_node_efficiency_aware(&candidates, None).unwrap();
         assert_eq!(chosen.name, "low-util");
     }
 
@@ -417,8 +541,8 @@ mod tests {
             eff("good-cache-busy", Warmth::Warm, 50.0, 4, Some(0.80), None),
             eff("bad-cache-idle", Warmth::Warm, 50.0, 1, Some(0.20), None),
         ];
-        let ea = select_node_with_strategy(&candidates, &PlacementStrategy::EfficiencyAware);
-        let wf = select_node_with_strategy(&candidates, &PlacementStrategy::WarmthFirst);
+        let ea = select_node_with_strategy(&candidates, &PlacementStrategy::EfficiencyAware, None);
+        let wf = select_node_with_strategy(&candidates, &PlacementStrategy::WarmthFirst, None);
         assert_eq!(ea.unwrap().name, "good-cache-busy");
         assert_eq!(wf.unwrap().name, "bad-cache-idle");
     }

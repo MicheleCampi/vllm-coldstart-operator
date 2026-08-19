@@ -37,6 +37,20 @@ fn arb_signal() -> impl Strategy<Value = Option<f32>> {
     ]
 }
 
+/// ADR-0008 D2: ages, generated with the same appetite for pathology as the
+/// signals. None is a reporter that published no timestamp; a negative age is a
+/// clock skew putting the observation in the future; the wide positive range
+/// straddles any horizon a test picks.
+fn arb_age() -> impl Strategy<Value = Option<i64>> {
+    prop_oneof![
+        Just(None),
+        Just(Some(0i64)),
+        Just(Some(-1i64)),
+        (-3600i64..3600).prop_map(Some),
+        (0i64..86_400).prop_map(Some),
+    ]
+}
+
 fn arb_candidate(idx: usize) -> impl Strategy<Value = NodeCandidate> {
     (
         arb_warmth(),
@@ -44,15 +58,21 @@ fn arb_candidate(idx: usize) -> impl Strategy<Value = NodeCandidate> {
         prop::option::weighted(0.75, 0i32..32),
         arb_signal(),
         arb_signal(),
+        arb_age(),
+        arb_age(),
     )
-        .prop_map(move |(warmth, util, count, hit, tpj)| NodeCandidate {
-            name: format!("node-{idx}"),
-            warmth,
-            gpu_utilization: util,
-            active_service_count: count,
-            kv_cache_hit_rate: hit,
-            tokens_per_joule: tpj,
-        })
+        .prop_map(
+            move |(warmth, util, count, hit, tpj, hit_age, tpj_age)| NodeCandidate {
+                name: format!("node-{idx}"),
+                warmth,
+                gpu_utilization: util,
+                active_service_count: count,
+                kv_cache_hit_rate: hit,
+                kv_cache_hit_rate_age_secs: hit_age,
+                tokens_per_joule: tpj,
+                tokens_per_joule_age_secs: tpj_age,
+            },
+        )
 }
 
 fn arb_fleet() -> impl Strategy<Value = Vec<NodeCandidate>> {
@@ -72,7 +92,7 @@ proptest! {
     #[test]
     fn winner_is_always_in_max_warmth_class(fleet in arb_fleet()) {
         let max_rank = fleet.iter().map(|c| warmth_rank(&c.warmth)).max().unwrap();
-        let chosen = select_node_efficiency_aware(&fleet).unwrap();
+        let chosen = select_node_efficiency_aware(&fleet, None).unwrap();
         prop_assert_eq!(warmth_rank(&chosen.warmth), max_rank);
     }
 
@@ -90,7 +110,7 @@ proptest! {
             })
             .collect();
         let max_rank = stripped.iter().map(|c| warmth_rank(&c.warmth)).max().unwrap();
-        let chosen = select_node_efficiency_aware(&stripped).unwrap();
+        let chosen = select_node_efficiency_aware(&stripped, None).unwrap();
         prop_assert_eq!(warmth_rank(&chosen.warmth), max_rank);
     }
 
@@ -118,8 +138,62 @@ proptest! {
         let n = distinct.len();
         let mut rotated = distinct.clone();
         rotated.rotate_left(rot % n);
-        let a = select_node_efficiency_aware(&distinct).unwrap().name.clone();
-        let b = select_node_efficiency_aware(&rotated).unwrap().name.clone();
+        let a = select_node_efficiency_aware(&distinct, None).unwrap().name.clone();
+        let b = select_node_efficiency_aware(&rotated, None).unwrap().name.clone();
         prop_assert_eq!(a, b);
+    }
+}
+
+proptest! {
+    /// ADR-0008 D2, the equivalence the horizon rests on: a signal older than
+    /// the horizon must rank *exactly* as one never observed — not merely
+    /// lower, not "usually" lower. Stated as a property rather than a comment
+    /// because the two paths through the code are different (a None that was
+    /// never set, versus a Some filtered out by age) and nothing but a test
+    /// keeps them from drifting apart.
+    #[test]
+    fn expired_signal_ranks_exactly_as_never_observed(
+        fleet in arb_fleet(),
+        horizon in 1i64..7200,
+    ) {
+        // The same fleet with every signal older than the horizon stripped to
+        // absent. If the horizon works, ranking either one must give the same
+        // winner.
+        let stripped: Vec<NodeCandidate> = fleet
+            .iter()
+            .map(|c| {
+                let hit_stale = c.kv_cache_hit_rate_age_secs.is_none_or(|a| a < 0 || a > horizon);
+                let tpj_stale = c.tokens_per_joule_age_secs.is_none_or(|a| a < 0 || a > horizon);
+                NodeCandidate {
+                    kv_cache_hit_rate: if hit_stale { None } else { c.kv_cache_hit_rate },
+                    tokens_per_joule: if tpj_stale { None } else { c.tokens_per_joule },
+                    ..c.clone()
+                }
+            })
+            .collect();
+
+        let a = select_node_efficiency_aware(&fleet, Some(horizon)).map(|c| c.name.clone());
+        let b = select_node_efficiency_aware(&stripped, Some(horizon)).map(|c| c.name.clone());
+        prop_assert_eq!(a, b);
+    }
+
+    /// And the horizon must not reach past the two ADR-0007 signals: NVML
+    /// reports utilisation and memory on an idle node, so those need no
+    /// freshness and must not acquire one. With both efficiency signals absent
+    /// everywhere, the horizon can change nothing.
+    #[test]
+    fn horizon_does_not_touch_nvml_signals(fleet in arb_fleet(), horizon in 1i64..7200) {
+        let no_efficiency: Vec<NodeCandidate> = fleet
+            .iter()
+            .map(|c| NodeCandidate {
+                kv_cache_hit_rate: None,
+                tokens_per_joule: None,
+                ..c.clone()
+            })
+            .collect();
+
+        let with = select_node_efficiency_aware(&no_efficiency, Some(horizon)).map(|c| c.name.clone());
+        let without = select_node_efficiency_aware(&no_efficiency, None).map(|c| c.name.clone());
+        prop_assert_eq!(with, without);
     }
 }

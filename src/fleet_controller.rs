@@ -21,6 +21,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
+use k8s_openapi::chrono::{DateTime, Utc};
 use kube::{
     api::{Api, DeleteParams, ListParams, ObjectMeta, Patch, PatchParams},
     core::ErrorResponse,
@@ -79,7 +80,20 @@ pub struct FleetContext {
 /// consumes. The node name comes from metadata; the three placement signals
 /// come from `.status`, which is `Option` on a CustomResource — a node that
 /// has never been reported yet has no status and is skipped by the caller.
-fn node_state_to_candidate(ns: &NodeState) -> Option<NodeCandidate> {
+/// ADR-0008 D2: `now` is passed in rather than read here, and read once per
+/// reconcile by the caller. Two candidates built moments apart from the same
+/// instant then carry comparable ages, and the comparator stays a pure function
+/// of its inputs.
+fn age_secs(observed_at: Option<&String>, now: DateTime<Utc>) -> Option<i64> {
+    let t = observed_at?;
+    // An unparseable timestamp yields None, which under a configured horizon
+    // ranks as never observed. Silently treating it as fresh would let a
+    // malformed status outrank a correctly reported stale one.
+    let parsed = DateTime::parse_from_rfc3339(t).ok()?;
+    Some((now - parsed.with_timezone(&Utc)).num_seconds())
+}
+
+fn node_state_to_candidate(ns: &NodeState, now: DateTime<Utc>) -> Option<NodeCandidate> {
     let status = ns.status.as_ref()?;
     Some(NodeCandidate {
         name: ns.name_any(),
@@ -87,7 +101,9 @@ fn node_state_to_candidate(ns: &NodeState) -> Option<NodeCandidate> {
         gpu_utilization: status.gpu_utilization,
         active_service_count: status.active_service_count,
         kv_cache_hit_rate: status.kv_cache_hit_rate,
+        kv_cache_hit_rate_age_secs: age_secs(status.kv_cache_hit_rate_observed_at.as_ref(), now),
         tokens_per_joule: status.tokens_per_joule,
+        tokens_per_joule_age_secs: age_secs(status.tokens_per_joule_observed_at.as_ref(), now),
     })
 }
 
@@ -166,8 +182,14 @@ pub async fn reconcile(
     // 1. Snapshot the fleet-visible node states and convert to pure candidates.
     let node_states: Api<NodeState> = Api::all(ctx.client.clone());
     let states = node_states.list(&Default::default()).await?;
-    let candidates: Vec<NodeCandidate> =
-        states.iter().filter_map(node_state_to_candidate).collect();
+    // ADR-0008 D2: one clock read per reconcile, shared by every candidate.
+    // Reading it per candidate would give two nodes different notions of "now"
+    // within the same decision, which is a difference the ordering could see.
+    let now = Utc::now();
+    let candidates: Vec<NodeCandidate> = states
+        .iter()
+        .filter_map(|ns| node_state_to_candidate(ns, now))
+        .collect();
 
     // Nodes that signalled a spot preemption notice. This is the only trigger
     // for a reschedule in v1 (ADR-0005 dec.1): warmth changes and node
@@ -335,6 +357,7 @@ pub async fn reconcile(
                 &healthy_candidates,
                 node.as_str(),
                 &fleet.spec.placement.strategy,
+                fleet.spec.placement.signal_max_age_seconds,
             ) {
                 Some(target) => {
                     info!(
@@ -362,6 +385,7 @@ pub async fn reconcile(
         missing.len() as i32,
         &healthy_candidates,
         &fleet.spec.placement.strategy,
+        fleet.spec.placement.signal_max_age_seconds,
     );
     let mut fresh_iter = fresh.into_iter();
     let mut slot_nodes: Vec<(usize, String)> = Vec::with_capacity(desired);

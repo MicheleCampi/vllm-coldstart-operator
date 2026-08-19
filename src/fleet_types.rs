@@ -109,6 +109,23 @@ pub enum PlacementStrategy {
 pub struct PlacementSpec {
     #[serde(default)]
     pub strategy: PlacementStrategy,
+    /// ADR-0008 D2: maximum age, in seconds, of an ADR-0007 efficiency signal
+    /// for the planner to rank on it. Older than this and it ranks exactly as
+    /// never observed.
+    ///
+    /// This is fleet policy and lives here rather than in the reporter: *when*
+    /// a value was measured is a fact about the node, *how old is too old* is a
+    /// decision about the fleet. Unset means no horizon — today's behaviour,
+    /// which is the right default for a field that changes how placements are
+    /// ranked.
+    ///
+    /// The value has to exceed the drain in the phase C experiment: constraint
+    /// P means the signal informing a placement is always an observation from
+    /// before the node was freed, so a horizon shorter than the drain would
+    /// expire every signal before the decision and collapse both arms onto the
+    /// same fallback.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signal_max_age_seconds: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -345,10 +362,24 @@ pub struct NodeStateStatus {
     /// per-node reporter. Absent = signal not available (fail-open).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kv_cache_hit_rate: Option<f32>,
+    /// ADR-0008 D2: RFC3339 instant at which `kvCacheHitRate` was *measured*,
+    /// not when this status was written — `lastReportTime` already records the
+    /// latter and stays fresh long after the engine it described is gone. The
+    /// reporter republishes the last valid value with its original timestamp
+    /// rather than deleting the key, because constraint P means the signal
+    /// informing a placement is necessarily an observation from before the node
+    /// was freed. Retention here is unconditional: how old is too old is fleet
+    /// policy and lives in the planner, so the reporter still has no opinions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kv_cache_hit_rate_observed_at: Option<String>,
     /// ADR-0007: raw observed tokens-per-joule, written by the per-node
     /// reporter. Absent = signal not available (fail-open).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tokens_per_joule: Option<f32>,
+    /// ADR-0008 D2: when `tokensPerJoule` was measured. Same semantics as
+    /// `kvCacheHitRateObservedAt`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokens_per_joule_observed_at: Option<String>,
     /// ADR-0009 D2: raw observed queue depth (`vllm:num_requests_waiting`,
     /// summed across this node's scrape targets). This is the demand
     /// signal an external autoscaler reads; utilization is not, because a
