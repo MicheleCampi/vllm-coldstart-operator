@@ -1,0 +1,64 @@
+{
+    "apiVersion": "inference.michelecampi.dev/v1alpha1",
+    "kind": "FleetService",
+    "metadata": {
+        "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"inference.michelecampi.dev/v1alpha1\",\"kind\":\"FleetService\",\"metadata\":{\"annotations\":{},\"name\":\"gate2-a-horizon\",\"namespace\":\"default\"},\"spec\":{\"model\":\"facebook/opt-125m\",\"placement\":{\"signalMaxAgeSeconds\":600,\"strategy\":\"EfficiencyAware\"},\"replicas\":1,\"template\":{\"gpu\":0,\"healthPath\":\"\",\"image\":\"registry.k8s.io/pause:3.10\"}}}\n"
+        },
+        "creationTimestamp": "2026-08-19T19:36:28Z",
+        "generation": 1,
+        "name": "gate2-a-horizon",
+        "namespace": "default",
+        "resourceVersion": "621",
+        "uid": "293ecfd8-d0cc-45d5-a734-5b4a56d69fc9"
+    },
+    "spec": {
+        "hysteresis": {
+            "maxConcurrentReschedules": 1,
+            "stableReconcilesRequired": 3
+        },
+        "model": "facebook/opt-125m",
+        "nodePool": {
+            "selector": {},
+            "spotPolicy": {
+                "enabled": false,
+                "maxSpotFraction": 0
+            }
+        },
+        "placement": {
+            "signalMaxAgeSeconds": 600,
+            "strategy": "EfficiencyAware"
+        },
+        "replicas": 1,
+        "template": {
+            "extraArgs": [],
+            "gpu": 0,
+            "healthPath": "",
+            "image": "registry.k8s.io/pause:3.10"
+        }
+    },
+    "status": {
+        "activeReschedules": 0,
+        "desiredReplicas": 1,
+        "phase": "Ready",
+        "placements": [
+            {
+                "decidedOn": {
+                    "activeServiceCount": 1,
+                    "gpuUtilization": 50,
+                    "strategy": "EfficiencyAware",
+                    "warmth": "Warm"
+                },
+                "lastTransitionTime": "",
+                "nodeRef": "adr0008c-control-plane",
+                "phase": "Ready",
+                "stableSince": "",
+                "surplusReconciles": 0,
+                "vllmServiceRef": "gate2-a-horizon-0"
+            }
+        ],
+        "readyReplicas": 1,
+        "replicas": 1,
+        "warmingReplicas": 0
+    }
+}

@@ -69,9 +69,24 @@ jobs:
         with:
           cluster_name: e2e
 
+      - name: CRDs committed match the generator
+        # This job used to regenerate deploy/crd.yaml in place and carry on, so
+        # e2e always ran against a fresh schema while the committed files could
+        # sit stale for weeks — and anyone installing the chart got the old one.
+        # The phase C rehearsal found exactly that: three fields added to the
+        # types were missing from both copies, and the API server rejected them.
+        run: |
+          cargo run --bin crdgen > /tmp/crd-generated.yaml
+          for f in deploy/crd.yaml chart/crds/crd.yaml; do
+            if ! diff -q /tmp/crd-generated.yaml "$f" >/dev/null; then
+              echo "::error::$f is stale — run: cargo run --bin crdgen > $f"
+              diff /tmp/crd-generated.yaml "$f" | head -40
+              exit 1
+            fi
+          done
+          echo "both CRD copies match the generator"
       - name: Install CRD
         run: |
-          cargo run --bin crdgen > deploy/crd.yaml
           kubectl apply -f deploy/crd.yaml
           kubectl wait --for=condition=Established crd/vllmservices.inference.michelecampi.dev --timeout=30s
 

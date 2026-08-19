@@ -227,6 +227,26 @@ spec:
                   (ADR-0007) are implemented; Spread/BinPack are reserved variants
                   that currently degrade to warmth-first (see ADR).
                 properties:
+                  signalMaxAgeSeconds:
+                    description: |-
+                      ADR-0008 D2: maximum age, in seconds, of an ADR-0007 efficiency signal
+                      for the planner to rank on it. Older than this and it ranks exactly as
+                      never observed.
+
+                      This is fleet policy and lives here rather than in the reporter: *when*
+                      a value was measured is a fact about the node, *how old is too old* is a
+                      decision about the fleet. Unset means no horizon — today's behaviour,
+                      which is the right default for a field that changes how placements are
+                      ranked.
+
+                      The value has to exceed the drain in the phase C experiment: constraint
+                      P means the signal informing a placement is always an observation from
+                      before the node was freed, so a horizon shorter than the drain would
+                      expire every signal before the decision and collapse both arms onto the
+                      same fallback.
+                    format: int64
+                    nullable: true
+                    type: integer
                   strategy:
                     default: WarmthFirst
                     enum:
@@ -298,6 +318,52 @@ spec:
                 default: []
                 items:
                   properties:
+                    decidedOn:
+                      description: |-
+                        ADR-0008 D1: the node attributes the planner ranked on when it chose
+                        this node, as they read at that moment. Absent when the strategy does
+                        not rank on them, or when the signal was itself absent or past the D2
+                        horizon — the same ternary the comparator sees.
+
+                        This is what makes a placement decision auditable rather than merely
+                        visible. Without it a reader knows where a replica landed and not why,
+                        and the phase C experiment could not tell a correct choice on bad
+                        signals from a bad choice on good ones — precisely the distinction
+                        ADR-0007's level-3 run was unable to draw.
+                      nullable: true
+                      properties:
+                        activeServiceCount:
+                          format: int32
+                          nullable: true
+                          type: integer
+                        gpuUtilization:
+                          format: float
+                          nullable: true
+                          type: number
+                        kvCacheHitRate:
+                          format: float
+                          nullable: true
+                          type: number
+                        strategy:
+                          description: |-
+                            Strategy that made the choice. Recorded because the same inputs order
+                            differently under WarmthFirst and EfficiencyAware, so the values alone
+                            do not explain the outcome.
+                          type: string
+                        tokensPerJoule:
+                          description: |-
+                            Post-horizon: what the comparator actually ranked on. A signal the
+                            reporter published but D2 expired reads as absent here, because that is
+                            how the decision saw it.
+                          format: float
+                          nullable: true
+                          type: number
+                        warmth:
+                          nullable: true
+                          type: string
+                      required:
+                      - strategy
+                      type: object
                     lastTransitionTime:
                       description: RFC3339 timestamp of the last phase transition.
                       type: string
@@ -435,6 +501,18 @@ spec:
                 format: float
                 nullable: true
                 type: number
+              kvCacheHitRateObservedAt:
+                description: |-
+                  ADR-0008 D2: RFC3339 instant at which `kvCacheHitRate` was *measured*,
+                  not when this status was written — `lastReportTime` already records the
+                  latter and stays fresh long after the engine it described is gone. The
+                  reporter republishes the last valid value with its original timestamp
+                  rather than deleting the key, because constraint P means the signal
+                  informing a placement is necessarily an observation from before the node
+                  was freed. Retention here is unconditional: how old is too old is fleet
+                  policy and lives in the planner, so the reporter still has no opinions.
+                nullable: true
+                type: string
               lastReportTime:
                 default: ''
                 description: RFC3339 timestamp of the last reporter write.
@@ -490,6 +568,12 @@ spec:
                 format: float
                 nullable: true
                 type: number
+              tokensPerJouleObservedAt:
+                description: |-
+                  ADR-0008 D2: when `tokensPerJoule` was measured. Same semantics as
+                  `kvCacheHitRateObservedAt`.
+                nullable: true
+                type: string
               warmth:
                 default: Cold
                 enum:

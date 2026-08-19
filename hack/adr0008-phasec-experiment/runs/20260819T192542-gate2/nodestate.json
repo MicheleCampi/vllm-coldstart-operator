@@ -1,0 +1,31 @@
+{
+    "apiVersion": "inference.michelecampi.dev/v1alpha1",
+    "kind": "NodeState",
+    "metadata": {
+        "creationTimestamp": "2026-08-19T19:20:04Z",
+        "generation": 1,
+        "name": "adr0008c-control-plane",
+        "namespace": "default",
+        "resourceVersion": "1128",
+        "uid": "ce7a2ead-d50c-44fe-ab51-d7f83247e586"
+    },
+    "spec": {
+        "reportIntervalSeconds": 15
+    },
+    "status": {
+        "activeServiceCount": 1,
+        "gpuUtilization": 50,
+        "kvCacheHitRate": 0.1,
+        "kvCacheHitRateObservedAt": "2026-08-19T19:25:50Z",
+        "lastReportTime": "",
+        "observedGeneration": 0,
+        "spot": {
+            "isSpotInstance": false,
+            "preemptionNoticeDetected": false,
+            "preemptionNoticeTime": ""
+        },
+        "tokensPerJoule": 42,
+        "tokensPerJouleObservedAt": "2026-08-19T19:25:50Z",
+        "warmth": "Warm"
+    }
+}

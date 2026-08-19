@@ -1,0 +1,66 @@
+{
+    "apiVersion": "inference.michelecampi.dev/v1alpha1",
+    "kind": "FleetService",
+    "metadata": {
+        "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"inference.michelecampi.dev/v1alpha1\",\"kind\":\"FleetService\",\"metadata\":{\"annotations\":{},\"name\":\"gate2-b\",\"namespace\":\"default\"},\"spec\":{\"model\":\"facebook/opt-125m\",\"placement\":{\"signalMaxAgeSeconds\":600,\"strategy\":\"EfficiencyAware\"},\"replicas\":1,\"template\":{\"gpu\":0,\"healthPath\":\"\",\"image\":\"registry.k8s.io/pause:3.10\"}}}\n"
+        },
+        "creationTimestamp": "2026-08-19T19:36:37Z",
+        "generation": 1,
+        "name": "gate2-b",
+        "namespace": "default",
+        "resourceVersion": "665",
+        "uid": "548b16c0-8fb6-4efe-9e20-da003796f091"
+    },
+    "spec": {
+        "hysteresis": {
+            "maxConcurrentReschedules": 1,
+            "stableReconcilesRequired": 3
+        },
+        "model": "facebook/opt-125m",
+        "nodePool": {
+            "selector": {},
+            "spotPolicy": {
+                "enabled": false,
+                "maxSpotFraction": 0
+            }
+        },
+        "placement": {
+            "signalMaxAgeSeconds": 600,
+            "strategy": "EfficiencyAware"
+        },
+        "replicas": 1,
+        "template": {
+            "extraArgs": [],
+            "gpu": 0,
+            "healthPath": "",
+            "image": "registry.k8s.io/pause:3.10"
+        }
+    },
+    "status": {
+        "activeReschedules": 0,
+        "desiredReplicas": 1,
+        "phase": "Ready",
+        "placements": [
+            {
+                "decidedOn": {
+                    "activeServiceCount": 2,
+                    "gpuUtilization": 50,
+                    "kvCacheHitRate": 0.10000000149011612,
+                    "strategy": "EfficiencyAware",
+                    "tokensPerJoule": 42,
+                    "warmth": "Warm"
+                },
+                "lastTransitionTime": "",
+                "nodeRef": "adr0008c-control-plane",
+                "phase": "Ready",
+                "stableSince": "",
+                "surplusReconciles": 0,
+                "vllmServiceRef": "gate2-b-0"
+            }
+        ],
+        "readyReplicas": 1,
+        "replicas": 1,
+        "warmingReplicas": 0
+    }
+}
