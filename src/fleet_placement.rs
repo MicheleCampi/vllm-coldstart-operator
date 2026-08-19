@@ -42,6 +42,35 @@ pub struct NodeCandidate {
 ///
 /// `horizon_secs` of None disables the horizon entirely, which is what a fleet
 /// with no configured policy gets: today's behaviour, unchanged.
+/// ADR-0008 D3: capacity is a precondition, not a tie-breaker. A node with no
+/// allocatable GPU cannot run a pod that requests one — placing there produces
+/// a Pending pod and no error, which is a silent failure in production and a
+/// run that dies quietly while appearing to proceed in an experiment.
+///
+/// A filter rather than a signal, which is why it does not conflict with
+/// ADR-0007 D3's rejection of efficiency *floors*: that rejection was about
+/// filters that shrink the candidate set until they force a cold start. A node
+/// that cannot run the pod at all was never a viable option, so excluding it
+/// removes nothing.
+///
+/// Scope is whole-GPU requests, which is what `template.gpu` expresses.
+/// Fractional GPUs, time-slicing and MPS are out of scope here and everywhere
+/// else in this ADR.
+///
+/// `allocatable` of None means the caller could not read the node's capacity.
+/// Such a node is kept: refusing to place on every node whose capacity is
+/// unknown would turn a read failure into a fleet-wide outage, which is a worse
+/// failure than the one this filter prevents.
+pub fn has_capacity_for(allocatable_gpus: Option<i64>, requested_gpus: i32) -> bool {
+    if requested_gpus <= 0 {
+        return true;
+    }
+    match allocatable_gpus {
+        None => true,
+        Some(a) => a >= requested_gpus as i64,
+    }
+}
+
 fn fresh_hit_rate(c: &NodeCandidate, horizon_secs: Option<i64>) -> Option<f32> {
     valid_hit_rate(c.kv_cache_hit_rate)
         .filter(|_| within_horizon(c.kv_cache_hit_rate_age_secs, horizon_secs))
@@ -415,6 +444,35 @@ mod tests {
             tokens_per_joule: tpj,
             tokens_per_joule_age_secs: age_secs,
         }
+    }
+
+    #[test]
+    fn capacity_excludes_a_node_that_cannot_run_the_pod() {
+        assert!(!has_capacity_for(Some(0), 1));
+        assert!(!has_capacity_for(Some(1), 2));
+    }
+
+    #[test]
+    fn capacity_admits_a_node_with_enough_gpus() {
+        assert!(has_capacity_for(Some(1), 1));
+        assert!(has_capacity_for(Some(4), 1));
+    }
+
+    #[test]
+    fn capacity_ignores_a_zero_gpu_request() {
+        // A CPU-only fleet places anywhere, including nodes reporting no GPU.
+        assert!(has_capacity_for(Some(0), 0));
+        assert!(has_capacity_for(None, 0));
+    }
+
+    #[test]
+    fn capacity_keeps_a_node_whose_capacity_is_unknown() {
+        // ADR-0008 D3: an unreadable capacity must not exclude the node.
+        // Treating "unknown" as "none" would turn one API read failure into a
+        // fleet with no eligible nodes at all — a worse outcome than the
+        // Pending pod the filter exists to prevent.
+        assert!(has_capacity_for(None, 1));
+        assert!(has_capacity_for(None, 8));
     }
 
     #[test]

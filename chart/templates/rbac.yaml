@@ -41,6 +41,13 @@ rules:
 - apiGroups: ["inference.michelecampi.dev"]
   resources: ["nodestates"]
   verbs: ["get", "list", "watch"]
+# ADR-0008 D3: the fleet planner reads node allocatable to exclude nodes that
+# cannot run a GPU-requesting pod. Read-only and list-only — the operator never
+# writes to Node, and a placement decision needs the capacity of every node it
+# might choose, so this cannot be namespaced.
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

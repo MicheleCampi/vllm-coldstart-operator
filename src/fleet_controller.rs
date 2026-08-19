@@ -21,6 +21,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::StreamExt;
+use k8s_openapi::api::core::v1::Node;
 use k8s_openapi::chrono::{DateTime, Utc};
 use kube::{
     api::{Api, DeleteParams, ListParams, ObjectMeta, Patch, PatchParams},
@@ -35,7 +36,9 @@ use kube::{
 use serde_json::json;
 use tracing::{info, warn};
 
-use vllm_coldstart_operator::fleet_placement::{select_replacement_node, NodeCandidate};
+use vllm_coldstart_operator::fleet_placement::{
+    has_capacity_for, select_replacement_node, NodeCandidate,
+};
 use vllm_coldstart_operator::fleet_planning::plan_initial_placements;
 use vllm_coldstart_operator::fleet_types::{
     fleet_phase_for, placement_phase_for, surplus_hysteresis, FleetService, FleetServiceStatus,
@@ -384,9 +387,52 @@ pub async fn reconcile(
     // draining and is not a safe destination. select_replacement_node already
     // drops the single node passed to it and rejects Cold; filtering the whole
     // preempted set here closes the multi-node case.
+    // ADR-0008 D3: allocatable GPUs per node, read once. A node that cannot run
+    // the pod is not a candidate — placing there yields a Pending pod and no
+    // error at all, which is the silent failure D3 exists to prevent.
+    let gpu_request = fleet.spec.template.gpu;
+    let allocatable: BTreeMap<String, Option<i64>> = if gpu_request > 0 {
+        let nodes: Api<Node> = Api::all(ctx.client.clone());
+        match nodes.list(&Default::default()).await {
+            Ok(list) => list
+                .iter()
+                .map(|n| {
+                    // "No nvidia.com/gpu key" and "could not read this node"
+                    // are different facts and must not collapse onto the same
+                    // value. A node that publishes an allocatable map without
+                    // the key is stating it has no GPUs — that is zero, not
+                    // unknown. Only a node with no allocatable map at all is
+                    // unknown, and unknown is what keeps a node in the set.
+                    let gpus = match n.status.as_ref().and_then(|s| s.allocatable.as_ref()) {
+                        None => None,
+                        Some(a) => match a.get("nvidia.com/gpu") {
+                            None => Some(0),
+                            Some(q) => q.0.parse::<i64>().ok(),
+                        },
+                    };
+                    (n.name_any(), gpus)
+                })
+                .collect(),
+            Err(e) => {
+                // Keeping every node is deliberate: turning a read failure into
+                // "no node has capacity" would take the fleet down over an API
+                // hiccup, a worse outcome than the Pending pod D3 prevents.
+                warn!(
+                    "FleetService '{}': could not read node capacity ({e}); \
+                     placing without the D3 filter this reconcile",
+                    name
+                );
+                BTreeMap::new()
+            }
+        }
+    } else {
+        BTreeMap::new()
+    };
+
     let healthy_candidates: Vec<NodeCandidate> = candidates
         .iter()
         .filter(|c| !preempted.contains(c.name.as_str()))
+        .filter(|c| has_capacity_for(allocatable.get(&c.name).copied().flatten(), gpu_request))
         .cloned()
         .collect();
 
