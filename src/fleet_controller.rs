@@ -39,7 +39,7 @@ use vllm_coldstart_operator::fleet_placement::{select_replacement_node, NodeCand
 use vllm_coldstart_operator::fleet_planning::plan_initial_placements;
 use vllm_coldstart_operator::fleet_types::{
     fleet_phase_for, placement_phase_for, surplus_hysteresis, FleetService, FleetServiceStatus,
-    NodeState, PlacementStatus,
+    NodeState, PlacementDecisionInputs, PlacementStatus, PlacementStrategy,
 };
 use vllm_coldstart_operator::metrics::Metrics;
 use vllm_coldstart_operator::{VllmService, VllmServiceSpec};
@@ -91,6 +91,36 @@ fn age_secs(observed_at: Option<&String>, now: DateTime<Utc>) -> Option<i64> {
     // malformed status outrank a correctly reported stale one.
     let parsed = DateTime::parse_from_rfc3339(t).ok()?;
     Some((now - parsed.with_timezone(&Utc)).num_seconds())
+}
+
+/// ADR-0008 D1: what the planner ranked on for the node it chose, recorded as
+/// the comparator saw it. The horizon is applied here for the same reason it is
+/// applied in the comparator: a signal the reporter published but D2 expired did
+/// not inform the decision, so reporting it would describe an input the planner
+/// never had.
+fn decision_inputs(
+    candidates: &[NodeCandidate],
+    node: &str,
+    strategy: &PlacementStrategy,
+    horizon_secs: Option<i64>,
+) -> Option<PlacementDecisionInputs> {
+    let c = candidates.iter().find(|c| c.name == node)?;
+    let fresh = |v: Option<f32>, age: Option<i64>| -> Option<f32> {
+        match (horizon_secs, age) {
+            (None, _) => v,
+            (Some(_), None) => None,
+            (Some(h), Some(a)) if a >= 0 && a <= h => v,
+            _ => None,
+        }
+    };
+    Some(PlacementDecisionInputs {
+        strategy: format!("{strategy:?}"),
+        warmth: Some(format!("{:?}", c.warmth)),
+        tokens_per_joule: fresh(c.tokens_per_joule, c.tokens_per_joule_age_secs),
+        kv_cache_hit_rate: fresh(c.kv_cache_hit_rate, c.kv_cache_hit_rate_age_secs),
+        gpu_utilization: c.gpu_utilization,
+        active_service_count: c.active_service_count,
+    })
 }
 
 fn node_state_to_candidate(ns: &NodeState, now: DateTime<Utc>) -> Option<NodeCandidate> {
@@ -267,6 +297,25 @@ pub async fn reconcile(
     // ADR-0009 D4: the surplus counter is carried in our own last status for
     // the same reason the phase is — the fleet is its sole writer, and a
     // counter reset every reconcile would never reach the threshold.
+    // ADR-0008 D1: what informed each existing placement, carried forward. A
+    // placement made in an earlier reconcile keeps the inputs that produced it;
+    // recomputing them here would report the node's state now, which answers a
+    // different question and would quietly rewrite the record of a decision.
+    let prev_decided: BTreeMap<String, PlacementDecisionInputs> = fleet
+        .status
+        .as_ref()
+        .map(|s| {
+            s.placements
+                .iter()
+                .filter_map(|p| {
+                    p.decided_on
+                        .clone()
+                        .map(|d| (p.vllm_service_ref.clone(), d))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
     let prev_surplus: BTreeMap<String, i32> = fleet
         .status
         .as_ref()
@@ -425,6 +474,17 @@ pub async fn reconcile(
         let node_ready = child_ready.get(&child_name).copied().unwrap_or(false);
         let preemption = preempted_slots.contains(index);
         let phase = placement_phase_for(current_phase, node_ready, preemption);
+        // Computed before the struct takes ownership of child_name. Existing
+        // placements keep the inputs that produced them; only a slot decided in
+        // this reconcile gets fresh ones.
+        let decided = prev_decided.get(&child_name).cloned().or_else(|| {
+            decision_inputs(
+                &candidates,
+                node_name,
+                &fleet.spec.placement.strategy,
+                fleet.spec.placement.signal_max_age_seconds,
+            )
+        });
         placements.push(PlacementStatus {
             vllm_service_ref: child_name,
             node_ref: node_name.clone(),
@@ -433,6 +493,7 @@ pub async fn reconcile(
             stable_since: String::new(),
             // In range by construction: this loop runs over 0..desired.
             surplus_reconciles: 0,
+            decided_on: decided,
         });
     }
 
@@ -465,6 +526,7 @@ pub async fn reconcile(
                 .unwrap_or("Pending");
             let node_ready = child_ready.get(&child_name).copied().unwrap_or(false);
             let phase = placement_phase_for(current_phase, node_ready, false);
+            let decided = prev_decided.get(&child_name).cloned();
             placements.push(PlacementStatus {
                 vllm_service_ref: child_name,
                 node_ref: node_name.clone(),
@@ -472,6 +534,10 @@ pub async fn reconcile(
                 last_transition_time: String::new(),
                 stable_since: String::new(),
                 surplus_reconciles,
+                // Carry-forward only: this slot was decided in an earlier
+                // reconcile and is on its way out, so there is no new decision
+                // to record.
+                decided_on: decided,
             });
             continue;
         }
@@ -624,6 +690,65 @@ pub async fn run(client: Client, metrics: Metrics) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn cand(name: &str, tpj: Option<f32>, age: Option<i64>) -> NodeCandidate {
+        NodeCandidate {
+            name: name.to_string(),
+            warmth: vllm_coldstart_operator::fleet_types::Warmth::Warm,
+            gpu_utilization: Some(42.0),
+            active_service_count: Some(1),
+            kv_cache_hit_rate: Some(0.5),
+            kv_cache_hit_rate_age_secs: age,
+            tokens_per_joule: tpj,
+            tokens_per_joule_age_secs: age,
+        }
+    }
+
+    #[test]
+    fn decision_inputs_record_what_the_planner_ranked_on() {
+        let candidates = vec![cand("node-a", Some(9.5), Some(10))];
+        let d = decision_inputs(
+            &candidates,
+            "node-a",
+            &PlacementStrategy::EfficiencyAware,
+            Some(600),
+        )
+        .expect("candidate exists");
+        assert_eq!(d.tokens_per_joule, Some(9.5));
+        assert_eq!(d.gpu_utilization, Some(42.0));
+        assert!(d.strategy.contains("EfficiencyAware"));
+    }
+
+    #[test]
+    fn decision_inputs_report_an_expired_signal_as_absent() {
+        // ADR-0008 D1 + D2: the value exists on NodeState but did not inform
+        // the decision, so recording it would describe an input the planner
+        // never had.
+        let candidates = vec![cand("node-a", Some(9.5), Some(3600))];
+        let d = decision_inputs(
+            &candidates,
+            "node-a",
+            &PlacementStrategy::EfficiencyAware,
+            Some(60),
+        )
+        .unwrap();
+        assert_eq!(d.tokens_per_joule, None);
+        assert_eq!(d.kv_cache_hit_rate, None);
+        // NVML signals carry no horizon and survive.
+        assert_eq!(d.gpu_utilization, Some(42.0));
+    }
+
+    #[test]
+    fn decision_inputs_none_for_an_unknown_node() {
+        let candidates = vec![cand("node-a", Some(1.0), Some(0))];
+        assert!(decision_inputs(
+            &candidates,
+            "node-gone",
+            &PlacementStrategy::WarmthFirst,
+            None
+        )
+        .is_none());
+    }
 
     #[test]
     fn own_placements_counted_per_node() {

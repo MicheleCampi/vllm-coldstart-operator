@@ -214,6 +214,43 @@ pub struct PlacementStatus {
     /// start. Reset to zero as soon as the slot is back in range.
     #[serde(default)]
     pub surplus_reconciles: i32,
+    /// ADR-0008 D1: the node attributes the planner ranked on when it chose
+    /// this node, as they read at that moment. Absent when the strategy does
+    /// not rank on them, or when the signal was itself absent or past the D2
+    /// horizon — the same ternary the comparator sees.
+    ///
+    /// This is what makes a placement decision auditable rather than merely
+    /// visible. Without it a reader knows where a replica landed and not why,
+    /// and the phase C experiment could not tell a correct choice on bad
+    /// signals from a bad choice on good ones — precisely the distinction
+    /// ADR-0007's level-3 run was unable to draw.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decided_on: Option<PlacementDecisionInputs>,
+}
+
+/// ADR-0008 D1: a snapshot of what the planner saw, not a live view. These
+/// values are not refreshed as the node changes — re-reading them later would
+/// answer a different question than "what informed this decision".
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlacementDecisionInputs {
+    /// Strategy that made the choice. Recorded because the same inputs order
+    /// differently under WarmthFirst and EfficiencyAware, so the values alone
+    /// do not explain the outcome.
+    pub strategy: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warmth: Option<String>,
+    /// Post-horizon: what the comparator actually ranked on. A signal the
+    /// reporter published but D2 expired reads as absent here, because that is
+    /// how the decision saw it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tokens_per_joule: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kv_cache_hit_rate: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpu_utilization: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_service_count: Option<i32>,
 }
 
 /// ADR-0009 D4: scale-down hysteresis, pure and unit-testable.
