@@ -184,3 +184,32 @@ much it would buy on hardware that differs for other reasons.
 ## Measured results (outputs)
 
 To be filled after the run, beside the design rather than in place of it.
+
+## Cluster setup, as it actually took (2026-08-19)
+
+Recorded because three of these cost real minutes on a metered node and none
+of them is guessable from the design.
+
+**The NVIDIA device plugin needs `runtimeClassName: nvidia` on k3s.** Without
+it the DaemonSet runs, reports "Incompatible strategy detected auto", and every
+node advertises no allocatable GPU. The D3 capacity filter then excludes all
+three nodes and nothing places — a pre-flight abort caused entirely by setup.
+
+**The reporter image needs three build args, not one.** `CARGO_FEATURES=gpu-nvidia`
+alone yields "built without feature" gone but "Dynamic loading not supported":
+nvml-wrapper dlopens libnvidia-ml.so and a static musl binary cannot. The
+Dockerfile documents the full recipe — `RUST_TARGET=x86_64-unknown-linux-gnu`,
+`CARGO_FEATURES=gpu-nvidia`, `RUNTIME_IMAGE=gcr.io/distroless/cc-debian12:nonroot`.
+
+**And `runtimeClassName` alone does not inject the driver libraries.** The
+container must also ask for them: `NVIDIA_VISIBLE_DEVICES=all` plus
+`NVIDIA_DRIVER_CAPABILITIES=utility`. Utility rather than compute on purpose —
+the reporter reads NVML and never launches a kernel, and requesting a GPU
+resource would consume the one the experiment is trying to measure.
+
+Each failure was visible in the reporter log with a distinct message, which is
+why they took minutes rather than the session: "built without feature", then
+"Dynamic loading not supported", then "libnvidia-ml.so.1: cannot open shared
+object file". A fail-open that stayed silent would have produced eight clean
+reps with every efficiency signal absent, and both arms falling back to
+warmth-first — the level-3 outcome, reproduced exactly.
