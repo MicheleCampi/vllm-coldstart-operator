@@ -1,0 +1,107 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "NodeState",
+            "metadata": {
+                "creationTimestamp": "2026-08-19T19:57:17Z",
+                "generation": 1,
+                "name": "129-159-32-158",
+                "namespace": "default",
+                "resourceVersion": "4250",
+                "uid": "05ce8921-ebf0-41ad-a9ef-70f64fb1e7ec"
+            },
+            "spec": {
+                "reportIntervalSeconds": 15
+            },
+            "status": {
+                "activeServiceCount": 1,
+                "gpuMemoryUsedBytes": 13411483648,
+                "gpuUtilization": 0,
+                "kvCacheHitRate": 0,
+                "kvCacheHitRateObservedAt": "2026-08-19T20:51:13.927534194+00:00",
+                "lastReportTime": "2026-08-19T20:51:28.941536123+00:00",
+                "observedGeneration": 1,
+                "requestsRunning": 0,
+                "requestsWaiting": 0,
+                "spot": {
+                    "isSpotInstance": false,
+                    "preemptionNoticeDetected": false,
+                    "preemptionNoticeTime": ""
+                },
+                "tokensPerJoule": 9.769920349121094,
+                "tokensPerJouleObservedAt": "2026-08-19T20:51:13.927534194+00:00",
+                "warmth": "Warm"
+            }
+        },
+        {
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "NodeState",
+            "metadata": {
+                "creationTimestamp": "2026-08-19T19:57:18Z",
+                "generation": 1,
+                "name": "163-192-24-183",
+                "namespace": "default",
+                "resourceVersion": "4240",
+                "uid": "44bce2ec-fd68-4378-838c-5a5660f6bd15"
+            },
+            "spec": {
+                "reportIntervalSeconds": 15
+            },
+            "status": {
+                "activeServiceCount": 1,
+                "gpuMemoryUsedBytes": 13411483648,
+                "gpuUtilization": 0,
+                "kvCacheHitRate": 0,
+                "kvCacheHitRateObservedAt": "2026-08-19T20:51:15.540893991+00:00",
+                "lastReportTime": "2026-08-19T20:51:15.540897269+00:00",
+                "observedGeneration": 1,
+                "requestsRunning": 0,
+                "requestsWaiting": 0,
+                "spot": {
+                    "isSpotInstance": false,
+                    "preemptionNoticeDetected": false,
+                    "preemptionNoticeTime": ""
+                },
+                "tokensPerJoule": 10.444077491760254,
+                "tokensPerJouleObservedAt": "2026-08-19T20:51:15.540893991+00:00",
+                "warmth": "Warm"
+            }
+        },
+        {
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "NodeState",
+            "metadata": {
+                "creationTimestamp": "2026-08-19T19:57:18Z",
+                "generation": 1,
+                "name": "64-181-231-123",
+                "namespace": "default",
+                "resourceVersion": "4242",
+                "uid": "22b74582-b92e-4bd2-afc8-c0baafd6aa93"
+            },
+            "spec": {
+                "reportIntervalSeconds": 15
+            },
+            "status": {
+                "activeServiceCount": 1,
+                "gpuMemoryUsedBytes": 13405192192,
+                "gpuUtilization": 0,
+                "lastReportTime": "2026-08-19T20:51:18.269858755+00:00",
+                "observedGeneration": 1,
+                "requestsRunning": 0,
+                "requestsWaiting": 0,
+                "spot": {
+                    "isSpotInstance": false,
+                    "preemptionNoticeDetected": false,
+                    "preemptionNoticeTime": ""
+                },
+                "warmth": "Cold"
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

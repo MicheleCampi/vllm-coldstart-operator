@@ -1,0 +1,66 @@
+{
+    "apiVersion": "inference.michelecampi.dev/v1alpha1",
+    "kind": "FleetService",
+    "metadata": {
+        "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"inference.michelecampi.dev/v1alpha1\",\"kind\":\"FleetService\",\"metadata\":{\"annotations\":{},\"name\":\"phasec\",\"namespace\":\"default\"},\"spec\":{\"model\":\"Qwen/Qwen2.5-0.5B-Instruct\",\"placement\":{\"signalMaxAgeSeconds\":600,\"strategy\":\"EfficiencyAware\"},\"replicas\":1,\"template\":{\"gpu\":1,\"healthPath\":\"\",\"image\":\"registry.k8s.io/pause:3.10\"}}}\n"
+        },
+        "creationTimestamp": "2026-08-19T21:07:32Z",
+        "generation": 1,
+        "name": "phasec",
+        "namespace": "default",
+        "resourceVersion": "5480",
+        "uid": "84f4ac95-7fcd-4fda-b34b-3f0e96c4f0f0"
+    },
+    "spec": {
+        "hysteresis": {
+            "maxConcurrentReschedules": 1,
+            "stableReconcilesRequired": 3
+        },
+        "model": "Qwen/Qwen2.5-0.5B-Instruct",
+        "nodePool": {
+            "selector": {},
+            "spotPolicy": {
+                "enabled": false,
+                "maxSpotFraction": 0
+            }
+        },
+        "placement": {
+            "signalMaxAgeSeconds": 600,
+            "strategy": "EfficiencyAware"
+        },
+        "replicas": 1,
+        "template": {
+            "extraArgs": [],
+            "gpu": 1,
+            "healthPath": "",
+            "image": "registry.k8s.io/pause:3.10"
+        }
+    },
+    "status": {
+        "activeReschedules": 0,
+        "desiredReplicas": 1,
+        "phase": "Placing",
+        "placements": [
+            {
+                "decidedOn": {
+                    "activeServiceCount": 1,
+                    "gpuUtilization": 0,
+                    "kvCacheHitRate": 0,
+                    "strategy": "EfficiencyAware",
+                    "tokensPerJoule": 10.398113250732422,
+                    "warmth": "Warm"
+                },
+                "lastTransitionTime": "",
+                "nodeRef": "163-192-24-183",
+                "phase": "Pending",
+                "stableSince": "",
+                "surplusReconciles": 0,
+                "vllmServiceRef": "phasec-0"
+            }
+        ],
+        "readyReplicas": 0,
+        "replicas": 1,
+        "warmingReplicas": 1
+    }
+}

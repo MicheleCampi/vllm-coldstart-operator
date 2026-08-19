@@ -183,7 +183,59 @@ much it would buy on hardware that differs for other reasons.
 
 ## Measured results (outputs)
 
-To be filled after the run, beside the design rather than in place of it.
+Run 2026-08-19, 3x A10 on Lambda, k3s v1.36.3, vLLM 0.23.0,
+Qwen2.5-0.5B-Instruct, --enforce-eager. Evidence: `runs/20260819-session/`.
+
+**Verdict against the criterion fixed before the run: negative result.**
+
+| | EA | WF |
+|---|---|---|
+| placed-node tokens/joule | 10.384 (sd 0.094) | 10.175 (sd 0.277) |
+| n | 4 | 4 |
+
+Delta +2.05%, below the +3% relevance threshold, with a 95% CI of
+[-2.5%, +6.6%] straddling zero. Under the decision criterion that is a
+negative result about EfficiencyAware under this workload, and it is
+published as one.
+
+**Unlike the level-3 outcome, this design was entitled to conclude it.**
+The measurement path carried the effect and the two strategies diverged
+deterministically: EA placed on the node with the better tokens/joule in
+4 of 4 reps, alternating across both physical machines, while WarmthFirst
+took the same physical node every time — by list order, exactly as the
+counterbalancing section anticipated. `decidedOn` recorded a live signal
+on all eight reps, so the planner demonstrably ranked on real inputs.
+
+**The asymmetry came out with the opposite sign to the one assumed.** The
+design treats the cap as something that makes a node worse. Measured, the
+capped node is *more* efficient — 10.41 tokens/joule at 100W against 9.79
+at 150W — which is the well-known result that reducing power improves
+energy efficiency per token while lowering throughput. The experiment
+remains valid, because the hypothesis is about EA ranking on the signal
+rather than about the direction of the cap, but it explains the size of
+the delta: the two candidates differ by about 6%, so a strategy that
+always picks the better one can move the mean by at most half of that.
+A +3% threshold against a 6% available margin is a demanding test, and it
+was fixed before any of this was known.
+
+**What this does not license.** It says nothing about EA under a larger
+node asymmetry, on heterogeneous hardware, or with a workload where the
+placed replica runs long enough for compounding to matter. Each rep
+measured a short burst on a freshly placed replica; the design chose that
+for cost, and a longer window is the obvious next variant.
+
+## Session notes
+
+Total cost ~$6, against the $4 envelope — the overrun is entirely setup,
+recorded above, not measurement.
+
+The pre-flight earned the session. It found that the reporter published
+`Some(0.0)` for an idle GPU, which would have left both candidates with
+identical inputs after every drain and produced a null delta determined
+by the instrument rather than the strategy — the level-3 failure
+reproduced, and harder to spot the second time because all the machinery
+built to prevent it was in place and working. Fixed before any arm was
+spent (`9df920d`).
 
 ## Cluster setup, as it actually took (2026-08-19)
 
