@@ -219,7 +219,22 @@ impl SignalSource for Real {
             // else is honestly absent (first round, reset, no traffic,
             // series missing). Never fabricate a 0.0.
             if let (Some(t), Some(j)) = (generation_tokens_delta, g.energy_delta_joules) {
-                if j > 0.0 {
+                // Both deltas must be positive. Energy alone is not enough: an
+                // idle GPU still draws power, so a round with no generated
+                // tokens divides 0 by a real number and yields a legitimate
+                // 0.0 — which reads as "this node is maximally inefficient"
+                // when the truth is "this node did no work". That is the 0.0
+                // the comment above forbids, arriving through the one path the
+                // j > 0.0 guard does not cover.
+                //
+                // Found on the phase C pre-flight, 2026-08-19: after a drain
+                // both candidates reported 0.0, which would have collapsed
+                // EfficiencyAware and WarmthFirst onto identical inputs and
+                // reproduced the level-3 null result from the instrument
+                // rather than the strategy. In production it is worse than a
+                // wasted session: an idle node — the one with the most
+                // capacity to offer — ranks last.
+                if j > 0.0 && t > 0.0 {
                     out.tokens_per_joule = Some((t / j) as f32);
                 }
             }
