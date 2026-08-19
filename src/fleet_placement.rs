@@ -127,7 +127,7 @@ pub fn comparison_key(
 }
 
 /// ADR-0007 efficiency-aware placement: strict lexicographic order
-/// warmth > kvCacheHitRate > tokensPerJoule > gpuUtilization >
+/// warmth > tokensPerJoule > kvCacheHitRate > gpuUtilization >
 /// activeServiceCount. Cache before energy (cause before effect); the two
 /// load tiers are deliberately inverted w.r.t. warmth-first. With no
 /// efficiency signal on any candidate the first two tiers are always Equal
@@ -141,16 +141,23 @@ pub fn select_node_efficiency_aware(candidates: &[NodeCandidate]) -> Option<&Nod
     candidates.iter().max_by(|a, b| {
         warmth_rank(&a.warmth)
             .cmp(&warmth_rank(&b.warmth))
-            .then_with(|| {
-                cmp_signal(
-                    valid_hit_rate(a.kv_cache_hit_rate),
-                    valid_hit_rate(b.kv_cache_hit_rate),
-                )
-            })
+            // ADR-0008 D4: energy ranks above cache. A newly placed replica
+            // starts with a cold prefix cache on any node — the cache lives in
+            // the vLLM process's memory, and modelCacheHostPath shares weights
+            // on disk, not KV blocks — so an observed hit-rate carries no
+            // causal information about what the new replica will achieve.
+            // Tokens/joule reflects the node's physical context, which a
+            // replica placed there does inherit.
             .then_with(|| {
                 cmp_signal(
                     valid_tokens_per_joule(a.tokens_per_joule),
                     valid_tokens_per_joule(b.tokens_per_joule),
+                )
+            })
+            .then_with(|| {
+                cmp_signal(
+                    valid_hit_rate(a.kv_cache_hit_rate),
+                    valid_hit_rate(b.kv_cache_hit_rate),
                 )
             })
             .then_with(|| {
@@ -333,25 +340,29 @@ mod tests {
     }
 
     #[test]
-    fn ea_hit_rate_beats_tokens_per_joule_within_class() {
-        // Cache before energy: higher hit-rate wins even against much
-        // higher tokens-per-joule.
+    fn ea_tokens_per_joule_beats_hit_rate_within_class() {
+        // ADR-0008 D4, energy before cache: higher tokens-per-joule wins even
+        // against a much better observed hit-rate. The hit-rate belongs to the
+        // engine already running on that node; the replica being placed will
+        // start cold there regardless.
         let candidates = vec![
             eff("high-tpj", Warmth::Warm, 10.0, 1, Some(0.30), Some(90.0)),
             eff("high-hit", Warmth::Warm, 80.0, 4, Some(0.70), Some(5.0)),
         ];
         let chosen = select_node_efficiency_aware(&candidates).unwrap();
-        assert_eq!(chosen.name, "high-hit");
+        assert_eq!(chosen.name, "high-tpj");
     }
 
     #[test]
-    fn ea_tokens_per_joule_breaks_hit_rate_tie() {
+    fn ea_hit_rate_breaks_tokens_per_joule_tie() {
+        // Demoted, not removed: with energy equal, the cache signal still
+        // orders the candidates.
         let candidates = vec![
-            eff("low-tpj", Warmth::Warm, 10.0, 1, Some(0.50), Some(5.0)),
-            eff("high-tpj", Warmth::Warm, 80.0, 4, Some(0.50), Some(9.0)),
+            eff("low-hit", Warmth::Warm, 10.0, 1, Some(0.30), Some(7.0)),
+            eff("high-hit", Warmth::Warm, 80.0, 4, Some(0.70), Some(7.0)),
         ];
         let chosen = select_node_efficiency_aware(&candidates).unwrap();
-        assert_eq!(chosen.name, "high-tpj");
+        assert_eq!(chosen.name, "high-hit");
     }
 
     #[test]
