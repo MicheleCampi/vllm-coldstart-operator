@@ -235,7 +235,9 @@ This does not weaken the capacity claim: the observed count tracks the
 prediction, and D3's criterion was declared before the run. It narrows
 what the claim covers. The bound is confirmed for trajectories of this
 shape driven this way, and the interesting case — trajectories whose idle
-windows genuinely interleave — remains unmeasured. Deliberate replay
+windows genuinely interleave — was unmeasured when this was written; it was
+measured on 2026-08-21 and the postscript at the end of this file records
+what changed. Deliberate replay
 determinism is what makes the two arms comparable and it is also what
 makes them synchronous; the two cannot be had at once in this design.
 
@@ -243,3 +245,40 @@ The natural follow-up is one line of harness: a randomised start offset
 per trajectory, large enough to break the lockstep and small enough to
 preserve the all-in-flight window. That is a new experiment with its own
 falsification criterion, not an amendment to this one.
+
+## Postscript, 2026-08-21 — the interleaved case, measured
+
+The postscript above left one thing open: whether trajectories whose windows
+genuinely interleave behave differently from the lockstep pair this ADR
+measured. They do, and the effect is large.
+
+Eight reps on 1×A10, same model and engine as this ADR, offset 0 against 2.5s —
+half a tool call at the 5.0 s/tool cell — with everything else held
+([design and evidence](https://github.com/MicheleCampi/agentic-kv-energy-experiment/tree/main/hack/adr0010-interleaving)):
+
+| | synchronised | staggered |
+|---|---|---|
+| samples at `running == 1` | 0.61% | **40.69%** |
+| samples at `running == 0` | 38.5% | **18.0%** |
+| mean running count | 1.2477 | 1.2010 |
+
+**Idle time halves.** A replica serving two synchronised trajectories does
+nothing for 38.5% of the window; stagger the starts and that falls to 18.0%,
+with a standard deviation of zero across four reps. The trajectories fill each
+other's pauses, which is exactly what this ADR's design assumed and its raw
+series showed was not happening.
+
+**And the mean falls while the GPU gets busier**, 1.2477 to 1.2010. Staggering
+converts time at 2 into time at 1 and time at 0 into time at 1; the first shift
+costs more than the second gains. A capacity calculation built on the mean would
+read staggered arrival as packing *worse*.
+
+**What this means for the bound.** The bound is not wrong — it predicted this
+ADR's lockstep measurement and was supported on six arms. But the quantity it
+predicts is phase-dependent, and lockstep is the least favourable phase. A fleet
+sized from these numbers is sized for trajectories that arrive together, which
+is not how a production fleet receives them.
+
+Not settled: one offset at one N gives the existence and the size of the effect,
+not its shape. Whether the benefit saturates, and what happens at larger N where
+more trajectories compete for the same batch, is unmeasured.
