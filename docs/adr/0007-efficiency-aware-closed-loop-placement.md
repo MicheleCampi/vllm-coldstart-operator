@@ -45,7 +45,7 @@ Efficiency signals refine the ranking of candidate nodes inside the
 existing placement path. They do not drive replica autoscaling
 (HPA/KEDA territory, a different claim with a much larger risk
 surface) and they do not drive P/D role rebalancing (depends on the
-ADR-0006 implementation phases, which have not landed). Both are
+ADR-0006 role implementation, which has not landed). Both are
 declared out of scope; the second is expected to become a follow-up
 once roles exist at runtime.
 
@@ -140,8 +140,8 @@ same semantics warmth already has.
 ### D5 — Scope and falsification
 
 Out of scope for v1, explicitly:
-- Role-differentiated efficiency (P/D): depends on ADR-0006 phases
-  3-5; follow-up ADR once roles exist at runtime.
+- Role-differentiated efficiency (P/D): depends on ADR-0006 roles
+  existing at runtime; follow-up ADR once they do.
 - Any actuation on GPU power caps or frequencies: different actuator,
   different ADR.
 - Any interaction with InferencePool/EPP routing: endpoint-level
