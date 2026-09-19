@@ -1,6 +1,6 @@
 # ADR-0006: Disaggregation-aware orchestration builds on the InferencePool contract
 
-Status: Accepted
+Status: Accepted; D1 superseded 2026-09-16 (see postscript)
 Date: 2026-07-11
 
 ## Context
@@ -137,3 +137,87 @@ buys nothing.
 - The agentic-kv-energy article (go-live ~2026-08-11) closes on the
   disaggregation-aware angle and references this ADR as the orchestration
   consequence of the measured energy signature.
+
+## Postscript, 2026-09-16 — D1 superseded
+
+This ADR rejected "a dedicated CRD (e.g. `DisaggregatedService`) composing
+FleetServices per role" on the grounds that it would duplicate the reconcile
+machinery. That reasoning assumed no such object existed. One did:
+`DisaggregatedSet`, in `kubernetes-sigs/lws`, shipped in v0.9.0 on 2026-06-17
+— three weeks before this ADR was written — under KEP 766, filed 2026-03-05.
+The alternative was dismissed without knowing it was already available.
+
+What that object already owns, at v0.10.0 (API group
+`disaggregatedset.x-k8s.io/v1`):
+- `spec.roles`: a list of roles, each carrying its own
+  `LeaderWorkerSetTemplateSpec`; the set handles rollout across roles and
+  labels the LeaderWorkerSets and both pod templates with
+  `disaggregatedset.x-k8s.io/{name,role,slice,revision}`;
+- per-role scaling: `Static` inline, or `External`, where the controller
+  creates a `DisaggregatedSetRoleScaler` exposed through `/scale` for HPA;
+- `spec.slices` and `spec.placementPolicy` (`None`, `ExclusiveSlice`,
+  `ExclusiveTopology`, over a node-label `topology` key), which co-locate a
+  slice's roles in one domain and keep slices apart;
+- `status.roles[].readyReplicas`.
+
+D1 proposed adding a `roles` map to `FleetService`. Building it now would
+duplicate an object the ecosystem already reads: `llm-d-router` gates
+prefill/decode pairing on `disaggregatedset.x-k8s.io/revision` (PR #2141,
+merged 2026-08-05).
+
+### The decision that replaces D1
+
+`FleetService` does not own roles. It observes them.
+
+Nothing in the LWS DisaggregatedSet controller reads engine metrics: across
+its nine non-test source files — six controllers, two utils, one webhook —
+`metrics`, `scrape` and `prometheus` appear zero times. Its placement is
+topological — affinity terms over a `topologyKey`, saying together or apart,
+never which node. Its readiness is pod readiness.
+
+That leaves this operator exactly the claim ADR-0002 already makes: Ready
+means warm, not merely running. Concretely, and each as its own follow-up:
+- per-role warmth (`CacheWarm` for decode, from the engine's prefix-cache
+  series) as a condition this operator publishes;
+- placement by warmth within the topology constraints the DisaggregatedSet
+  already imposes, rather than instead of them;
+- make-before-break recovery on preemption, measured at 57s Ready with a
+  2.3s service gap (this ADR's own Context, and the README's table), which
+  the DisaggregatedSet controller does not do.
+
+### No dependency on the LWS API
+
+Observing roles does not require reading `DisaggregatedSet` objects or
+importing the LWS Go types. The controller injects its five labels — `app`
+plus `disaggregatedset.x-k8s.io/{name,role,slice,revision}` — into both the
+worker and the leader pod templates when it creates each LeaderWorkerSet
+(`lws_manager.go`, Create): "Inject system labels (role, name, revision) into
+pod templates. These don't come from the user's spec — services select pods
+by them." Automatic labels win over user-supplied ones (`mergeLabels`).
+
+So the pods carry the role. This operator watches VllmService,
+FleetService, the Deployments and
+Services it owns, and NodeState; it does not watch pods today. Reading the
+role means adding a pod watch filtered by that label, which is a smaller
+change than tracking an alpha-stage API and keeps LWS out of the build.
+
+The limit is that a label contract is weaker than a versioned API: it is not
+covered by deprecation policy, and a rename would be silent. Against that,
+these are the labels the LWS controller's own Services select pods on
+(`service_manager.go`), so a rename would break more than this operator.
+
+Not verified: whether a pod under a DisaggregatedSet also carries
+`llm-d.ai/role` for the InferencePool selector of D2. That belongs to the
+implementation, not to this decision.
+
+### D2 stands
+
+The single-pool-plus-labels contract is still documented: llm-d's coordinator
+architecture describes one EPP over one InferencePool spanning all three
+roles, with separate pools "chosen by configuration". `llm-d.ai/role` remains
+in use across llm-d's deploy components and docs. No revision needed.
+
+### No date
+
+ADR-0006 said implementation was "the August block" and it did not happen.
+This postscript records a decision, not a schedule.
