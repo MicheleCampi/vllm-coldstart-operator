@@ -1,6 +1,6 @@
 # ADR-0006: Disaggregation-aware orchestration builds on the InferencePool contract
 
-Status: Accepted; D1 superseded 2026-09-16 (see postscript)
+Status: Accepted; D1 superseded 2026-09-19 (see postscript)
 Date: 2026-07-11
 
 ## Context
@@ -138,7 +138,7 @@ buys nothing.
   disaggregation-aware angle and references this ADR as the orchestration
   consequence of the measured energy signature.
 
-## Postscript, 2026-09-16 — D1 superseded
+## Postscript, 2026-09-19 — D1 superseded
 
 This ADR rejected "a dedicated CRD (e.g. `DisaggregatedService`) composing
 FleetServices per role" on the grounds that it would duplicate the reconcile
