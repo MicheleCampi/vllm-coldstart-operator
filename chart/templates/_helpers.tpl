@@ -44,6 +44,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.image.spec -}}
 {{- .Values.image.spec -}}
 {{- else -}}
-{{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
+{{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) -}}
 {{- end -}}
 {{- end }}

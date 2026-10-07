@@ -32,6 +32,38 @@ jobs:
           [ "$bad" = 0 ] && echo "toolchain pins agree on $ch"
           exit $bad
 
+      - name: Release versions agree
+        # Cargo.toml, the chart version and the chart appVersion name the same
+        # release. A tag that moves one without the others ships a chart that
+        # installs a different binary from the one it describes.
+        run: |
+          cargo_v=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          chart_v=$(sed -n 's/^version: //p' chart/Chart.yaml)
+          app_v=$(sed -n 's/^appVersion: "\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' chart/Chart.yaml)
+          [ -n "$cargo_v" ] || { echo "::error::no package version in Cargo.toml"; exit 1; }
+          bad=0
+          [ "$chart_v" = "$cargo_v" ] || { echo "::error::chart version $chart_v differs from Cargo.toml $cargo_v"; bad=1; }
+          [ "$app_v" = "$cargo_v" ] || { echo "::error::chart appVersion $app_v differs from Cargo.toml $cargo_v"; bad=1; }
+          [ "$bad" = 0 ] && echo "release versions agree on $cargo_v"
+          exit $bad
+
+      - name: Chart defaults install the chart's own image
+        # v0.3.0 shipped a chart whose default image was 0.2.1: CRDs for the
+        # fleet layer, a binary without it. With every default, the operator
+        # and the reporter must both render repository:appVersion.
+        run: |
+          curl -fsSL -o /tmp/helm.tgz https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz
+          echo "0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36  /tmp/helm.tgz" | sha256sum -c -
+          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+          repo=$(sed -n 's/^  repository: //p' chart/values.yaml)
+          app_v=$(sed -n 's/^appVersion: "\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' chart/Chart.yaml)
+          want="$repo:$app_v"
+          got=$(/tmp/linux-amd64/helm template t chart --set reporter.enabled=true --set example.enabled=false | sed -n 's/^[[:space:]]*image: "\(.*\)"$/\1/p')
+          n=$(printf '%s\n' "$got" | grep -c .)
+          uniq=$(printf '%s\n' "$got" | sort -u | paste -sd' ' -)
+          [ "$n" = 2 ] && [ "$uniq" = "$want" ] || { echo "::error::chart defaults render $n image line(s) [$uniq], want 2 x $want"; exit 1; }
+          echo "operator and reporter both render $want"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.95
         with:

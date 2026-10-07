@@ -4,7 +4,10 @@
 #    tags). When spec is set, the image helper uses it verbatim.
 image:
   repository: ghcr.io/michelecampi/vllm-coldstart-operator
-  tag: 0.2.1
+  # -- Empty means the chart's appVersion, so a chart and the image built
+  #    from the same commit install together. Set it only to run another
+  #    image on purpose.
+  tag: ""
   pullPolicy: IfNotPresent
   # -- Managed by ArgoCD Image Updater. Full image reference, takes precedence.
   spec: ""
