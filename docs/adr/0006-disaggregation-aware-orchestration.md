@@ -33,8 +33,9 @@ That gap is exactly the operator's existing domain, extended per role.
 Why it matters is quantified. The EPP scores endpoints by prefix-cache
 state, and the P/D decision itself is a function of prefix hit rate. A
 placement or recovery policy that destroys cache content shifts an agentic
-workload's regime from H2 toward H0 — a measured cost of up to **-69.2%
-tokens/joule** (18/18 confirmation matrix, Qwen2.5-32B on H100,
+workload's regime from H2 toward H0 — a measured cost of up to **-40.9%
+tokens/joule** (9.628 → 5.692; read the other way, H2 is +69.2% over H0;
+18/18 confirmation matrix, Qwen2.5-32B on H100,
 agentic-kv-energy-experiment). Orchestration policy is energy policy.
 
 Five decisions follow, D1-D5.
@@ -94,7 +95,7 @@ cache state worth protecting (they do not).
 - **Decode**: warm spare + cache-aware drain-and-hold. Replacing a decode
   pod resets its prefix score at the EPP, so lost cache content is a
   first-class cost: surfaced in status (fed by the D3 signal) and weighed in
-  the decision to replace versus hold. This is where the -69.2% tok/J
+  the decision to replace versus hold. This is where the -40.9% tok/J
   regime shift lives.
 - **Prefill**: fast replace, no hold, plus a stranded-memory guard —
   prefiller crash stranding transferred KV is a failure mode the upstream

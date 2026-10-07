@@ -16,7 +16,8 @@ them. This ADR closes that loop.
 
 Why the loop is worth closing is already quantified by our own
 experiments. Cache-regime shifts move an agentic workload's energy
-efficiency by up to **-69.2% tokens/joule** (18/18 matrix, Qwen2.5-32B,
+efficiency by up to **69.2% tokens/joule** (H2 over H0, 9.628 vs 5.692;
+the drop from H2 to H0 is -40.9%; 18/18 matrix, Qwen2.5-32B,
 H100, agentic-kv-energy-experiment), and ADR-0006 concluded from that
 number that "orchestration policy is energy policy". The conclusion so
 far only shaped *protection* (per-role warmth and recovery). It has not
@@ -101,7 +102,7 @@ once data exists on how hard a floor would bite.
 
 Cache ranks **before** energy deliberately: agentic-kv shows the cache
 regime is the cause and tokens/joule the effect (H0→H2 monotone; the
--69.2% is produced by regime shifts). Ordering on the effect after the
++69.2% from H0 to H2 is produced by regime shifts). Ordering on the effect after the
 cause avoids double-counting one phenomenon and keeps the ranking
 stable when tokens/joule fluctuates for reasons the cache already
 explains.
