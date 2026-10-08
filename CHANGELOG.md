@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _Nothing yet._
 
-## [0.4.0] — 2026-10-07
+## [0.4.0] — 2026-10-08
 
 The first fleet-layer release whose chart installs the binary it
 describes. The v0.3.0 chart shipped the FleetService and NodeState CRDs
