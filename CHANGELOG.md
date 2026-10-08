@@ -6,7 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Chart install in CI.** A `chart-install` job builds the operator image,
+  loads it into kind, installs the chart with its defaults, waits for the
+  example VllmService to be Ready, and checks that the operator pod runs the
+  image built in that job. Ready alone is not enough: without the load, the
+  node pulls the published image with the same tag and the example still
+  becomes Ready.
+
+### Changed
+
+- **The Helm release used by CI is declared once**, with its SHA-256, in the
+  workflow `env`.
 
 ## [0.4.0] — 2026-10-08
 

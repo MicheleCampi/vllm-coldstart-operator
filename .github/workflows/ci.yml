@@ -9,6 +9,10 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
+  # Helm for the chart checks: the same release and SHA-256 as the
+  # tools.lock of gke-llm-inference-platform.
+  HELM_URL: https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz
+  HELM_SHA256: 0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36
 
 jobs:
   check:
@@ -52,8 +56,8 @@ jobs:
         # fleet layer, a binary without it. With every default, the operator
         # and the reporter must both render repository:appVersion.
         run: |
-          curl -fsSL -o /tmp/helm.tgz https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz
-          echo "0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36  /tmp/helm.tgz" | sha256sum -c -
+          curl -fsSL -o /tmp/helm.tgz "$HELM_URL"
+          echo "$HELM_SHA256  /tmp/helm.tgz" | sha256sum -c -
           tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
           repo=$(sed -n 's/^  repository: //p' chart/values.yaml)
           app_v=$(sed -n 's/^appVersion: "\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' chart/Chart.yaml)
@@ -364,3 +368,58 @@ jobs:
       - name: Stop operator
         if: always()
         run: kill "$(cat operator.pid)" 2>/dev/null || true
+
+  chart-install:
+    name: chart install on kind
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the operator image
+        # Tagged repository:appVersion, the reference the chart's defaults
+        # render, so the install below needs no image override.
+        run: |
+          repo=$(sed -n 's/^  repository: //p' chart/values.yaml)
+          app_v=$(sed -n 's/^appVersion: "\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' chart/Chart.yaml)
+          img="$repo:$app_v"
+          docker build -t "$img" .
+          echo "IMG=$img" >> "$GITHUB_ENV"
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: chart
+
+      - name: Load the image into the node
+        run: kind load docker-image "$IMG" --name chart
+
+      - name: Install Helm
+        run: |
+          curl -fsSL -o /tmp/helm.tgz "$HELM_URL"
+          echo "$HELM_SHA256  /tmp/helm.tgz" | sha256sum -c -
+          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+
+      - name: Install the chart with its defaults
+        run: /tmp/linux-amd64/helm install vcso chart --namespace vllm-system --create-namespace --wait --timeout 5m
+
+      - name: Wait for the example VllmService to be Ready
+        run: kubectl wait vllmservice/ci-placeholder -n vllm-system --for=jsonpath='{.status.phase}'=Ready --timeout=120s
+
+      - name: The operator runs the image built here
+        # Ready alone proves nothing about this commit: if the load above did
+        # not take, the node pulls the published image with the same tag and
+        # the example still reaches Ready. The pod's imageID must be the
+        # config digest of the image built in this job.
+        run: |
+          cfg=$(docker save "$IMG" | tar -xO manifest.json | python3 -c 'import sys,json; print(json.load(sys.stdin)[0]["Config"])')
+          cfg=${cfg##*/}; want="sha256:${cfg%.json}"
+          got=$(kubectl get pods -n vllm-system -l app.kubernetes.io/name=vllm-coldstart-operator -o jsonpath='{.items[0].status.containerStatuses[0].imageID}')
+          [ "$got" = "$want" ] || { echo "::error::operator runs $got, not the image built here ($want)"; exit 1; }
+          echo "operator runs the image built here: $want"
+
+      - name: Dump cluster state on failure
+        if: failure()
+        run: |
+          kubectl get all,vllmservice -A || true
+          kubectl describe pods -n vllm-system || true
+          kubectl logs -n vllm-system -l app.kubernetes.io/name=vllm-coldstart-operator --tail=200 || true
