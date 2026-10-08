@@ -164,8 +164,12 @@ endpoint, which is Ready as soon as its pod runs. It exercises the control
 plane (reconcile, status, ownership), not inference. Verified on kind v0.30.0
 (Kubernetes v1.34.0) with Helm v3.21.0 and kubectl v1.36.1, running
 operator image `0.4.0`.
-Registering the CRDs prints `unrecognized format` warnings for `int32`,
-`int64` and `float` fields; the install completes regardless.
+On Kubernetes 1.34.0, the default node image of kind v0.30.0, registering
+the CRDs prints `unrecognized format` warnings for their `int32`, `int64`
+and `float` fields. That release warned on integer and number formats by
+mistake; 1.34.1 fixed it ([kubernetes#133901](https://github.com/kubernetes/kubernetes/pull/133901)),
+and on a 1.34.2 node the same CRDs register without warnings. The install
+completes either way.
 
 For GPU serving, override `example` in `chart/values.yaml` or apply
 [`deploy/examples/qwen-7b.yaml`](deploy/examples/qwen-7b.yaml) on a cluster

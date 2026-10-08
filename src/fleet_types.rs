@@ -22,7 +22,12 @@ use serde::{Deserialize, Serialize};
     scale(
         spec_replicas_path = ".spec.replicas",
         status_replicas_path = ".status.replicas"
-    )
+    ),
+    printcolumn = r#"{"name":"Phase","type":"string","jsonPath":".status.phase"}"#,
+    printcolumn = r#"{"name":"Desired","type":"integer","jsonPath":".status.desiredReplicas"}"#,
+    printcolumn = r#"{"name":"Ready","type":"integer","jsonPath":".status.readyReplicas"}"#,
+    printcolumn = r#"{"name":"Warming","type":"integer","jsonPath":".status.warmingReplicas"}"#,
+    printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#
 )]
 #[serde(rename_all = "camelCase")]
 pub struct FleetServiceSpec {
@@ -326,7 +331,11 @@ pub fn fleet_phase_for(desired: i32, ready: i32, drain_and_hold: bool) -> &'stat
     kind = "NodeState",
     namespaced,
     status = "NodeStateStatus",
-    shortname = "nstate"
+    shortname = "nstate",
+    printcolumn = r#"{"name":"Warmth","type":"string","jsonPath":".status.warmth"}"#,
+    printcolumn = r#"{"name":"GPU","type":"number","jsonPath":".status.gpuUtilization"}"#,
+    printcolumn = r#"{"name":"Services","type":"integer","jsonPath":".status.activeServiceCount"}"#,
+    printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#
 )]
 #[serde(rename_all = "camelCase")]
 pub struct NodeStateSpec {

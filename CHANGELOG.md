@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Printer columns on all three CRDs.** `kubectl get` showed only NAME and
+  AGE. VllmService now shows PHASE, MODEL and AGE (MESSAGE with `-o wide`),
+  FleetService PHASE, DESIRED, READY, WARMING and AGE, and NodeState WARMTH,
+  GPU, SERVICES and AGE. CI asserts the values in the chart-install and e2e
+  jobs, since a wrong jsonPath leaves a column empty without an error.
 - **Chart install in CI.** A `chart-install` job builds the operator image,
   loads it into kind, installs the chart with its defaults, waits for the
   example VllmService to be Ready, and checks that the operator pod runs the

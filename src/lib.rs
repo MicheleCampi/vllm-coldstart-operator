@@ -20,7 +20,11 @@ use serde::{Deserialize, Serialize};
     kind = "VllmService",
     namespaced,
     status = "VllmServiceStatus",
-    shortname = "vllm"
+    shortname = "vllm",
+    printcolumn = r#"{"name":"Phase","type":"string","jsonPath":".status.phase"}"#,
+    printcolumn = r#"{"name":"Model","type":"string","jsonPath":".spec.model"}"#,
+    printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#,
+    printcolumn = r#"{"name":"Message","type":"string","priority":1,"jsonPath":".status.message"}"#
 )]
 #[serde(rename_all = "camelCase")]
 pub struct VllmServiceSpec {
