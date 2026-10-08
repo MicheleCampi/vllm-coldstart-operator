@@ -135,6 +135,40 @@ hack/gpu-session/          Lambda GPU session: bootstrap scripts, manifest, runs
 
 Built on kube-rs 2.x, k8s-openapi 0.26, Rust edition 2021, MSRV 1.85. The fleet controller `.owns()` its children and `.watches()` `NodeState` resources namespace-wide with a reactive mapper, so both spec changes and node condition changes retrigger reconciliation. Design decisions are documented as ADRs in the repo.
 
+## Install a release
+
+From `v0.4.0`, a release tag carries a chart whose default image is the
+operator built from the same commit, and CI and the release workflow check
+that the crate, the chart and the tag agree. With Docker, [kind](https://kind.sigs.k8s.io/), `kubectl`
+and Helm:
+
+```bash
+kind create cluster --name vcso-release
+git clone --branch v0.4.0 --depth 1 https://github.com/MicheleCampi/vllm-coldstart-operator
+helm install vcso ./vllm-coldstart-operator/chart \
+  --namespace vllm-system --create-namespace --wait
+kubectl wait vllmservice/ci-placeholder -n vllm-system \
+  --for=jsonpath='{.status.phase}'=Ready --timeout=120s
+kubectl get vllmservice ci-placeholder -n vllm-system \
+  -o jsonpath='{.status.phase}: {.status.message}{"\n"}'
+# Ready: 1/1 replicas ready and warm
+```
+
+The chart's defaults install the operator, its three CRDs and one
+VllmService, `ci-placeholder`: a `pause` container with no GPU and no health
+endpoint, which is Ready as soon as its pod runs. It exercises the control
+plane (reconcile, status, ownership), not inference. Verified on kind v0.30.0
+(Kubernetes v1.34.0) with Helm v3.21.0 and kubectl v1.36.1, running
+operator image `0.4.0`.
+Registering the CRDs prints `unrecognized format` warnings for `int32`,
+`int64` and `float` fields; the install completes regardless.
+
+For GPU serving, override `example` in `chart/values.yaml` or apply
+[`deploy/examples/qwen-7b.yaml`](deploy/examples/qwen-7b.yaml) on a cluster
+with NVIDIA GPUs and the device plugin. Upgrading from 0.3.0: apply
+`chart/crds/crd.yaml` from the new tag first, since Helm does not update CRDs
+on upgrade.
+
 ## Try it locally
 
 Requires Docker, [kind](https://kind.sigs.k8s.io/), `kubectl`, and a Rust toolchain.
@@ -151,13 +185,14 @@ kubectl apply -f deploy/crd.yaml
 cargo run --bin vllm-coldstart-operator
 
 # 4. In another shell, create a VllmService and watch the lifecycle
-kubectl apply -f deploy/examples/qwen-7b.yaml
-kubectl get vllmservice qwen-7b -o jsonpath='{.status.phase}: {.status.message}'
-# Pending -> ... -> Ready
+kubectl apply -f deploy/examples/ci-placeholder.yaml
+kubectl get vllmservice ci-placeholder -o jsonpath='{.status.phase}: {.status.message}'
+# Pending -> ... -> Ready (a pause container: no GPU, no health endpoint;
+# deploy/examples/qwen-7b.yaml needs a GPU node and stays Pending on kind)
 
 # 5. Delete it and watch the Deployment garbage-collect
-kubectl delete vllmservice qwen-7b
-kubectl get deployment qwen-7b   # NotFound
+kubectl delete vllmservice ci-placeholder
+kubectl get deployment ci-placeholder   # NotFound
 ```
 
 The full preemption rehearsal (A/B/C topology, load, notice injection, analysis) runs on kind at zero cost: see [`hack/rehearsal/`](hack/rehearsal/).
