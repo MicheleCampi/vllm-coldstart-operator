@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`rust-version` is 1.95, the toolchain CI and the Dockerfile use.** It
+  said 1.83 and the README said MSRV 1.85; neither builds this lockfile.
+  Cargo 1.83 stops on a dependency that needs the 2024 edition, and with
+  1.85 cargo refuses `home@0.5.12`, which requires rustc 1.88. The
+  toolchain check in CI now covers `rust-version` too.
 - **The Helm release used by CI is declared once**, with its SHA-256, in the
   workflow `env`.
 

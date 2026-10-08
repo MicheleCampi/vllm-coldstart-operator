@@ -23,8 +23,9 @@ jobs:
 
       - name: Toolchain pins agree
         # rust-toolchain.toml is the one declaration of the Rust version. The
-        # action refs in the workflows and the Dockerfile builder tag cannot
-        # read it, so this step fails as soon as any of them drifts from it.
+        # action refs in the workflows, the Dockerfile builder tag and the
+        # rust-version in Cargo.toml cannot read it, so this step fails as
+        # soon as any of them drifts from it.
         run: |
           ch=$(sed -n 's/^channel = "\([0-9.]*\)"$/\1/p' rust-toolchain.toml)
           [ -n "$ch" ] || { echo "::error::no channel in rust-toolchain.toml"; exit 1; }
@@ -33,6 +34,8 @@ jobs:
           refs=$(grep -hoE '^[[:space:]-]*uses: dtolnay/rust-toolchain@[^[:space:]]+' .github/workflows/*.yml | sed 's/^[[:space:]-]*uses: //' | sort -u | paste -sd' ' -)
           [ "$refs" = "dtolnay/rust-toolchain@$ch" ] || { echo "::error::workflow toolchain refs [$refs] differ from channel $ch"; bad=1; }
           grep -q "^FROM rust:${re}-" Dockerfile || { echo "::error::Dockerfile builder is not rust:${ch}-*"; bad=1; }
+          rv=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
+          [ "$rv" = "$ch" ] || { echo "::error::Cargo.toml rust-version $rv differs from channel $ch"; bad=1; }
           [ "$bad" = 0 ] && echo "toolchain pins agree on $ch"
           exit $bad
 

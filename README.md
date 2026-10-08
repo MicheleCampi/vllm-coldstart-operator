@@ -133,7 +133,7 @@ hack/rehearsal/            zero-cost kind harness: loadgen, analyze.py, run scri
 hack/gpu-session/          Lambda GPU session: bootstrap scripts, manifest, runs/
 ```
 
-Built on kube-rs 2.x, k8s-openapi 0.26, Rust edition 2021, MSRV 1.85. The fleet controller `.owns()` its children and `.watches()` `NodeState` resources namespace-wide with a reactive mapper, so both spec changes and node condition changes retrigger reconciliation. Design decisions are documented as ADRs in the repo.
+Built on kube-rs 2.x, k8s-openapi 0.26, Rust edition 2021, built and tested with Rust 1.95 only: `rust-toolchain.toml` pins it, and CI checks that the workflows, the Dockerfile builder and `rust-version` in `Cargo.toml` agree with it. The fleet controller `.owns()` its children and `.watches()` `NodeState` resources namespace-wide with a reactive mapper, so both spec changes and node condition changes retrigger reconciliation. Design decisions are documented as ADRs in the repo.
 
 ## Install a release
 

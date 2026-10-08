@@ -2,7 +2,7 @@
 name = "vllm-coldstart-operator"
 version = "0.4.0"
 edition = "2021"
-rust-version = "1.83"
+rust-version = "1.95"
 license = "Apache-2.0"
 description = "A Kubernetes operator that manages vLLM inference replicas with cold-start as a first-class signal"
 repository = "https://github.com/MicheleCampi/vllm-coldstart-operator"
