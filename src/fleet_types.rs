@@ -113,8 +113,9 @@ pub enum PlacementStrategy {
     /// warmth > tokensPerJoule > kvCacheHitRate > gpuUtilization > activeServiceCount
     /// (ADR-0008 D4 reordered the two efficiency signals; ADR-0007 D3 had cache first).
     /// Missing efficiency signals rank below any observed value within the
-    /// same warmth class (fail-open: a fleet with no reporters degenerates
-    /// to WarmthFirst behaviour).
+    /// same warmth class (fail-open). With no efficiency signal on any
+    /// candidate the order is warmth, gpuUtilization, activeServiceCount:
+    /// not WarmthFirst, whose tail puts activeServiceCount first.
     EfficiencyAware,
 }
 

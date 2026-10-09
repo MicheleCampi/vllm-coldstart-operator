@@ -664,8 +664,8 @@ mod tests {
 
     #[test]
     fn ea_no_signals_degenerates_to_warmth_then_util_then_count() {
-        // Fail-open tail: with no reporter anywhere the efficiency tiers are
-        // always Equal. Note the tail is util > count per ADR-0007, the
+        // Fail-open tail: with no efficiency signal on any candidate the
+        // efficiency tiers are always Equal. Note the tail is util > count per ADR-0007, the
         // inverse of WarmthFirst's count > util — documented divergence.
         let candidates = vec![
             eff("high-util", Warmth::Warm, 80.0, 1, None, None),
