@@ -38,7 +38,8 @@ pub struct FleetServiceSpec {
     /// VllmService template applied to every placement. Same shape as
     /// VllmServiceSpec minus `model`/`replicas`, which the fleet controls.
     pub template: FleetServiceTemplate,
-    /// Node pool this fleet is allowed to place onto.
+    /// Node pool this fleet may place onto. `selector` is honoured for new
+    /// placements and replacements; `spotPolicy` is reserved and not read.
     #[serde(default)]
     pub node_pool: NodePoolSpec,
     /// Placement strategy. WarmthFirst (default) and EfficiencyAware
@@ -77,9 +78,16 @@ pub struct FleetServiceTemplate {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct NodePoolSpec {
-    /// Label selector for nodes this fleet may place onto.
+    /// Labels a node must carry, each with the listed value, for this fleet to
+    /// place a new replica or a replacement there: the semantics of a Pod's
+    /// nodeSelector. Empty, the default, admits every node. Existing
+    /// placements are not moved when it changes. While it is set, a node whose
+    /// labels cannot be read is not admitted. A fleet that no node admits stays
+    /// Placing, and the operator logs which selector admitted nothing.
     #[serde(default)]
     pub selector: std::collections::BTreeMap<String, String>,
+    /// Reserved: accepted and defaulted, not read by the controller. No
+    /// component this operator ships writes which nodes are spot.
     #[serde(default)]
     pub spot_policy: SpotPolicySpec,
 }
@@ -90,6 +98,7 @@ pub struct SpotPolicySpec {
     #[serde(default)]
     pub enabled: bool,
     /// Max fraction of fleet replicas allowed on spot nodes, 0.0-1.0.
+    /// Reserved with the rest of spotPolicy: not read.
     #[serde(default = "default_max_spot_fraction")]
     pub max_spot_fraction: f32,
 }

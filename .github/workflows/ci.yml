@@ -296,6 +296,66 @@ jobs:
           echo "ERROR: fleet children not garbage-collected within 30s"
           kubectl get vllmservice -o yaml
           exit 1
+      - name: The node pool selector decides where a fleet may place
+        # A selector no node satisfies must place nothing; one the node
+        # satisfies must place there. The label is read from the node kind
+        # runs, not written into the manifest: its value can differ from the
+        # node name on other platforms.
+        run: |
+          NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          HOST=$(kubectl get node "$NODE" -o jsonpath='{.metadata.labels.kubernetes\.io/hostname}')
+          [ -n "$HOST" ] || { echo "ERROR: node $NODE has no kubernetes.io/hostname label"; exit 1; }
+          fleet() {
+            kubectl apply -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: FleetService
+          metadata:
+            name: $1
+            namespace: default
+          spec:
+            model: ci-placeholder-model
+            replicas: 1
+            nodePool:
+              selector:
+                "$2": "$3"
+            template:
+              gpu: 0
+              healthPath: ""
+              image: registry.k8s.io/pause:3.10
+          EOF
+          }
+
+          fleet ci-fleet-nomatch vcso.ci/pool none
+          phase=""
+          for i in $(seq 1 20); do
+            phase=$(kubectl get fleetservice ci-fleet-nomatch -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            [ -n "$phase" ] && break
+            sleep 1
+          done
+          [ "$phase" = "Placing" ] || { echo "ERROR: ci-fleet-nomatch phase is '$phase', want Placing"; exit 1; }
+          placed=$(kubectl get fleetservice ci-fleet-nomatch -o jsonpath='{.status.placements[*].nodeRef}')
+          [ -z "$placed" ] || { echo "ERROR: ci-fleet-nomatch placed on '$placed'"; exit 1; }
+          if kubectl get vllmservice ci-fleet-nomatch-0 >/dev/null 2>&1; then
+            echo "ERROR: ci-fleet-nomatch created a child"; exit 1
+          fi
+          grep -q "node pool selector .* admits none of" operator.log || { echo "ERROR: no selector warning in operator.log"; exit 1; }
+
+          fleet ci-fleet-match kubernetes.io/hostname "$HOST"
+          phase=""
+          for i in $(seq 1 40); do
+            phase=$(kubectl get fleetservice ci-fleet-match -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            [ "$phase" = "Ready" ] && break
+            sleep 3
+          done
+          [ "$phase" = "Ready" ] || { echo "ERROR: ci-fleet-match phase is '$phase', want Ready"; exit 1; }
+          pin=$(kubectl get vllmservice ci-fleet-match-0 -o jsonpath='{.spec.nodeName}')
+          [ "$pin" = "$NODE" ] || { echo "ERROR: ci-fleet-match child pinned to '$pin', node is '$NODE'"; exit 1; }
+          placed=$(kubectl get fleetservice ci-fleet-match -o jsonpath='{.status.placements[*].nodeRef}')
+          [ "$placed" = "$NODE" ] || { echo "ERROR: ci-fleet-match placements report '$placed', node is '$NODE'"; exit 1; }
+
+          kubectl delete fleetservice ci-fleet-nomatch ci-fleet-match --wait=true
+          echo "selector placed nothing for ci-fleet-nomatch and placed ci-fleet-match on $NODE"
+
       - name: Restart the operator over live children
         run: |
           # ADR-0008 lists "no upgrade path exercised" among the non-goals.

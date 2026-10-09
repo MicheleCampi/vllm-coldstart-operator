@@ -37,7 +37,7 @@ use serde_json::json;
 use tracing::{info, warn};
 
 use vllm_coldstart_operator::fleet_placement::{
-    has_capacity_for, select_replacement_node, NodeCandidate,
+    has_capacity_for, matches_node_pool, select_replacement_node, NodeCandidate,
 };
 use vllm_coldstart_operator::fleet_planning::plan_initial_placements;
 use vllm_coldstart_operator::fleet_types::{
@@ -391,48 +391,93 @@ pub async fn reconcile(
     // the pod is not a candidate — placing there yields a Pending pod and no
     // error at all, which is the silent failure D3 exists to prevent.
     let gpu_request = fleet.spec.template.gpu;
-    let allocatable: BTreeMap<String, Option<i64>> = if gpu_request > 0 {
-        let nodes: Api<Node> = Api::all(ctx.client.clone());
-        match nodes.list(&Default::default()).await {
-            Ok(list) => list
-                .iter()
-                .map(|n| {
-                    // "No nvidia.com/gpu key" and "could not read this node"
-                    // are different facts and must not collapse onto the same
-                    // value. A node that publishes an allocatable map without
-                    // the key is stating it has no GPUs — that is zero, not
-                    // unknown. Only a node with no allocatable map at all is
-                    // unknown, and unknown is what keeps a node in the set.
-                    let gpus = match n.status.as_ref().and_then(|s| s.allocatable.as_ref()) {
-                        None => None,
-                        Some(a) => match a.get("nvidia.com/gpu") {
-                            None => Some(0),
-                            Some(q) => q.0.parse::<i64>().ok(),
-                        },
-                    };
-                    (n.name_any(), gpus)
-                })
-                .collect(),
+    let selector = &fleet.spec.node_pool.selector;
+    // Nodes are read once, when either filter needs them: ADR-0008 D3
+    // capacity for a fleet that requests GPUs, or the node pool selector when
+    // one is set. On a read failure each filter applies its own rule below.
+    let nodes: Option<Vec<Node>> = if gpu_request > 0 || !selector.is_empty() {
+        let api: Api<Node> = Api::all(ctx.client.clone());
+        match api.list(&Default::default()).await {
+            Ok(list) => Some(list.items),
             Err(e) => {
-                // Keeping every node is deliberate: turning a read failure into
-                // "no node has capacity" would take the fleet down over an API
-                // hiccup, a worse outcome than the Pending pod D3 prevents.
-                warn!(
-                    "FleetService '{}': could not read node capacity ({e}); \
-                     placing without the D3 filter this reconcile",
-                    name
-                );
-                BTreeMap::new()
+                if gpu_request > 0 {
+                    // Keeping every node is deliberate: turning a read failure into
+                    // "no node has capacity" would take the fleet down over an API
+                    // hiccup, a worse outcome than the Pending pod D3 prevents.
+                    warn!(
+                        "FleetService '{}': could not read node capacity ({e}); \
+                         placing without the D3 filter this reconcile",
+                        name
+                    );
+                }
+                if !selector.is_empty() {
+                    warn!(
+                        "FleetService '{}': could not read node labels ({e}); \
+                         the node pool selector admits no node this reconcile",
+                        name
+                    );
+                }
+                None
             }
         }
     } else {
-        BTreeMap::new()
+        None
     };
+    // ADR-0008 D3: allocatable GPUs per node, read once. A node that cannot run
+    // the pod is not a candidate — placing there yields a Pending pod and no
+    // error at all, which is the silent failure D3 exists to prevent.
+    let allocatable: BTreeMap<String, Option<i64>> = match (&nodes, gpu_request > 0) {
+        (Some(list), true) => list
+            .iter()
+            .map(|n| {
+                // "No nvidia.com/gpu key" and "could not read this node"
+                // are different facts and must not collapse onto the same
+                // value. A node that publishes an allocatable map without
+                // the key is stating it has no GPUs — that is zero, not
+                // unknown. Only a node with no allocatable map at all is
+                // unknown, and unknown is what keeps a node in the set.
+                let gpus = match n.status.as_ref().and_then(|s| s.allocatable.as_ref()) {
+                    None => None,
+                    Some(a) => match a.get("nvidia.com/gpu") {
+                        None => Some(0),
+                        Some(q) => q.0.parse::<i64>().ok(),
+                    },
+                };
+                (n.name_any(), gpus)
+            })
+            .collect(),
+        _ => BTreeMap::new(),
+    };
+    // Node pool selector: labels per node. A node absent from this map, or
+    // every node when the read failed, is unknown, and matches_node_pool does
+    // not admit an unknown node while a selector is set.
+    let labels: BTreeMap<String, BTreeMap<String, String>> = nodes
+        .as_ref()
+        .map(|list| {
+            list.iter()
+                .map(|n| (n.name_any(), n.metadata.labels.clone().unwrap_or_default()))
+                .collect()
+        })
+        .unwrap_or_default();
+    if !selector.is_empty()
+        && !candidates
+            .iter()
+            .any(|c| matches_node_pool(labels.get(&c.name), selector))
+    {
+        warn!(
+            "FleetService '{}': node pool selector {:?} admits none of {} candidate node(s); \
+             new placements wait for a matching node",
+            name,
+            selector,
+            candidates.len()
+        );
+    }
 
     let healthy_candidates: Vec<NodeCandidate> = candidates
         .iter()
         .filter(|c| !preempted.contains(c.name.as_str()))
         .filter(|c| has_capacity_for(allocatable.get(&c.name).copied().flatten(), gpu_request))
+        .filter(|c| matches_node_pool(labels.get(&c.name), selector))
         .cloned()
         .collect();
 

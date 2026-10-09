@@ -30,6 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The Helm release used by CI is declared once**, with its SHA-256, in the
   workflow `env`.
 
+### Fixed
+
+- **`nodePool.selector` restricts where a fleet places.** The CRD accepted
+  it and described it as the node pool the fleet may place onto, but the
+  controller never read it, so fleets placed regardless of it. New
+  placements and replacements now go only to nodes carrying every listed
+  label, with a Pod's nodeSelector semantics; existing placements are not
+  moved. While a selector is set, a node whose labels cannot be read is not
+  admitted: the opposite of the GPU capacity filter, which keeps such a
+  node, because here the error would place a replica where it was
+  excluded. A fleet that no node admits stays Placing, and the operator logs
+  the selector. A fleet whose selector no node satisfies, which placed
+  until now, stops placing new replicas. `spotPolicy` remains
+  unimplemented, and the schema now says so.
+
 ## [0.4.0] — 2026-10-08
 
 The first fleet-layer release whose chart installs the binary it

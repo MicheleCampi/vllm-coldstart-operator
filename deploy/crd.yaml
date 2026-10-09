@@ -224,25 +224,38 @@ spec:
                   spotPolicy:
                     enabled: false
                     maxSpotFraction: 0.0
-                description: Node pool this fleet is allowed to place onto.
+                description: |-
+                  Node pool this fleet may place onto. `selector` is honoured for new
+                  placements and replacements; `spotPolicy` is reserved and not read.
                 properties:
                   selector:
                     additionalProperties:
                       type: string
                     default: {}
-                    description: Label selector for nodes this fleet may place onto.
+                    description: |-
+                      Labels a node must carry, each with the listed value, for this fleet to
+                      place a new replica or a replacement there: the semantics of a Pod's
+                      nodeSelector. Empty, the default, admits every node. Existing
+                      placements are not moved when it changes. While it is set, a node whose
+                      labels cannot be read is not admitted. A fleet that no node admits stays
+                      Placing, and the operator logs which selector admitted nothing.
                     type: object
                   spotPolicy:
                     default:
                       enabled: false
                       maxSpotFraction: 0.0
+                    description: |-
+                      Reserved: accepted and defaulted, not read by the controller. No
+                      component this operator ships writes which nodes are spot.
                     properties:
                       enabled:
                         default: false
                         type: boolean
                       maxSpotFraction:
                         default: 0.5
-                        description: Max fraction of fleet replicas allowed on spot nodes, 0.0-1.0.
+                        description: |-
+                          Max fraction of fleet replicas allowed on spot nodes, 0.0-1.0.
+                          Reserved with the rest of spotPolicy: not read.
                         format: float
                         type: number
                     type: object

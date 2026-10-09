@@ -64,6 +64,31 @@ pub fn has_capacity_for(allocatable_gpus: Option<i64>, requested_gpus: i32) -> b
     }
 }
 
+/// Node pool selector (`FleetServiceSpec::node_pool.selector`), with the
+/// semantics of a Pod's nodeSelector: a node is eligible only if it carries
+/// each listed label with the listed value. Labels the selector does not name
+/// do not matter, and an empty selector admits every node.
+///
+/// `node_labels` of None means the caller could not read the node. Unlike
+/// `has_capacity_for`, such a node is not admitted while a selector is set. A
+/// selector states where the fleet is allowed to run; admitting a node whose
+/// labels are unknown can place a replica where it was excluded, an error that
+/// runs silently and persists. Refusing costs one deferred placement, which the
+/// next reconcile retries. Capacity makes the opposite choice because its error
+/// is a Pending pod, which runs nowhere.
+pub fn matches_node_pool(
+    node_labels: Option<&std::collections::BTreeMap<String, String>>,
+    selector: &std::collections::BTreeMap<String, String>,
+) -> bool {
+    if selector.is_empty() {
+        return true;
+    }
+    match node_labels {
+        None => false,
+        Some(labels) => selector.iter().all(|(k, v)| labels.get(k) == Some(v)),
+    }
+}
+
 /// ADR-0008 D2: a signal older than the horizon ranks exactly as one never
 /// observed. Applied here, in the validity filter, rather than in the
 /// comparator — so the equivalence holds by construction and cannot drift as a
@@ -473,6 +498,62 @@ mod tests {
         // Pending pod the filter exists to prevent.
         assert!(has_capacity_for(None, 1));
         assert!(has_capacity_for(None, 8));
+    }
+
+    fn labels(pairs: &[(&str, &str)]) -> std::collections::BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn node_pool_empty_selector_admits_every_node() {
+        let empty = labels(&[]);
+        assert!(matches_node_pool(
+            Some(&labels(&[("pool", "batch")])),
+            &empty
+        ));
+        assert!(matches_node_pool(Some(&labels(&[])), &empty));
+        // No selector, nothing to verify: an unreadable node is admitted too.
+        assert!(matches_node_pool(None, &empty));
+    }
+
+    #[test]
+    fn node_pool_admits_a_node_with_every_label_and_more() {
+        // Kubernetes schedules a Pod "onto nodes that have each of the labels
+        // you specify"; labels the selector does not name do not matter.
+        let sel = labels(&[("nvidia.com/gpu.present", "true"), ("pool", "inference")]);
+        let node = labels(&[
+            ("nvidia.com/gpu.present", "true"),
+            ("pool", "inference"),
+            ("kubernetes.io/hostname", "node-a"),
+        ]);
+        assert!(matches_node_pool(Some(&node), &sel));
+    }
+
+    #[test]
+    fn node_pool_excludes_a_node_missing_a_label() {
+        let sel = labels(&[("nvidia.com/gpu.present", "true"), ("pool", "inference")]);
+        let node = labels(&[("nvidia.com/gpu.present", "true")]);
+        assert!(!matches_node_pool(Some(&node), &sel));
+    }
+
+    #[test]
+    fn node_pool_excludes_a_node_with_a_different_value() {
+        let sel = labels(&[("pool", "inference")]);
+        assert!(!matches_node_pool(
+            Some(&labels(&[("pool", "batch")])),
+            &sel
+        ));
+    }
+
+    #[test]
+    fn node_pool_excludes_a_node_whose_labels_are_unknown() {
+        // Fail-closed, the opposite of capacity: a selector says where the
+        // fleet may run, and an unreadable node cannot be shown to qualify.
+        let sel = labels(&[("pool", "inference")]);
+        assert!(!matches_node_pool(None, &sel));
     }
 
     #[test]
