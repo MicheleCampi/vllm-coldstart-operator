@@ -35,13 +35,6 @@ pub struct NodeCandidate {
     pub tokens_per_joule_age_secs: Option<i64>,
 }
 
-/// ADR-0008 D2: a signal older than the horizon ranks exactly as one never
-/// observed. Applied here, in the validity filter, rather than in the
-/// comparator — so the equivalence holds by construction and cannot drift as a
-/// convention someone remembers to honour.
-///
-/// `horizon_secs` of None disables the horizon entirely, which is what a fleet
-/// with no configured policy gets: today's behaviour, unchanged.
 /// ADR-0008 D3: capacity is a precondition, not a tie-breaker. A node with no
 /// allocatable GPU cannot run a pod that requests one — placing there produces
 /// a Pending pod and no error, which is a silent failure in production and a
@@ -71,6 +64,13 @@ pub fn has_capacity_for(allocatable_gpus: Option<i64>, requested_gpus: i32) -> b
     }
 }
 
+/// ADR-0008 D2: a signal older than the horizon ranks exactly as one never
+/// observed. Applied here, in the validity filter, rather than in the
+/// comparator — so the equivalence holds by construction and cannot drift as a
+/// convention someone remembers to honour.
+///
+/// `horizon_secs` of None disables the horizon entirely, which is what a fleet
+/// with no configured policy gets: today's behaviour, unchanged.
 fn fresh_hit_rate(c: &NodeCandidate, horizon_secs: Option<i64>) -> Option<f32> {
     valid_hit_rate(c.kv_cache_hit_rate)
         .filter(|_| within_horizon(c.kv_cache_hit_rate_age_secs, horizon_secs))
