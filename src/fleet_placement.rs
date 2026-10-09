@@ -1,11 +1,14 @@
 use crate::fleet_types::{PlacementStrategy, Warmth};
 use std::cmp::Ordering;
 
-/// A node eligible for placement, already filtered by the caller for
-/// selector match, non-draining status, and spot-fraction cap. This
-/// function only ranks among nodes already known to be eligible; it holds
-/// no cluster-wide context (total spot count, node pool membership) on
-/// purpose, so it stays a pure function testable without a cluster.
+/// A node eligible for placement, already filtered by the caller: its
+/// NodeState reports no preemption notice, it can run the GPUs the fleet
+/// requests (`has_capacity_for`, ADR-0008 D3), and the fleet's node pool
+/// selector admits it (`matches_node_pool`). No spot-fraction cap is applied:
+/// `spotPolicy` is reserved. The ranking functions in this module only order
+/// nodes already known to be eligible; they hold no cluster-wide context
+/// (total spot count, node pool membership) on purpose, so they stay pure
+/// functions testable without a cluster.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NodeCandidate {
     pub name: String,
