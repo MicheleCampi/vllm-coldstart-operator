@@ -1,7 +1,10 @@
-//! Per-node signal reporter (ADR-0007 D2, phase B).
+//! Per-node signal reporter (ADR-0007 D2).
 //!
-//! Runs as a DaemonSet on GPU nodes. Owns the *measurement* side of the
-//! measure-actuate loop: it writes raw observed signals to the status of
+//! Runs as a DaemonSet, one pod per selected node. The chart's
+//! reporter.nodeSelector is there to restrict it to GPU nodes; empty, the
+//! default, selects every node. Owns the *measurement* side of the
+//! measure-actuate loop: it
+//! writes raw observed signals to the status of
 //! the NodeState named after the node it runs on. All *policy* stays in
 //! the planner (fleet_controller / fleet_placement) — this binary never
 //! interprets the numbers it reports.
@@ -10,7 +13,9 @@
 //! here are left to their own writers, e.g. warmth/spot):
 //!   - gpuUtilization, gpuMemoryUsedBytes, activeServiceCount
 //!   - kvCacheHitRate, tokensPerJoule   (ADR-0007; absent = fail-open)
-//!   - lastReportTime
+//!   - kvCacheHitRateObservedAt, tokensPerJouleObservedAt   (ADR-0008 D2)
+//!   - requestsWaiting, requestsRunning   (ADR-0009 D2)
+//!   - observedGeneration, lastReportTime
 //!
 //! Identity comes from the downward API: NODE_NAME (spec.nodeName) and
 //! POD_NAMESPACE (metadata.namespace) — NodeState is namespaced and named
@@ -20,9 +25,12 @@
 //!   - REPORTER_SYNTHETIC=1 selects the deterministic synthetic source
 //!     (kind rehearsal, ADR-0007 falsification level 2). Values are
 //!     overridable via REPORTER_SYNTHETIC_* env vars.
-//!   - Otherwise the real source runs. In phase B it reports the ADR-0007
-//!     signals as absent (NVML/vLLM scrape land with falsification level
-//!     3); the planner fail-opens to warmth-first, by design.
+//!   - Otherwise the real source runs, with two producers behind their own
+//!     gates (see `Real::from_env`): the vLLM scrape, on when
+//!     REPORTER_SCRAPE_TARGETS is set, and NVML, on only in a build with
+//!     feature `gpu-nvidia` run with REPORTER_GPU=nvidia. A signal whose
+//!     producer is off is absent; the planner fail-opens to warmth-first,
+//!     by design.
 
 use anyhow::{bail, Context as _};
 use k8s_openapi::chrono::Utc;
@@ -131,11 +139,10 @@ impl SignalSource for Synthetic {
     }
 }
 
-/// Real source, phase-B shape: GPU utilization/memory and the ADR-0007
-/// signals are reported absent until the level-3 producers (NVML via
-/// inferscope, vLLM prefix-cache scrape) are wired in. Absent is honest:
-/// the planner must fail-open, and a fabricated 0.0 would instead be a
-/// *bad* score (see phase-A sanitization semantics).
+/// Real source: the vLLM scrape and the NVML sampler, each behind its own
+/// gate (see `from_env`). Whatever neither produces is reported absent.
+/// Absent is honest: the planner must fail-open, and a fabricated 0.0
+/// would instead be a *bad* score (see phase-A sanitization semantics).
 struct Real {
     scrape: Option<VllmScrape>,
     #[cfg(feature = "gpu-nvidia")]
@@ -144,8 +151,10 @@ struct Real {
 
 impl Real {
     /// `REPORTER_SCRAPE_TARGETS`: comma-separated `/metrics` URLs of the
-    /// vLLM services on this node. Unset or empty = scraping off, every
-    /// signal absent — today's behaviour, no chart change required.
+    /// vLLM services on this node, passed through the chart's
+    /// reporter.extraEnv. Unset or empty = scraping off: kvCacheHitRate,
+    /// activeServiceCount and the demand gauges are absent, and
+    /// tokens/joule has no token delta to join.
     fn from_env(node: &str) -> Self {
         let targets: Vec<String> = env_for_node("REPORTER_SCRAPE_TARGETS", node)
             .unwrap_or_default()
@@ -156,8 +165,11 @@ impl Real {
             .collect();
         // Double gate, session-a lesson codified: the binary must be
         // built with feature `gpu-nvidia` AND the runtime must opt in
-        // via REPORTER_GPU=nvidia (ADR-005 semantics, reporter is
-        // env-driven). Either gate missing = GPU signals absent.
+        // via REPORTER_GPU=nvidia. The compile-time half follows
+        // inferscope's ADR-005 (NVML behind the same feature, off by
+        // default); the runtime half is an explicit opt-in here, where
+        // ADR-005 relies on NVML init failing without a driver. Either
+        // gate missing = GPU signals absent.
         #[cfg(feature = "gpu-nvidia")]
         let nvml = match std::env::var("REPORTER_GPU").as_deref() {
             Ok("nvidia") => NvmlSampler::init(),
@@ -247,7 +259,7 @@ impl SignalSource for Real {
 
 /// Scrapes the vLLM-schema Prometheus text endpoint of each configured
 /// target and derives `kv_cache_hit_rate` from counter deltas between
-/// consecutive rounds (ADR-011 series: `vllm:prefix_cache_hits` /
+/// consecutive rounds (inferscope ADR-011 series: `vllm:prefix_cache_hits` /
 /// `vllm:prefix_cache_queries`). Per-target fail-open: an unreachable or
 /// unparseable target contributes nothing and raises no error.
 struct VllmScrape {
