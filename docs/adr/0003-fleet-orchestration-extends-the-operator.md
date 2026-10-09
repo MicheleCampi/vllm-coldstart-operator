@@ -44,3 +44,38 @@ All three decisions optimize for the same thing: the hard part of a fleet contro
 ## Note on validation status
 
 This ADR fixes the shape of the reconcile loop before it is written. The claims here — no cascade on mid-warmup preemption, no oscillation under load — are design intent, not yet measured. They become Accepted-with-evidence only after the multi-node GPU session validates them under real concurrent saturation; until then this ADR records the architecture, not a result.
+
+## Postscript, 2026-10-09 — Node is read; the node pool selector is honoured
+
+Two things this ADR recorded no longer hold as written.
+
+**Node is read, not written.** Consequences said the fleet controller has
+"no permissions on core `Node` objects at all". ADR-0008 D3 granted `get`
+and `list` on nodes, cluster-scoped and read-only, so the planner can
+exclude nodes without an allocatable GPU (`chart/templates/rbac.yaml`).
+Decision 2 stands: the operator never writes to `Node`, and node-level
+observed state stays in `NodeState`.
+
+**The node pool selector is honoured.** `FleetServiceSpec.nodePool` entered
+the schema with the first fleet types (1f25809, the day of this ADR) without
+a decision here, and the controller did not read it until ed2846c. The read
+of `Node` that D3 added was what it needed. The decisions taken with it:
+
+- The selector has a Pod's `nodeSelector` semantics: a node is eligible only
+  if it carries every listed label with its value, and an empty selector
+  admits every node.
+- While a selector is set, a node whose labels cannot be read is not
+  admitted. The D3 capacity filter makes the opposite choice and keeps such
+  a node, because its error is a Pending pod that runs nowhere. Here the
+  error would run a replica where the selector excluded it, silently and for
+  as long as the placement lives; refusing costs one placement deferred to
+  the next reconcile.
+- The selector governs new placements and replacements. Existing placements
+  are not moved when it changes, which follows ADR-0005 decision 1: a
+  reschedule is triggered only by a preemption notice.
+- `spotPolicy` stays reserved. Applying `maxSpotFraction` needs to know which
+  nodes are spot, and nothing this operator ships writes that.
+
+The `NodeCandidate` contract in `fleet_placement.rs` listed a spot-fraction
+filter that the caller never applied, and ADR-0008 D3 repeated it. The
+contract now names the filters the caller applies.
