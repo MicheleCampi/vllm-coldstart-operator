@@ -229,13 +229,15 @@ No commit and no ADR records why. What the record shows, at inferscope
 - No such constraint was found for NVML. The record does not explain why
   that half was reimplemented.
 
-One divergence follows from the two implementations and is current. On an
-energy counter reset, inferscope saturates the delta to zero and records it
-as a counter reading (`crates/is-sysmon/src/gpu_nvidia.rs:227`, source
-`EnergySource::Counter`), although its comment describes the zero as "no
+One divergence followed from the two implementations. On an energy counter
+reset, inferscope saturated the delta to zero and recorded it as a counter
+reading (`crates/is-sysmon/src/gpu_nvidia.rs:227` at acd21ec, source
+`EnergySource::Counter`), although its comment described the zero as "no
 valid measurement". The reporter yields no delta, and so no tokens/joule,
-for that round (`src/bin/reporter.rs:510`). The same event reads differently
-in the two tools.
+for that round (`src/bin/reporter.rs:510`). The same event read differently
+in the two tools until inferscope 72d1265, the same day, which omits such a
+device as it already omitted a failed read; inferscope's report then
+integrates that device's power instead.
 
 Whether the reporter should now consume inferscope's crates is open, and
 is not decided here.
