@@ -196,3 +196,61 @@ Falsification plan, three levels:
 - Relation to ADR-0006: unchanged and single-role for now. When roles
   land, D1's rebalancing exclusion and D5's role exclusion are the
   two seams where a follow-up ADR plugs in.
+
+## Postscript, 2026-10-09 — D2 was not implemented as decided; D3 is superseded
+
+**D2: the reporter reimplements the measurement instead of consuming
+inferscope.** D2 said inferscope "remains the producer of the measurement"
+and that the reporter "consumes it locally rather than reimplementing it";
+Consequences added "a dependency on inferscope sampling". Neither holds.
+The reporter has its own vLLM scrape (`VllmScrape`,
+`src/bin/reporter.rs:265`, from 512b759 on 2026-07-19) and its own NVML
+sampler (`NvmlSampler`, `src/bin/reporter.rs:445`, from a3b9fee on
+2026-07-22, whose message calls it the same library and counter strategy
+validated in inferscope ADR-010). Neither `Cargo.toml` nor `Cargo.lock`
+names inferscope.
+
+No commit and no ADR records why. What the record shows, at inferscope
+2c0ae9c, the last inferscope commit before a3b9fee:
+
+- Both halves existed as a library: `is_sysmon::GpuSampler`, with
+  `read_energy_counters`, and `is_metrics::parse_kvcache`, both exported
+  from their crates.
+- `parse_kvcache` read the series of one `model_name`, while the reporter
+  sums every label set, every model included, across a node's scrape
+  targets (`sum_family`, `src/bin/reporter.rs:404`). It also matched
+  `vllm:prefix_cache_hits` exactly, with a test asserting that the `_total`
+  name does not match. vLLM v0.23.0 exposes the `_total` names, which the
+  level-3 GPU session of 2026-07-22 found live (`sum_family_totaled`,
+  `src/bin/reporter.rs:400`). Consuming `parse_kvcache` as it stood would
+  have left the cache hit rate absent on the real engine. inferscope has
+  since moved to
+  the `_total` names (`crates/is-metrics/src/schema.rs:153-154`).
+- No such constraint was found for NVML. The record does not explain why
+  that half was reimplemented.
+
+One divergence follows from the two implementations and is current. On an
+energy counter reset, inferscope saturates the delta to zero and records it
+as a counter reading (`crates/is-sysmon/src/gpu_nvidia.rs:227`, source
+`EnergySource::Counter`), although its comment describes the zero as "no
+valid measurement". The reporter yields no delta, and so no tokens/joule,
+for that round (`src/bin/reporter.rs:510`). The same event reads differently
+in the two tools.
+
+Whether the reporter should now consume inferscope's crates is open, and
+is not decided here.
+
+**D3: superseded by ADR-0008 D4**, which ranks `tokensPerJoule` above
+`kvCacheHitRate` within `EfficiencyAware`. The ordering and the
+cache-before-energy rationale above no longer describe the comparator; the
+doc comment on `PlacementStrategy::EfficiencyAware` in
+`src/fleet_types.rs` states the current order.
+
+**Schedule.** Consequences placed implementation and the GPU run after
+2026-08-11. The scrape landed on 2026-07-19 (512b759), the NVML sampler on
+2026-07-22 (a3b9fee), and the level-3 GPU session ran on 2026-07-22
+(2f8aa69).
+
+**References.** ADR-010, ADR-011 and ADR-013, cited in D2 and in
+Consequences, are inferscope's. This repository's ADRs are numbered 0001 to
+0010.
