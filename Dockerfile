@@ -1,4 +1,9 @@
-# syntax=docker/dockerfile:1.7
+# syntax=mirror.gcr.io/docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+# Build images come from mirror.gcr.io, Google's cache of Docker Hub, so a
+# Docker Hub outage cannot stop the build. The frontend above and the Rust
+# builder below are pinned by digest: a stale mirror then fails the build
+# instead of changing the image. Update a tag and its digest together; the
+# CI step "Build images avoid Docker Hub" fails if either loses its pin.
 # ---- Build args ------------------------------------------------------------
 # Default: static musl binary on distroless/static (CPU-only path, unchanged).
 # GPU variant (level-3 sessions): nvml-wrapper dlopens libnvidia-ml.so at
@@ -10,8 +15,8 @@
 # on the node by the NVIDIA container runtime, never baked into the image.)
 ARG RUNTIME_IMAGE=gcr.io/distroless/static:nonroot
 # ---- Builder ---------------------------------------------------------------
-# Pinned to the dev toolchain (1.95) for reproducible builds.
-FROM rust:1.95-bookworm AS builder
+# Rust 1.95, the toolchain rust-toolchain.toml pins (CI checks they agree).
+FROM mirror.gcr.io/library/rust:1.95-bookworm@sha256:6258907abe69656e41cd992e0b705cdcfabcbbe3db374f92ed2d47121282d4a1 AS builder
 ARG RUST_TARGET=x86_64-unknown-linux-musl
 ARG CARGO_FEATURES=""
 RUN apt-get update \

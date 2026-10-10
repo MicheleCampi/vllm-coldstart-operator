@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that keeps the old pod until the new one is available. The `e2e` job runs
   on one node and could not reach this path.
 
+### Changed
+
+- **Build images come from mirror.gcr.io.** A Docker Hub outage could stop the
+  release build before the Dockerfile ran: the BuildKit builder, the
+  Dockerfile frontend and the Rust base image all came from Docker Hub. They
+  now come from mirror.gcr.io, Google's cache of Docker Hub, which served the
+  same digests for all three when this was checked. The frontend and the Rust
+  base, which decide what the image contains, are pinned by digest, so a
+  stale mirror fails the build instead of changing it. A CI step fails if
+  any of the three stops coming from the mirror, or if the frontend or the
+  base loses its digest.
+
 ## [0.5.0] — 2026-10-10
 
 The release in which a FleetService that sets `nodePool.selector` works on

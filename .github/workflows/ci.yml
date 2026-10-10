@@ -33,10 +33,24 @@ jobs:
           bad=0
           refs=$(grep -hoE '^[[:space:]-]*uses: dtolnay/rust-toolchain@[^[:space:]]+' .github/workflows/*.yml | sed 's/^[[:space:]-]*uses: //' | sort -u | paste -sd' ' -)
           [ "$refs" = "dtolnay/rust-toolchain@$ch" ] || { echo "::error::workflow toolchain refs [$refs] differ from channel $ch"; bad=1; }
-          grep -q "^FROM rust:${re}-" Dockerfile || { echo "::error::Dockerfile builder is not rust:${ch}-*"; bad=1; }
+          grep -q "^FROM mirror\.gcr\.io/library/rust:${re}-" Dockerfile || { echo "::error::Dockerfile builder is not mirror.gcr.io/library/rust:${ch}-*"; bad=1; }
           rv=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
           [ "$rv" = "$ch" ] || { echo "::error::Cargo.toml rust-version $rv differs from channel $ch"; bad=1; }
           [ "$bad" = 0 ] && echo "toolchain pins agree on $ch"
+          exit $bad
+
+      - name: Build images avoid Docker Hub
+        # A Docker Hub outage could stop the release build before any
+        # Dockerfile line ran: the BuildKit builder, the Dockerfile frontend and
+        # the Rust base all came from there. They come from mirror.gcr.io, and
+        # the two that decide what the image contains are pinned by digest, so
+        # a stale mirror fails the build instead of changing it.
+        run: |
+          bad=0
+          grep -qE '^# syntax=mirror\.gcr\.io/docker/dockerfile:[0-9.]+@sha256:[0-9a-f]{64}$' Dockerfile || { echo "::error::Dockerfile frontend is not mirror.gcr.io/docker/dockerfile pinned by digest"; bad=1; }
+          grep -qE '^FROM mirror\.gcr\.io/library/rust:[^ @]+@sha256:[0-9a-f]{64} AS builder$' Dockerfile || { echo "::error::Dockerfile builder is not mirror.gcr.io/library/rust pinned by digest"; bad=1; }
+          grep -qE '^ +driver-opts: image=mirror\.gcr\.io/moby/buildkit:' .github/workflows/release-image.yml || { echo "::error::release builds do not take BuildKit from mirror.gcr.io"; bad=1; }
+          [ "$bad" = 0 ] && echo "build images come from mirror.gcr.io; frontend and builder pinned by digest"
           exit $bad
 
       - name: Release versions agree
