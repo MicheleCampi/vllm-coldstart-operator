@@ -141,6 +141,25 @@ fn node_state_to_candidate(ns: &NodeState, now: DateTime<Utc>) -> Option<NodeCan
     })
 }
 
+/// One candidate per node. NodeState is namespaced, so two with the same name
+/// can coexist (the reporter writes in its own namespace; a manifest can create
+/// one in another), and both used to become candidates for the same node.
+/// Among those with a status, the one in the lexicographically first namespace
+/// lends its signals, a choice that does not depend on the order the API server
+/// lists them in. A preemption notice counts from any of them: `preempted` is
+/// built from every NodeState.
+fn candidates_by_node(states: &[NodeState], now: DateTime<Utc>) -> BTreeMap<String, NodeCandidate> {
+    let mut sorted: Vec<&NodeState> = states.iter().collect();
+    sorted.sort_by_key(|ns| (ns.name_any(), ns.namespace()));
+    let mut out = BTreeMap::new();
+    for ns in sorted {
+        if let Some(c) = node_state_to_candidate(ns, now) {
+            out.entry(c.name.clone()).or_insert(c);
+        }
+    }
+    out
+}
+
 /// Number of this fleet's own placements currently pinned to each node.
 /// The controller knows where it has already placed; that knowledge must not
 /// depend on an external reporter refreshing NodeState.activeServiceCount in
@@ -220,9 +239,8 @@ pub async fn reconcile(
     // Reading it per candidate would give two nodes different notions of "now"
     // within the same decision, which is a difference the ordering could see.
     let now = Utc::now();
-    let candidates: Vec<NodeCandidate> = states
-        .iter()
-        .filter_map(|ns| node_state_to_candidate(ns, now))
+    let candidates: Vec<NodeCandidate> = candidates_by_node(&states.items, now)
+        .into_values()
         .collect();
 
     // Nodes that signalled a spot preemption notice. This is the only trigger
@@ -836,6 +854,44 @@ pub async fn run(client: Client, metrics: Metrics) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_candidate_per_node_when_node_states_share_a_name() {
+        use vllm_coldstart_operator::fleet_types::{NodeStateSpec, NodeStateStatus, Warmth};
+        // NodeState is namespaced: the reporter's and a hand-made one can both
+        // exist for one node. In either list order one candidate results, from
+        // the lexicographically first namespace that has a status.
+        let mk = |ns: &str, warmth: Option<Warmth>| {
+            let mut s = NodeState::new("node-a", NodeStateSpec::default());
+            s.metadata.namespace = Some(ns.to_string());
+            s.status = warmth.map(|w| NodeStateStatus {
+                warmth: w,
+                ..Default::default()
+            });
+            s
+        };
+        for states in [
+            vec![
+                mk("zeta", Some(Warmth::Cold)),
+                mk("alpha", Some(Warmth::Warm)),
+            ],
+            vec![
+                mk("alpha", Some(Warmth::Warm)),
+                mk("zeta", Some(Warmth::Cold)),
+            ],
+        ] {
+            let c = candidates_by_node(&states, Utc::now());
+            assert_eq!(c.len(), 1);
+            assert_eq!(c["node-a"].warmth, Warmth::Warm);
+        }
+        // "aaa" sorts first but has no status, so the candidate is "zeta".
+        let c = candidates_by_node(
+            &[mk("aaa", None), mk("zeta", Some(Warmth::Cold))],
+            Utc::now(),
+        );
+        assert_eq!(c.len(), 1);
+        assert_eq!(c["node-a"].warmth, Warmth::Cold);
+    }
 
     fn cand(name: &str, tpj: Option<f32>, age: Option<i64>) -> NodeCandidate {
         NodeCandidate {
