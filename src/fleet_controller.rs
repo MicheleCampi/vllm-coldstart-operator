@@ -37,7 +37,8 @@ use serde_json::json;
 use tracing::{info, warn};
 
 use vllm_coldstart_operator::fleet_placement::{
-    has_capacity_for, matches_node_pool, select_replacement_node, NodeCandidate,
+    derive_warmth, has_capacity_for, matches_node_pool, select_replacement_node, warmer,
+    NodeCandidate,
 };
 use vllm_coldstart_operator::fleet_planning::plan_initial_placements;
 use vllm_coldstart_operator::fleet_types::{
@@ -330,6 +331,35 @@ pub async fn reconcile(
         })
         .unwrap_or_default();
 
+    // ADR-0011 D1, as amended by its postscript: warmth for this fleet's
+    // model, derived from the VllmServices of that model the cluster runs,
+    // other than this fleet's own children (same namespace, same fleet label
+    // the children are listed by above). A failed read leaves NodeState warmth
+    // alone, which is how the planner ranked before D1.
+    let all_services: Api<VllmService> = Api::all(ctx.client.clone());
+    let derived_warmth = match all_services.list(&Default::default()).await {
+        Ok(list) => derive_warmth(list.items.iter().filter_map(|s| {
+            if s.spec.model != fleet.spec.model {
+                return None;
+            }
+            let node = s.spec.node_name.as_deref()?;
+            let own = s.namespace().as_deref() == Some(ns.as_str())
+                && s.labels()
+                    .get("inference.michelecampi.dev/fleet")
+                    .map(String::as_str)
+                    == Some(name.as_str());
+            Some((node, s.status.as_ref().map(|st| st.phase.as_str()), own))
+        })),
+        Err(e) => {
+            warn!(
+                "FleetService '{}': could not list VllmServices ({e}); \
+                 ranking on NodeState warmth only this reconcile",
+                name
+            );
+            BTreeMap::new()
+        }
+    };
+
     // Self-awareness: fold this fleet's own placements into the candidates'
     // load signal. Both fresh planning and replacement selection must see the
     // capacity the fleet itself has already consumed, even when the NodeState
@@ -346,6 +376,11 @@ pub async fn reconcile(
             let own = own_counts.get(c.name.as_str()).copied().unwrap_or(0);
             if own > 0 {
                 c.active_service_count = Some(c.active_service_count.unwrap_or(0) + own);
+            }
+            // ADR-0011 D1: the warmer of the NodeState value and the derived one,
+            // so a value set by hand can raise a node and never lower it.
+            if let Some(w) = derived_warmth.get(c.name.as_str()) {
+                c.warmth = warmer(c.warmth.clone(), w.clone());
             }
             c
         })

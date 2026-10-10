@@ -221,7 +221,7 @@ This section stays honest about boundaries, because the value is in what is actu
 
 ## Testing & CI
 
-- **Unit tests** (77: 56 lib, 8 reporter, 8 operator binary, plus 5 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
+- **Unit tests** (81: 60 lib, 8 reporter, 8 operator binary, plus 5 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
 - **End-to-end CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) on every push: `fmt --check` + `clippy -D warnings` + tests + release build, plus an ephemeral kind cluster that installs the CRDs, runs the operator, applies a `VllmService`, and asserts the full lifecycle with bounded polling (convergence, not timing luck). A separate job builds the operator image, loads it into its own kind cluster, installs the chart with its defaults, waits for the example `VllmService` to be Ready, and checks that the operator pod runs the image built in that job rather than a published one with the same tag.
 
 ## Roadmap

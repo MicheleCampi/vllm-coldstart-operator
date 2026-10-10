@@ -1,6 +1,6 @@
 # ADR-0011: Warmth is derived from what the cluster runs, and the node pool selector defines the candidates
 
-Status: Accepted, not yet implemented
+Status: Accepted; D1 and D2 implemented, D3 and D4 not yet (see postscripts)
 Date: 2026-10-10
 
 ## Context
@@ -204,3 +204,16 @@ names for D1 (it sees instances, not the cache). Across fleets of the same
 model, warmth draws one fleet toward the nodes another one uses, and the
 capacity filter reading allocatable rather than free GPUs applies to that
 co-location as it applies to any.
+
+## Postscript, 2026-10-10 — D2 and D1 implemented
+
+D2 is implemented in 7b563bd. D1, as amended by the postscript above, is
+implemented in the same pull request as this postscript. Both are covered
+by unit tests. D1 is also covered by the CI e2e step "Node warmth is
+derived from what the cluster runs (ADR-0011 D1)", which fails against an
+operator without derived warmth and against D1 as first written. D2's
+preemption path is not in CI, which runs one node; it was run on a kind
+cluster with two workers, as 7b563bd's message records.
+
+D3 and D4 are not implemented. "What this ADR does not prove" still holds,
+for D1 and D2 as for the rest: none of it has been run on GPUs.

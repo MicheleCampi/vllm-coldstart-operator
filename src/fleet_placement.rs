@@ -127,6 +127,45 @@ fn warmth_rank(w: &Warmth) -> u8 {
     }
 }
 
+/// The warmer of two warmth values, on the scale the comparator ranks by
+/// (`warmth_rank`), so that combining warmth sources cannot drift from the
+/// ranking.
+pub fn warmer(a: Warmth, b: Warmth) -> Warmth {
+    if warmth_rank(&b) > warmth_rank(&a) {
+        b
+    } else {
+        a
+    }
+}
+
+/// ADR-0011 D1, as amended by its postscript: each node's warmth for one
+/// model, derived from the VllmServices that run that model on it. One entry
+/// per such service: the node it is pinned to, its `status.phase` (None
+/// before the operator first writes one), and whether it is one of the
+/// fleet's own children. `Ready` reads `Warm`, `Warming` reads `Warming`,
+/// anything else reads `Cold`, and a node with several takes the warmest.
+/// The fleet's own children are skipped: they already enter the ranking as
+/// load, and counting them as warmth would pull every new replica onto the
+/// node the fleet already uses. A node absent from the result is Cold.
+pub fn derive_warmth<'a>(
+    instances: impl IntoIterator<Item = (&'a str, Option<&'a str>, bool)>,
+) -> std::collections::BTreeMap<String, Warmth> {
+    let mut by_node: std::collections::BTreeMap<String, Warmth> = std::collections::BTreeMap::new();
+    for (node, phase, own) in instances {
+        if own {
+            continue;
+        }
+        let w = match phase {
+            Some("Ready") => Warmth::Warm,
+            Some("Warming") => Warmth::Warming,
+            _ => Warmth::Cold,
+        };
+        let entry = by_node.entry(node.to_string()).or_insert(Warmth::Cold);
+        *entry = warmer(entry.clone(), w);
+    }
+    by_node
+}
+
 /// Warmth-first placement: prefer the warmest node, tie-break on lowest
 /// active service count (spread load), then lowest GPU utilization.
 ///
@@ -577,6 +616,57 @@ mod tests {
         // fleet may run, and an unreadable node cannot be shown to qualify.
         let sel = labels(&[("pool", "inference")]);
         assert!(!matches_node_pool(None, &sel));
+    }
+
+    #[test]
+    fn derived_warmth_follows_the_service_phase() {
+        // The phases phase_for writes (src/lib.rs): Ready, Warming, Pending.
+        // None is a service the operator has not reconciled yet.
+        let w = derive_warmth([
+            ("ready-node", Some("Ready"), false),
+            ("warming-node", Some("Warming"), false),
+            ("pending-node", Some("Pending"), false),
+            ("new-node", None, false),
+        ]);
+        assert_eq!(w.get("ready-node"), Some(&Warmth::Warm));
+        assert_eq!(w.get("warming-node"), Some(&Warmth::Warming));
+        assert_eq!(w.get("pending-node"), Some(&Warmth::Cold));
+        assert_eq!(w.get("new-node"), Some(&Warmth::Cold));
+        assert_eq!(w.get("no-service-node"), None);
+    }
+
+    #[test]
+    fn derived_warmth_takes_the_warmest_service_on_a_node() {
+        let w = derive_warmth([
+            ("node-a", Some("Pending"), false),
+            ("node-a", Some("Ready"), false),
+            ("node-a", Some("Warming"), false),
+        ]);
+        assert_eq!(w.get("node-a"), Some(&Warmth::Warm));
+    }
+
+    #[test]
+    fn derived_warmth_skips_the_fleets_own_children() {
+        // ADR-0011 postscript: the fleet's own placements count as load, not
+        // warmth; a Ready child must not pull the next replica onto its node.
+        let w = derive_warmth([
+            ("own-node", Some("Ready"), true),
+            ("shared-node", Some("Ready"), true),
+            ("shared-node", Some("Warming"), false),
+        ]);
+        assert_eq!(w.get("own-node"), None);
+        assert_eq!(w.get("shared-node"), Some(&Warmth::Warming));
+    }
+
+    #[test]
+    fn warmer_follows_the_ranking_scale_both_ways() {
+        let all = [Warmth::Cold, Warmth::Warming, Warmth::Warm];
+        for a in &all {
+            for b in &all {
+                let w = warmer(a.clone(), b.clone());
+                assert_eq!(warmth_rank(&w), warmth_rank(a).max(warmth_rank(b)));
+            }
+        }
     }
 
     #[test]

@@ -356,6 +356,75 @@ jobs:
           kubectl delete fleetservice ci-fleet-nomatch ci-fleet-match --wait=true
           echo "selector placed nothing for ci-fleet-nomatch and placed ci-fleet-match on $NODE"
 
+      - name: Node warmth is derived from what the cluster runs (ADR-0011 D1)
+        # The fleet's own replica must not warm its node for that fleet (the
+        # ADR-0011 postscript); a pinned VllmService of the same model must.
+        # The node's NodeState is set Cold first, so a Warm in decidedOn can
+        # only be the derived value; it goes back to Warm for the steps below.
+        run: |
+          NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          kubectl patch nodestate "$NODE" --subresource=status --type=merge -p '{"status":{"warmth":"Cold"}}'
+          warmth_of() {
+            kubectl get fleetservice d1-fleet -o jsonpath="{.status.placements[?(@.vllmServiceRef==\"$1\")].decidedOn.warmth}"
+          }
+          wait_slot() {
+            for i in $(seq 1 40); do
+              w=$(warmth_of "$1")
+              if [ -n "$w" ]; then echo "$w"; return 0; fi
+              sleep 3
+            done
+            echo "ERROR: no decidedOn for $1" >&2
+            return 1
+          }
+
+          kubectl apply -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: FleetService
+          metadata:
+            name: d1-fleet
+            namespace: default
+          spec:
+            model: d1-model
+            replicas: 1
+            template:
+              gpu: 0
+              healthPath: ""
+              image: registry.k8s.io/pause:3.10
+          EOF
+          w0=$(wait_slot d1-fleet-0)
+          [ "$w0" = "Cold" ] || { echo "ERROR: slot 0 decided on '$w0', want Cold"; exit 1; }
+          kubectl wait --for=jsonpath='{.status.phase}'=Ready vllmservice/d1-fleet-0 --timeout=120s
+
+          kubectl scale fleetservice d1-fleet --replicas=2
+          w1=$(wait_slot d1-fleet-1)
+          [ "$w1" = "Cold" ] || { echo "ERROR: slot 1 decided on '$w1' with only the fleet's own replica on $NODE, want Cold"; exit 1; }
+
+          kubectl apply -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: VllmService
+          metadata:
+            name: d1-standalone
+            namespace: default
+          spec:
+            model: d1-model
+            replicas: 1
+            warmupStrategy: Eager
+            image: "registry.k8s.io/pause:3.10"
+            gpu: 0
+            healthPath: ""
+            nodeName: $NODE
+          EOF
+          kubectl wait --for=jsonpath='{.status.phase}'=Ready vllmservice/d1-standalone --timeout=120s
+
+          kubectl scale fleetservice d1-fleet --replicas=3
+          w2=$(wait_slot d1-fleet-2)
+          [ "$w2" = "Warm" ] || { echo "ERROR: slot 2 decided on '$w2' with a Ready d1-model service pinned to $NODE, want Warm"; exit 1; }
+
+          kubectl delete fleetservice d1-fleet --wait=true
+          kubectl delete vllmservice d1-standalone --wait=true
+          kubectl patch nodestate "$NODE" --subresource=status --type=merge -p '{"status":{"warmth":"Warm"}}'
+          echo "slots 0 and 1 decided Cold (the fleet's own replica does not count), slot 2 Warm (a pinned d1-model service)"
+
       - name: Restart the operator over live children
         run: |
           # ADR-0008 lists "no upgrade path exercised" among the non-goals.

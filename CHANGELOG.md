@@ -38,6 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without a weights cache, minutes rather than 57 s. The kind rehearsal seeds
   its control plane Cold, which kept it out of replacement; it is now a
   possible target, ranked last.
+- **Warmth is derived from the VllmServices the cluster runs (ADR-0011
+  D1).** For a fleet of model M, a node reads Warm when a Ready VllmService
+  of M is pinned to it, Warming when one is Warming, and Cold otherwise. The
+  fleet's own children do not count: they already count as load, and as
+  warmth they would pull every new replica onto the node the fleet already
+  uses. The planner ranks on the warmer of that and NodeState warmth, so
+  runs that seed warmth by hand rank as before, and `decidedOn.warmth`
+  records the combined value. If the VllmServices cannot be listed, that
+  reconcile ranks on NodeState warmth alone.
 
 ### Fixed
 
