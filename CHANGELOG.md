@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   image built in that job. Ready alone is not enough: without the load, the
   node pulls the published image with the same tag and the example still
   becomes Ready.
+- **A FleetService with no candidate node says so in its status (ADR-0011
+  D4).** It returned before writing any status, so its PHASE stayed empty
+  and only the operator log explained why. It now writes a `message`, shown
+  by `kubectl get -o wide`, plus a first phase for a fleet that has none; the
+  next full status write clears the message. The status fields are now
+  optional in the schema, with defaults, so that partial write can be read
+  back.
 
 ### Changed
 

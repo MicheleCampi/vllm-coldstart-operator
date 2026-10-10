@@ -1,6 +1,6 @@
 # ADR-0011: Warmth is derived from what the cluster runs, and the node pool selector defines the candidates
 
-Status: Accepted; D1 and D2 implemented, D3 and D4 not yet (see postscripts)
+Status: Accepted; D1, D2 and D4 implemented, D3 not yet (see postscripts)
 Date: 2026-10-10
 
 ## Context
@@ -217,3 +217,24 @@ cluster with two workers, as 7b563bd's message records.
 
 D3 and D4 are not implemented. "What this ADR does not prove" still holds,
 for D1 and D2 as for the rest: none of it has been run on GPUs.
+
+## Postscript, 2026-10-10 — D4 implemented before D3
+
+D4 comes first because D3 needs it. Under D3 a fleet whose selector admits
+no Node has no candidate, and such a fleet used to return before writing any
+status. The CI e2e step "The node pool selector decides where a fleet may
+place" asserts phase `Placing` for exactly that fleet, and would fail.
+
+The early return writes the message and, for a fleet with no phase yet, a
+first phase and desired count. A full status write there would report as
+gone the children a fleet has already placed. That partial write needs every
+`FleetServiceStatus` field to deserialize when absent, so the four that did
+not (`phase`, `readyReplicas`, `desiredReplicas`, `activeReschedules`) gained
+serde defaults; without one, reading the fleet back fails with "missing field
+`readyReplicas`". The schema now carries those defaults and the API server
+applies them on write: a fleet with no candidate reads `readyReplicas: 0`
+and `placements: []`, which is what it has.
+
+Covered by a unit test and by the CI e2e step "A fleet with no candidate
+says why in its status (ADR-0011 D4)", which fails against the operator built
+from main (eec3c9e) and passes with this change.

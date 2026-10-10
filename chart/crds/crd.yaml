@@ -177,6 +177,10 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - jsonPath: .status.message
+      name: Message
+      priority: 1
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -346,13 +350,23 @@ spec:
             nullable: true
             properties:
               activeReschedules:
+                default: 0
                 description: Counter backing the max_concurrent_reschedules cap.
                 format: int32
                 type: integer
               desiredReplicas:
+                default: 0
                 format: int32
                 type: integer
+              message:
+                default: ''
+                description: |-
+                  ADR-0011 D4: why the fleet cannot place, when it cannot; empty
+                  otherwise. Every full status write sets it empty, so a merge patch
+                  clears a reason that no longer holds.
+                type: string
               phase:
+                default: ''
                 description: 'Aggregated phase: worst-case across all placements.'
                 type: string
               placements:
@@ -440,6 +454,7 @@ spec:
                   type: object
                 type: array
               readyReplicas:
+                default: 0
                 format: int32
                 type: integer
               replicas:
@@ -461,11 +476,6 @@ spec:
                   what will serve without scaling further.
                 format: int32
                 type: integer
-            required:
-            - activeReschedules
-            - desiredReplicas
-            - phase
-            - readyReplicas
             type: object
         required:
         - spec

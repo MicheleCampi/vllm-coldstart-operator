@@ -244,6 +244,23 @@ pub async fn reconcile(
             "FleetService '{}': no reported NodeState objects, nothing to place",
             name
         );
+        // ADR-0011 D4: say why in the status. Only the message, plus a first
+        // phase and desired count for a fleet that has none yet: children a
+        // fleet already placed may still be running, and a full status write
+        // here would report them gone.
+        let mut status = json!({ "message": "no candidate node: no NodeState has a status" });
+        if fleet.status.as_ref().is_none_or(|s| s.phase.is_empty()) {
+            status["phase"] = json!(fleet_phase_for(fleet.spec.replicas, 0, false));
+            status["desiredReplicas"] = json!(fleet.spec.replicas);
+        }
+        let fleets: Api<FleetService> = Api::namespaced(ctx.client.clone(), &ns);
+        fleets
+            .patch_status(
+                &name,
+                &PatchParams::default(),
+                &Patch::Merge(&json!({ "status": status })),
+            )
+            .await?;
         return Ok(Action::requeue(REQUEUE));
     }
 
@@ -743,6 +760,7 @@ pub async fn reconcile(
             warming_replicas,
             active_reschedules,
             placements,
+            message: String::new(),
         }
     });
     fleets

@@ -425,6 +425,61 @@ jobs:
           kubectl patch nodestate "$NODE" --subresource=status --type=merge -p '{"status":{"warmth":"Warm"}}'
           echo "slots 0 and 1 decided Cold (the fleet's own replica does not count), slot 2 Warm (a pinned d1-model service)"
 
+      - name: A fleet with no candidate says why in its status (ADR-0011 D4)
+        # With no NodeState the fleet has no candidate. It must still publish
+        # a phase and a message, and the message must clear once a candidate
+        # appears. The NodeState is recreated as the seed step made it.
+        run: |
+          NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          kubectl delete nodestate "$NODE" --wait=true
+          kubectl apply -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: FleetService
+          metadata:
+            name: d4-fleet
+            namespace: default
+          spec:
+            model: d4-model
+            replicas: 1
+            template:
+              gpu: 0
+              healthPath: ""
+              image: registry.k8s.io/pause:3.10
+          EOF
+          phase=""
+          for i in $(seq 1 20); do
+            phase=$(kubectl get fleetservice d4-fleet -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            [ -n "$phase" ] && break
+            sleep 1
+          done
+          [ "$phase" = "Placing" ] || { echo "ERROR: phase is '$phase', want Placing"; exit 1; }
+          msg=$(kubectl get fleetservice d4-fleet -o jsonpath='{.status.message}')
+          case "$msg" in *"no candidate node"*) ;; *) echo "ERROR: message is '$msg'"; exit 1 ;; esac
+          kubectl get fleetservice d4-fleet -o wide | head -n 1 | grep -q MESSAGE || { echo "ERROR: no MESSAGE column with -o wide"; exit 1; }
+          if kubectl get vllmservice d4-fleet-0 >/dev/null 2>&1; then
+            echo "ERROR: d4-fleet placed with no candidate"; exit 1
+          fi
+
+          kubectl create -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: NodeState
+          metadata:
+            name: $NODE
+          spec: {}
+          EOF
+          kubectl patch nodestate "$NODE" --subresource=status --type=merge -p '{"status":{"warmth":"Warm"}}'
+          msg="unset"; placed=""
+          for i in $(seq 1 40); do
+            msg=$(kubectl get fleetservice d4-fleet -o jsonpath='{.status.message}')
+            placed=$(kubectl get fleetservice d4-fleet -o jsonpath='{.status.placements[*].nodeRef}')
+            [ -z "$msg" ] && [ "$placed" = "$NODE" ] && break
+            sleep 3
+          done
+          [ -z "$msg" ] || { echo "ERROR: message '$msg' still set once a candidate exists"; exit 1; }
+          [ "$placed" = "$NODE" ] || { echo "ERROR: placements report '$placed' once a candidate exists"; exit 1; }
+          kubectl delete fleetservice d4-fleet --wait=true
+          echo "no candidate: Placing with a message; once a NodeState exists the fleet places and the message clears"
+
       - name: Restart the operator over live children
         run: |
           # ADR-0008 lists "no upgrade path exercised" among the non-goals.

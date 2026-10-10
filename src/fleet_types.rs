@@ -27,7 +27,8 @@ use serde::{Deserialize, Serialize};
     printcolumn = r#"{"name":"Desired","type":"integer","jsonPath":".status.desiredReplicas"}"#,
     printcolumn = r#"{"name":"Ready","type":"integer","jsonPath":".status.readyReplicas"}"#,
     printcolumn = r#"{"name":"Warming","type":"integer","jsonPath":".status.warmingReplicas"}"#,
-    printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#
+    printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#,
+    printcolumn = r#"{"name":"Message","type":"string","priority":1,"jsonPath":".status.message"}"#
 )]
 #[serde(rename_all = "camelCase")]
 pub struct FleetServiceSpec {
@@ -186,8 +187,11 @@ fn default_max_concurrent_reschedules() -> i32 {
 #[serde(rename_all = "camelCase")]
 pub struct FleetServiceStatus {
     /// Aggregated phase: worst-case across all placements.
+    #[serde(default)]
     pub phase: String,
+    #[serde(default)]
     pub ready_replicas: i32,
+    #[serde(default)]
     pub desired_replicas: i32,
     /// ADR-0009 D1/D3: live placements whatever their phase. This is the
     /// scale subresource's status path, so it must report what exists, not
@@ -203,9 +207,15 @@ pub struct FleetServiceStatus {
     #[serde(default)]
     pub warming_replicas: i32,
     /// Counter backing the max_concurrent_reschedules cap.
+    #[serde(default)]
     pub active_reschedules: i32,
     #[serde(default)]
     pub placements: Vec<PlacementStatus>,
+    /// ADR-0011 D4: why the fleet cannot place, when it cannot; empty
+    /// otherwise. Every full status write sets it empty, so a merge patch
+    /// clears a reason that no longer holds.
+    #[serde(default)]
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -455,6 +465,20 @@ pub struct NodeStateStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn status_with_only_phase_and_message_deserializes() {
+        // ADR-0011 D4: a fleet with no candidate gets a merge patch carrying
+        // only these two fields. Without serde defaults on the rest, the
+        // controller could no longer read that FleetService back.
+        let s: FleetServiceStatus =
+            serde_json::from_str(r#"{"phase":"Placing","message":"no candidate node"}"#)
+                .expect("a partial status must deserialize");
+        assert_eq!(s.phase, "Placing");
+        assert_eq!(s.message, "no candidate node");
+        assert_eq!(s.ready_replicas, 0);
+        assert!(s.placements.is_empty());
+    }
 
     #[test]
     fn surplus_counter_resets_when_slot_is_back_in_range() {
