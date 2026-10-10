@@ -480,6 +480,73 @@ jobs:
           kubectl delete fleetservice d4-fleet --wait=true
           echo "no candidate: Placing with a message; once a NodeState exists the fleet places and the message clears"
 
+      - name: The node pool selector defines the candidates (ADR-0011 D3)
+        # With a selector the candidates are the Nodes it admits, so a fleet
+        # places with no NodeState at all; a cordoned Node is no candidate.
+        # The NodeState is recreated as the seed step made it.
+        run: |
+          NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          HOST=$(kubectl get node "$NODE" -o jsonpath='{.metadata.labels.kubernetes\.io/hostname}')
+          [ -n "$HOST" ] || { echo "ERROR: node $NODE has no kubernetes.io/hostname label"; exit 1; }
+          kubectl delete nodestate "$NODE" --wait=true
+          fleet() {
+            kubectl apply -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: FleetService
+          metadata:
+            name: $1
+            namespace: default
+          spec:
+            model: d3-model
+            replicas: 1
+            nodePool:
+              selector:
+                "kubernetes.io/hostname": "$HOST"
+            template:
+              gpu: 0
+              healthPath: ""
+              image: registry.k8s.io/pause:3.10
+          EOF
+          }
+
+          fleet d3-fleet
+          phase=""
+          for i in $(seq 1 40); do
+            phase=$(kubectl get fleetservice d3-fleet -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            [ "$phase" = "Ready" ] && break
+            sleep 3
+          done
+          [ "$phase" = "Ready" ] || { echo "ERROR: d3-fleet phase is '$phase' with no NodeState, want Ready"; exit 1; }
+          pin=$(kubectl get vllmservice d3-fleet-0 -o jsonpath='{.spec.nodeName}')
+          [ "$pin" = "$NODE" ] || { echo "ERROR: d3-fleet child pinned to '$pin', node is '$NODE'"; exit 1; }
+
+          kubectl cordon "$NODE"
+          fleet d3-cordoned
+          phase=""
+          for i in $(seq 1 20); do
+            phase=$(kubectl get fleetservice d3-cordoned -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            [ -n "$phase" ] && break
+            sleep 1
+          done
+          msg=$(kubectl get fleetservice d3-cordoned -o jsonpath='{.status.message}')
+          kubectl uncordon "$NODE"
+          [ "$phase" = "Placing" ] || { echo "ERROR: d3-cordoned phase is '$phase', want Placing"; exit 1; }
+          case "$msg" in *"admits none of the schedulable Nodes"*) ;; *) echo "ERROR: d3-cordoned message is '$msg'"; exit 1 ;; esac
+          if kubectl get vllmservice d3-cordoned-0 >/dev/null 2>&1; then
+            echo "ERROR: d3-cordoned placed on a cordoned node"; exit 1
+          fi
+
+          kubectl delete fleetservice d3-fleet d3-cordoned --wait=true
+          kubectl create -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: NodeState
+          metadata:
+            name: $NODE
+          spec: {}
+          EOF
+          kubectl patch nodestate "$NODE" --subresource=status --type=merge -p '{"status":{"warmth":"Warm"}}'
+          echo "with no NodeState d3-fleet placed on $NODE through the selector; cordoned, the node was no candidate"
+
       - name: Restart the operator over live children
         run: |
           # ADR-0008 lists "no upgrade path exercised" among the non-goals.

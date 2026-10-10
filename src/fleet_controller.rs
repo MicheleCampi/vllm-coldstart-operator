@@ -160,6 +160,50 @@ fn candidates_by_node(states: &[NodeState], now: DateTime<Utc>) -> BTreeMap<Stri
     out
 }
 
+/// ADR-0011 D3: a Node the selector admits that has no NodeState with a
+/// status. Every measured signal is absent rather than zero, and warmth is
+/// Cold until D1 folds in what the cluster runs.
+fn bare_candidate(name: String) -> NodeCandidate {
+    NodeCandidate {
+        name,
+        warmth: Default::default(),
+        gpu_utilization: None,
+        active_service_count: None,
+        kv_cache_hit_rate: None,
+        kv_cache_hit_rate_age_secs: None,
+        tokens_per_joule: None,
+        tokens_per_joule_age_secs: None,
+    }
+}
+
+/// ADR-0011 D3: the candidates when a node pool selector is set. The Nodes it
+/// admits, without those marked unschedulable (`spec.unschedulable`, what
+/// `kubectl cordon` sets); each takes the signals of the NodeState of its name
+/// when there is one, and is a bare candidate otherwise. Taints are left to
+/// the scheduler: the operator cannot know the tolerations the final Pod gets.
+fn selector_candidates(
+    nodes: &[Node],
+    selector: &BTreeMap<String, String>,
+    mut by_node: BTreeMap<String, NodeCandidate>,
+) -> Vec<NodeCandidate> {
+    nodes
+        .iter()
+        .filter(|n| matches_node_pool(n.metadata.labels.as_ref(), selector))
+        .filter(|n| {
+            !n.spec
+                .as_ref()
+                .and_then(|s| s.unschedulable)
+                .unwrap_or(false)
+        })
+        .map(|n| {
+            let node = n.name_any();
+            by_node
+                .remove(&node)
+                .unwrap_or_else(|| bare_candidate(node))
+        })
+        .collect()
+}
+
 /// Number of this fleet's own placements currently pinned to each node.
 /// The controller knows where it has already placed; that knowledge must not
 /// depend on an external reporter refreshing NodeState.activeServiceCount in
@@ -239,9 +283,74 @@ pub async fn reconcile(
     // Reading it per candidate would give two nodes different notions of "now"
     // within the same decision, which is a difference the ordering could see.
     let now = Utc::now();
-    let candidates: Vec<NodeCandidate> = candidates_by_node(&states.items, now)
-        .into_values()
-        .collect();
+    let gpu_request = fleet.spec.template.gpu;
+    let selector = &fleet.spec.node_pool.selector;
+    // Nodes are read once, when either filter needs them: ADR-0008 D3
+    // capacity for a fleet that requests GPUs, or the node pool selector when
+    // one is set. On a read failure each filter applies its own rule below.
+    let nodes: Option<Vec<Node>> = if gpu_request > 0 || !selector.is_empty() {
+        let api: Api<Node> = Api::all(ctx.client.clone());
+        match api.list(&Default::default()).await {
+            Ok(list) => Some(list.items),
+            Err(e) => {
+                if gpu_request > 0 {
+                    // Keeping every node is deliberate: turning a read failure into
+                    // "no node has capacity" would take the fleet down over an API
+                    // hiccup, a worse outcome than the Pending pod D3 prevents.
+                    warn!(
+                        "FleetService '{}': could not read node capacity ({e}); \
+                         placing without the D3 filter this reconcile",
+                        name
+                    );
+                }
+                if !selector.is_empty() {
+                    warn!(
+                        "FleetService '{}': could not read node labels ({e}); \
+                         the node pool selector admits no node this reconcile",
+                        name
+                    );
+                }
+                None
+            }
+        }
+    } else {
+        None
+    };
+    // ADR-0008 D3: allocatable GPUs per node, read once. A node that cannot run
+    // the pod is not a candidate — placing there yields a Pending pod and no
+    // error at all, which is the silent failure D3 exists to prevent.
+    let allocatable: BTreeMap<String, Option<i64>> = match (&nodes, gpu_request > 0) {
+        (Some(list), true) => list
+            .iter()
+            .map(|n| {
+                // "No nvidia.com/gpu key" and "could not read this node"
+                // are different facts and must not collapse onto the same
+                // value. A node that publishes an allocatable map without
+                // the key is stating it has no GPUs — that is zero, not
+                // unknown. Only a node with no allocatable map at all is
+                // unknown, and unknown is what keeps a node in the set.
+                let gpus = match n.status.as_ref().and_then(|s| s.allocatable.as_ref()) {
+                    None => None,
+                    Some(a) => match a.get("nvidia.com/gpu") {
+                        None => Some(0),
+                        Some(q) => q.0.parse::<i64>().ok(),
+                    },
+                };
+                (n.name_any(), gpus)
+            })
+            .collect(),
+        _ => BTreeMap::new(),
+    };
+    // ADR-0011 D3: with a node pool selector the candidates are the Nodes it
+    // admits, minus those marked unschedulable; with none, the NodeStates that
+    // have a status, as before. If the Nodes could not be read the selector
+    // admits none, since matches_node_pool never admits a node it cannot see.
+    let by_node = candidates_by_node(&states.items, now);
+    let candidates: Vec<NodeCandidate> = if selector.is_empty() {
+        by_node.into_values().collect()
+    } else {
+        selector_candidates(nodes.as_deref().unwrap_or_default(), selector, by_node)
+    };
 
     // Nodes that signalled a spot preemption notice. This is the only trigger
     // for a reschedule in v1 (ADR-0005 dec.1): warmth changes and node
@@ -258,15 +367,26 @@ pub async fn reconcile(
         .collect();
 
     if candidates.is_empty() {
-        warn!(
-            "FleetService '{}': no reported NodeState objects, nothing to place",
-            name
-        );
+        let reason = if selector.is_empty() {
+            warn!(
+                "FleetService '{}': no reported NodeState objects, nothing to place",
+                name
+            );
+            "no candidate node: no NodeState has a status, and nodePool.selector is empty"
+                .to_string()
+        } else {
+            warn!(
+                "FleetService '{}': node pool selector {:?} admits none of the \
+                 schedulable Nodes, nothing to place",
+                name, selector
+            );
+            "no candidate node: nodePool.selector admits none of the schedulable Nodes".to_string()
+        };
         // ADR-0011 D4: say why in the status. Only the message, plus a first
         // phase and desired count for a fleet that has none yet: children a
         // fleet already placed may still be running, and a full status write
         // here would report them gone.
-        let mut status = json!({ "message": "no candidate node: no NodeState has a status" });
+        let mut status = json!({ "message": reason });
         if fleet.status.as_ref().is_none_or(|s| s.phase.is_empty()) {
             status["phase"] = json!(fleet_phase_for(fleet.spec.replicas, 0, false));
             status["desiredReplicas"] = json!(fleet.spec.replicas);
@@ -459,97 +579,11 @@ pub async fn reconcile(
     // draining and is not a safe destination. select_replacement_node already
     // drops the single node passed to it; filtering the whole preempted set
     // here closes the multi-node case.
-    // ADR-0008 D3: allocatable GPUs per node, read once. A node that cannot run
-    // the pod is not a candidate — placing there yields a Pending pod and no
-    // error at all, which is the silent failure D3 exists to prevent.
-    let gpu_request = fleet.spec.template.gpu;
-    let selector = &fleet.spec.node_pool.selector;
-    // Nodes are read once, when either filter needs them: ADR-0008 D3
-    // capacity for a fleet that requests GPUs, or the node pool selector when
-    // one is set. On a read failure each filter applies its own rule below.
-    let nodes: Option<Vec<Node>> = if gpu_request > 0 || !selector.is_empty() {
-        let api: Api<Node> = Api::all(ctx.client.clone());
-        match api.list(&Default::default()).await {
-            Ok(list) => Some(list.items),
-            Err(e) => {
-                if gpu_request > 0 {
-                    // Keeping every node is deliberate: turning a read failure into
-                    // "no node has capacity" would take the fleet down over an API
-                    // hiccup, a worse outcome than the Pending pod D3 prevents.
-                    warn!(
-                        "FleetService '{}': could not read node capacity ({e}); \
-                         placing without the D3 filter this reconcile",
-                        name
-                    );
-                }
-                if !selector.is_empty() {
-                    warn!(
-                        "FleetService '{}': could not read node labels ({e}); \
-                         the node pool selector admits no node this reconcile",
-                        name
-                    );
-                }
-                None
-            }
-        }
-    } else {
-        None
-    };
-    // ADR-0008 D3: allocatable GPUs per node, read once. A node that cannot run
-    // the pod is not a candidate — placing there yields a Pending pod and no
-    // error at all, which is the silent failure D3 exists to prevent.
-    let allocatable: BTreeMap<String, Option<i64>> = match (&nodes, gpu_request > 0) {
-        (Some(list), true) => list
-            .iter()
-            .map(|n| {
-                // "No nvidia.com/gpu key" and "could not read this node"
-                // are different facts and must not collapse onto the same
-                // value. A node that publishes an allocatable map without
-                // the key is stating it has no GPUs — that is zero, not
-                // unknown. Only a node with no allocatable map at all is
-                // unknown, and unknown is what keeps a node in the set.
-                let gpus = match n.status.as_ref().and_then(|s| s.allocatable.as_ref()) {
-                    None => None,
-                    Some(a) => match a.get("nvidia.com/gpu") {
-                        None => Some(0),
-                        Some(q) => q.0.parse::<i64>().ok(),
-                    },
-                };
-                (n.name_any(), gpus)
-            })
-            .collect(),
-        _ => BTreeMap::new(),
-    };
-    // Node pool selector: labels per node. A node absent from this map, or
-    // every node when the read failed, is unknown, and matches_node_pool does
-    // not admit an unknown node while a selector is set.
-    let labels: BTreeMap<String, BTreeMap<String, String>> = nodes
-        .as_ref()
-        .map(|list| {
-            list.iter()
-                .map(|n| (n.name_any(), n.metadata.labels.clone().unwrap_or_default()))
-                .collect()
-        })
-        .unwrap_or_default();
-    if !selector.is_empty()
-        && !candidates
-            .iter()
-            .any(|c| matches_node_pool(labels.get(&c.name), selector))
-    {
-        warn!(
-            "FleetService '{}': node pool selector {:?} admits none of {} candidate node(s); \
-             new placements wait for a matching node",
-            name,
-            selector,
-            candidates.len()
-        );
-    }
 
     let healthy_candidates: Vec<NodeCandidate> = candidates
         .iter()
         .filter(|c| !preempted.contains(c.name.as_str()))
         .filter(|c| has_capacity_for(allocatable.get(&c.name).copied().flatten(), gpu_request))
-        .filter(|c| matches_node_pool(labels.get(&c.name), selector))
         .cloned()
         .collect();
 
@@ -854,6 +888,52 @@ pub async fn run(client: Client, metrics: Metrics) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selector_defines_candidates_from_nodes() {
+        use k8s_openapi::api::core::v1::NodeSpec;
+        use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+        // ADR-0011 D3. Labels and spec.unschedulable are what the scheduler
+        // and `kubectl cordon` act on; a NodeState with no Node of its name
+        // is not a candidate once a selector is set.
+        let node = |name: &str, pool: &str, cordoned: bool| Node {
+            metadata: ObjectMeta {
+                name: Some(name.to_string()),
+                labels: Some([("pool".to_string(), pool.to_string())].into()),
+                ..Default::default()
+            },
+            spec: Some(NodeSpec {
+                unschedulable: Some(cordoned),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let nodes = vec![
+            node("with-state", "gpu", false),
+            node("bare", "gpu", false),
+            node("cordoned", "gpu", true),
+            node("other-pool", "cpu", false),
+        ];
+        let selector: BTreeMap<String, String> = [("pool".to_string(), "gpu".to_string())].into();
+        let mut by_node = BTreeMap::new();
+        by_node.insert(
+            "with-state".to_string(),
+            NodeCandidate {
+                gpu_utilization: Some(0.4),
+                ..bare_candidate("with-state".to_string())
+            },
+        );
+        by_node.insert(
+            "not-a-node".to_string(),
+            bare_candidate("not-a-node".to_string()),
+        );
+        let c = selector_candidates(&nodes, &selector, by_node);
+        let names: Vec<&str> = c.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["with-state", "bare"]);
+        assert_eq!(c[0].gpu_utilization, Some(0.4));
+        assert_eq!(c[1].gpu_utilization, None);
+        assert_eq!(c[1].active_service_count, None);
+    }
 
     #[test]
     fn one_candidate_per_node_when_node_states_share_a_name() {

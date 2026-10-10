@@ -54,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runs that seed warmth by hand rank as before, and `decidedOn.warmth`
   records the combined value. If the VllmServices cannot be listed, that
   reconcile ranks on NodeState warmth alone.
+- **With `nodePool.selector` set, the candidates are the Nodes it admits
+  (ADR-0011 D3).** They were the NodeStates with a status, which only the
+  reporter creates, so a fleet on a chart with its defaults placed nothing.
+  A selected Node without a NodeState is now a candidate with every measured
+  signal absent; Nodes marked unschedulable (`kubectl cordon`) are not, and
+  taints are left to the scheduler. A fleet whose selector admits no
+  schedulable Node places nothing and says so in its status. Without a
+  selector the candidates are the NodeStates, as before.
 
 ### Fixed
 
@@ -69,6 +77,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the selector. A fleet whose selector no node satisfies, which placed
   until now, stops placing new replicas. `spotPolicy` remains
   unimplemented, and the schema now says so.
+- **A node with two NodeStates is one candidate.** NodeState is namespaced,
+  so the reporter's and a hand-made one can share a name, and both became
+  candidates: the planner counted that node twice. The one in the
+  lexicographically first namespace that has a status now lends its
+  signals, whatever order they are listed in; a preemption notice on either
+  still counts.
 
 ## [0.4.0] — 2026-10-08
 

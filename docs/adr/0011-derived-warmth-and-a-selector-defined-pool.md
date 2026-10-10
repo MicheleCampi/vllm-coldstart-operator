@@ -1,6 +1,6 @@
 # ADR-0011: Warmth is derived from what the cluster runs, and the node pool selector defines the candidates
 
-Status: Accepted; D1, D2 and D4 implemented, D3 not yet (see postscripts)
+Status: Accepted; implemented as amended (see postscripts)
 Date: 2026-10-10
 
 ## Context
@@ -238,3 +238,29 @@ and `placements: []`, which is what it has.
 Covered by a unit test and by the CI e2e step "A fleet with no candidate
 says why in its status (ADR-0011 D4)", which fails against the operator built
 from main (eec3c9e) and passes with this change.
+
+## Postscript, 2026-10-10 — D3 implemented; the ADR is implemented
+
+D3 is implemented in the same pull request as this postscript. With a
+selector set, the candidates are the Nodes it admits that are not marked
+unschedulable, each with the signals of the NodeState of its name or with
+every signal absent; without one, they are the NodeStates. The Node read
+moved above the construction of the candidates, and the selector filter
+applied to them afterwards went with its warning: the status message of D4
+now says what the warning said.
+
+Implementing it showed one more thing D3 needed. NodeState is namespaced, so
+two with one name can coexist, and both became candidates for the same node.
+One per node now lends its signals, from the lexicographically first
+namespace that has a status; a preemption notice counts from any of them.
+
+Covered by unit tests and by the CI e2e step "The node pool selector defines
+the candidates (ADR-0011 D3)": with no NodeState, a fleet whose selector
+admits the node reaches Ready; with the node cordoned, a second fleet stays
+Placing with a message. The step fails against the operator built from main
+(924d67a), and the whole e2e job passes when run locally from the workflow
+text.
+
+"What this ADR does not prove" still holds: none of it has run on GPUs, and
+no replacement onto a node Cold for the model has been timed against a real
+spot notice.

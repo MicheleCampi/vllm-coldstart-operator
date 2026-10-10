@@ -65,10 +65,12 @@ logLevel: "info,kube=warn"
 
 reporter:
   # -- Deploy the per-node signal reporter DaemonSet (ADR-0007 D2). It is the
-  #    only component that creates NodeState objects, and a FleetService
-  #    places only onto nodes whose NodeState has a status. With the reporter
-  #    off and no NodeState created by hand (the e2e job seeds one), a fleet
-  #    places nothing and the operator logs "no reported NodeState objects".
+  #    only component that creates NodeState objects. A FleetService with a
+  #    nodePool.selector takes its candidates from the Nodes the selector
+  #    admits and needs no NodeState (ADR-0011 D3). Without a selector it
+  #    places only onto nodes whose NodeState has a status: with the reporter
+  #    off and no NodeState created by hand (the e2e job seeds one), it places
+  #    nothing and its status message says why.
   #    Off by default, so an upgrade changes nothing. A NodeState that lacks
   #    an efficiency signal is still a candidate: the planner ranks without it.
   enabled: false

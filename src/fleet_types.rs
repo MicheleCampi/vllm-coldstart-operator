@@ -39,8 +39,9 @@ pub struct FleetServiceSpec {
     /// VllmService template applied to every placement. Same shape as
     /// VllmServiceSpec minus `model`/`replicas`, which the fleet controls.
     pub template: FleetServiceTemplate,
-    /// Node pool this fleet may place onto. `selector` is honoured for new
-    /// placements and replacements; `spotPolicy` is reserved and not read.
+    /// Node pool this fleet may place onto. When `selector` is set, the
+    /// candidates are the Nodes it admits (ADR-0011 D3); `spotPolicy` is
+    /// reserved and not read.
     #[serde(default)]
     pub node_pool: NodePoolSpec,
     /// Placement strategy. WarmthFirst (default) and EfficiencyAware
@@ -79,12 +80,13 @@ pub struct FleetServiceTemplate {
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct NodePoolSpec {
-    /// Labels a node must carry, each with the listed value, for this fleet to
-    /// place a new replica or a replacement there: the semantics of a Pod's
-    /// nodeSelector. Empty, the default, admits every node. Existing
-    /// placements are not moved when it changes. While it is set, a node whose
-    /// labels cannot be read is not admitted. A fleet that no node admits stays
-    /// Placing, and the operator logs which selector admitted nothing.
+    /// Labels a node must carry, each with the listed value: the semantics of
+    /// a Pod's nodeSelector. When set, the candidates are the Nodes it admits
+    /// that are not marked unschedulable, with or without a NodeState; if the
+    /// Nodes cannot be read, it admits none. Empty, the default, the candidates
+    /// are the nodes with a NodeState. Taints are left to the scheduler.
+    /// Existing placements are not moved when it changes. A fleet that no node
+    /// admits stays Placing, and its status message and the operator log say so.
     #[serde(default)]
     pub selector: std::collections::BTreeMap<String, String>,
     /// Reserved: accepted and defaulted, not read by the controller. No

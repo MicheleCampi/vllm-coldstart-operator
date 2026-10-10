@@ -119,7 +119,7 @@ spec:
     extraArgs: ["--max-model-len", "4096", "--gpu-memory-utilization", "0.90"]
 ```
 
-The fleet controller places child `VllmService`s across nodes using **warmth-first placement** (per-node `NodeState` resources carry warmth, GPU utilization and spot status; the reporter DaemonSet writes the measured signals, and nothing in the operator writes warmth or the preemption notice: wherever they are set in this repo, they are set by hand), reacts to preemption notices with the surge-first sequence measured above, caps concurrent reschedules (`hysteresis`) to prevent thundering herds, and falls back to `drain-and-hold` when no healthy target exists. Reconciliation reads its own child resources as the source of truth, which eliminates oscillation from stale external state.
+The fleet controller places child `VllmService`s across nodes using **warmth-first placement** (the candidates are the Nodes `nodePool.selector` admits when it is set, otherwise the nodes with a `NodeState`; a node's warmth for the fleet's model is derived from the `VllmService`s the cluster runs there, and a `NodeState` can raise it; the reporter DaemonSet writes the measured signals into `NodeState`, and the preemption notice is set by hand wherever it is set in this repo; see ADR-0011), reacts to preemption notices with the surge-first sequence measured above, caps concurrent reschedules (`hysteresis`) to prevent thundering herds, and falls back to `drain-and-hold` when no healthy target exists. Reconciliation reads its own child resources as the source of truth, which eliminates oscillation from stale external state.
 
 ## Architecture
 
@@ -221,7 +221,7 @@ This section stays honest about boundaries, because the value is in what is actu
 
 ## Testing & CI
 
-- **Unit tests** (82: 61 lib, 8 reporter, 8 operator binary, plus 5 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
+- **Unit tests** (84: 61 lib, 8 reporter, 10 operator binary, plus 5 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
 - **End-to-end CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) on every push: `fmt --check` + `clippy -D warnings` + tests + release build, plus an ephemeral kind cluster that installs the CRDs, runs the operator, applies a `VllmService`, and asserts the full lifecycle with bounded polling (convergence, not timing luck). A separate job builds the operator image, loads it into its own kind cluster, installs the chart with its defaults, waits for the example `VllmService` to be Ready, and checks that the operator pod runs the image built in that job rather than a published one with the same tag.
 
 ## Roadmap
