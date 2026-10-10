@@ -29,6 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   toolchain check in CI now covers `rust-version` too.
 - **The Helm release used by CI is declared once**, with its SHA-256, in the
   workflow `env`.
+- **A preemption replacement may go to a node that is Cold for the fleet's
+  model (ADR-0011 D2).** `select_replacement_node` dropped Cold survivors,
+  so with no Warm or Warming node left the replica drained and held. Warmth
+  now only orders the survivors; eligibility is the caller's filters
+  (preemption notice, GPU capacity, node pool selector), and drain-and-hold
+  remains for a replica they leave no target for. A Cold node starts slower:
+  without a weights cache, minutes rather than 57 s. The kind rehearsal seeds
+  its control plane Cold, which kept it out of replacement; it is now a
+  possible target, ranked last.
 
 ### Fixed
 

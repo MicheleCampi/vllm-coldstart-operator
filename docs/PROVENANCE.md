@@ -109,3 +109,11 @@ serving / preempted / warm spare), real vLLM pods under saturating load,
 are locked and rehearsed. Known gaps deliberately deferred: scale-down
 leaves orphan children; Helm chart RBAC/CRDs predate the fleet controller;
 placement timestamps are written empty (hysteresis deferred, ADR-0005).
+
+## Later changes
+
+- 2026-10-10, ADR-0011 D2: `select_replacement_node` no longer rejects Cold
+  survivors. "What the preemption pass does" describes the pass as it was
+  built and validated here, "rejecting Cold". Since D2, warmth only orders the
+  survivors; a replica drains and holds when none passes the caller's filters
+  (preemption notice, GPU capacity, node pool selector).

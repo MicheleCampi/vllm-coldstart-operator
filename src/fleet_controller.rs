@@ -380,13 +380,15 @@ pub async fn reconcile(
 
     // Slots forced to Draining because their pin is preempted, plus the healthy
     // replacement chosen for them within budget. A slot with no replacement
-    // (cap exhausted, or select_replacement_node returns None because every
-    // survivor is Cold) stays pinned and drains-and-holds (ADR-0005 dec.3).
+    // (cap exhausted, or select_replacement_node returns None because no
+    // eligible survivor is left) stays pinned and drains-and-holds (ADR-0005
+    // dec.3). Eligible means passing the filters below; warmth only orders the
+    // survivors (ADR-0011 D2).
     // Replacement targets must exclude *every* preempted node, not just the one
     // being replaced: in a multi-node reclaim another preempted node is itself
     // draining and is not a safe destination. select_replacement_node already
-    // drops the single node passed to it and rejects Cold; filtering the whole
-    // preempted set here closes the multi-node case.
+    // drops the single node passed to it; filtering the whole preempted set
+    // here closes the multi-node case.
     // ADR-0008 D3: allocatable GPUs per node, read once. A node that cannot run
     // the pod is not a candidate — placing there yields a Pending pod and no
     // error at all, which is the silent failure D3 exists to prevent.

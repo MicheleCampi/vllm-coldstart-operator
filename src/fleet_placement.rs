@@ -295,10 +295,13 @@ pub fn select_node_with_strategy<'a>(
 /// the natural decision points of ADR-0007 D4, so it must honour the same
 /// strategy as initial planning or the two paths diverge semantically.
 ///
-/// Returns None when no healthy survivor exists — every remaining candidate
-/// is Cold or the candidate set is empty. The caller treats None as the
-/// drain-and-hold case (decision 3): the replica stays Draining rather than
-/// being forced onto an unsuitable node.
+/// Returns None when no survivor is left. The caller has already filtered
+/// the candidates on what makes a node unable to take the load (a preemption
+/// notice, GPU capacity, the node pool selector), so every survivor is
+/// eligible and warmth only orders them (ADR-0011 D2, amending ADR-0005
+/// decision 3). The caller treats None as the drain-and-hold case: the
+/// replica stays Draining rather than being forced onto a node outside that
+/// set.
 pub fn select_replacement_node(
     candidates: &[NodeCandidate],
     preempted_node: &str,
@@ -310,13 +313,7 @@ pub fn select_replacement_node(
         .filter(|c| c.name != preempted_node)
         .cloned()
         .collect();
-    // A Cold-only survivor set is not a healthy target: warmth-first would
-    // still pick one, so drop Cold explicitly to honour drain-and-hold.
-    let healthy: Vec<NodeCandidate> = survivors
-        .into_iter()
-        .filter(|c| !matches!(c.warmth, Warmth::Cold))
-        .collect();
-    select_node_with_strategy(&healthy, strategy, horizon_secs).map(|c| c.name.clone())
+    select_node_with_strategy(&survivors, strategy, horizon_secs).map(|c| c.name.clone())
 }
 
 #[cfg(test)]
@@ -396,13 +393,16 @@ mod tests {
     }
 
     #[test]
-    fn replacement_holds_when_only_cold_survivors() {
+    fn replacement_takes_a_cold_survivor() {
+        // ADR-0011 D2: warmth orders survivors, it does not exclude them. Cold
+        // for the fleet's model means the node starts slower, not that it
+        // cannot take the load; capacity, preemption and the pool are filtered
+        // by the caller. Equal warmth falls to the lower service count.
         let candidates = vec![
             candidate("preempted", Warmth::Warm, 0.1, 0),
-            candidate("cold-a", Warmth::Cold, 0.0, 0),
-            candidate("cold-b", Warmth::Cold, 0.0, 0),
+            candidate("cold-busy", Warmth::Cold, 0.0, 3),
+            candidate("cold-idle", Warmth::Cold, 0.0, 0),
         ];
-        // Every survivor is Cold: not a healthy target => drain-and-hold.
         assert_eq!(
             select_replacement_node(
                 &candidates,
@@ -410,7 +410,27 @@ mod tests {
                 &PlacementStrategy::WarmthFirst,
                 None
             ),
-            None
+            Some("cold-idle".to_string())
+        );
+    }
+
+    #[test]
+    fn replacement_still_prefers_a_warmer_survivor() {
+        // Warmth still dominates load: a busy Warming survivor beats an idle
+        // Cold one.
+        let candidates = vec![
+            candidate("preempted", Warmth::Warm, 0.1, 0),
+            candidate("cold-idle", Warmth::Cold, 0.0, 0),
+            candidate("warming-busy", Warmth::Warming, 0.9, 5),
+        ];
+        assert_eq!(
+            select_replacement_node(
+                &candidates,
+                "preempted",
+                &PlacementStrategy::WarmthFirst,
+                None
+            ),
+            Some("warming-busy".to_string())
         );
     }
 
