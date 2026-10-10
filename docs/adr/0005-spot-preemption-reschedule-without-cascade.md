@@ -133,3 +133,16 @@ under real saturation in the item-4 GPU validation.
   `status.spot.preemptionNoticeDetected=true` on a node carrying placements,
   observe bounded drain + replace, and the graceful-hold case by preempting
   with no healthy target available.
+
+## Postscript, 2026-10-10 — decision 3 amended by ADR-0011 D2
+
+Decision 3 counted a Cold node with the nodes that "could not take the
+load". Since ADR-0011, warmth says whether the cluster runs the fleet's
+model on a node (D1), and a replacement target is any candidate that passes
+the caller's filters: no preemption notice, GPU capacity (ADR-0008 D3), the
+node pool selector and, with a selector, schedulability. Warmth only orders
+them (D2). The reason decision 3 gives stands and is now carried by those
+filters; drain-and-hold remains for a replica with no eligible target. A
+target Cold for the model starts slower, and under a short spot notice its
+replacement may not reach Ready before the node is reclaimed (ADR-0011,
+Consequences).

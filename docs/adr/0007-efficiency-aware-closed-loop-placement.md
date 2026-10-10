@@ -256,3 +256,15 @@ doc comment on `PlacementStrategy::EfficiencyAware` in
 **References.** ADR-010, ADR-011 and ADR-013, cited in D2 and in
 Consequences, are inferscope's. This repository's ADRs are numbered 0001 to
 0010.
+
+## Postscript, 2026-10-10 — warmth is derived in the planner (ADR-0011)
+
+D2 gave warmth to the reporter: "`Warmth` is a lifecycle state and belongs
+to the reporter". The reporter never wrote it. ADR-0011 D1 derives it in
+the planner from the VllmServices the cluster runs, which fits D2's own
+demarcation line: "thresholds and quantization live in the planner (fleet
+policy)". EfficiencyAware still ranks warmth first.
+
+The postscript above says this repository's ADRs are numbered 0001 to 0010.
+Since 2026-10-10 there is an ADR-0011 as well; the ADR-011 cited in D2 is
+still inferscope's, as are ADR-010 and ADR-013.

@@ -79,3 +79,20 @@ of `Node` that D3 added was what it needed. The decisions taken with it:
 The `NodeCandidate` contract in `fleet_placement.rs` listed a spot-fraction
 filter that the caller never applied, and ADR-0008 D3 repeated it. The
 contract now names the filters the caller applies.
+
+## Postscript, 2026-10-10 — warmth is derived; the selector defines the candidates (ADR-0011)
+
+Decision 2 had "A per-node reporter writes warmth, GPU utilization, and
+spot-preemption signal to a `NodeState` object". The reporter never wrote
+warmth (ADR-0011, fact 1). ADR-0011 D1 has the planner derive a node's
+warmth for a fleet's model from the VllmServices the cluster runs there,
+not counting the fleet's own children, and rank on the higher of that and
+the NodeState's warmth. ADR-0011 D3 makes `nodePool.selector`, when set,
+define the candidates: the Nodes it admits that are not marked
+unschedulable, with or without a NodeState. NodeState still carries the
+measured signals and the preemption notice, and decision 2's reason for
+keeping them off core `Node` objects stands.
+
+The postscript above says the `NodeCandidate` contract names the filters
+the caller applies. ADR-0011 added one, the schedulability of a selected
+Node, and the contract names it as well.
