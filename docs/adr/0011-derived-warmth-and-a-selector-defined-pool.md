@@ -172,3 +172,35 @@ It is a design. Nothing in it has been implemented or run. In particular:
 - that the kind rehearsals behave as before under D2 beyond the one change
   named above: only `hack/rehearsal/seed-nodestates.sh:12` has been read for
   this ADR.
+
+## Postscript, 2026-10-10 — D1 does not count the fleet's own children
+
+Implemented as written, D1 would concentrate a fleet's replicas. A node
+hosting one of the fleet's own Ready children would read `Warm` for that
+fleet and every node without one `Cold`, and the comparator ranks warmth
+before load (ADR-0003). `plan_initial_placements` spreads a batch only by
+raising `active_service_count` after each pick, and its doc names what
+happens without that: "every slot in a batch would land on the same single
+warmest node instead of spreading across the fleet"
+(`src/fleet_planning.rs:9-11`). Warmth is not part of that bookkeeping, so
+on a scale-up every new slot would go to the node the fleet already uses:
+one failure domain and, with GPUs, Pods that may not fit, since the D3
+capacity filter reads a node's allocatable GPUs, not its free ones
+(`src/fleet_controller.rs:441`).
+
+D1 is amended: for fleet F of model M, a node's derived warmth counts only
+the VllmServices of M that are not F's own children. F's children are the
+VllmServices the controller already lists as F's, by the
+`inference.michelecampi.dev/fleet` label in F's namespace
+(`src/fleet_controller.rs:256`). F's own placements already enter the
+ranking as load, folded into `active_service_count` because "The controller
+knows where it has already placed" (`src/fleet_controller.rs:144`).
+Counting them as warmth too would count one fact twice, with opposite
+effects.
+
+What this costs: a node F has just moved a replica off keeps M's weights
+cached and still reads Cold for F, which is the limit Consequences already
+names for D1 (it sees instances, not the cache). Across fleets of the same
+model, warmth draws one fleet toward the nodes another one uses, and the
+capacity filter reading allocatable rather than free GPUs applies to that
+co-location as it applies to any.
