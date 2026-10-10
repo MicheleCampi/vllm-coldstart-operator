@@ -6,6 +6,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-10
+
+The release in which a FleetService that sets `nodePool.selector` works on
+a chart installed with its defaults. Its candidates were the NodeStates,
+which only the reporter creates and the chart leaves off, and the warmth it
+ranked on was either set by hand or the Cold a NodeState defaults to.
+ADR-0011 makes `nodePool.selector`, when set, define the
+candidates from the cluster's Nodes, derives warmth from the VllmServices
+the cluster runs, keeps warmth out of the eligibility of a replacement after
+a preemption notice, and has a fleet with no candidate say why in its
+status. `nodePool.selector` itself, in the schema since the fleet CRDs
+shipped in 0.3.0, was never read before this release.
+
+### Upgrading from 0.4.0
+
+Apply the CRDs before `helm upgrade`. Helm installs the CRDs in a chart's
+`crds/` directory but does not upgrade them, and 0.5.0 changes the
+FleetService schema: a `status.message` field, a Message column, and status
+fields that are no longer required. With the 0.4.0 schema left in place, a
+fleet with no candidate cannot write its status: the API server answers 422,
+`[status.activeReschedules: Required value, status.readyReplicas: Required
+value]`, and that fleet's reconcile fails.
+
+```bash
+git clone --branch v0.5.0 --depth 1 https://github.com/MicheleCampi/vllm-coldstart-operator
+kubectl apply -f ./vllm-coldstart-operator/chart/crds/crd.yaml
+helm upgrade vcso ./vllm-coldstart-operator/chart --namespace vllm-system --wait
+```
+
+`kubectl apply` warns that each CRD lacks the
+`kubectl.kubernetes.io/last-applied-configuration` annotation, because Helm
+created them, and adds it; the CRDs are configured all the same.
+
 ### Added
 
 - **Printer columns on all three CRDs.** `kubectl get` showed only NAME and
@@ -40,8 +73,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model (ADR-0011 D2).** `select_replacement_node` dropped Cold survivors,
   so with no Warm or Warming node left the replica drained and held. Warmth
   now only orders the survivors; eligibility is the caller's filters
-  (preemption notice, GPU capacity, node pool selector), and drain-and-hold
-  remains for a replica they leave no target for. A Cold node starts slower:
+  (preemption notice, GPU capacity, node pool selector and, with a
+  selector, a Node not marked unschedulable), and drain-and-hold remains
+  for a replica they leave no target for. A Cold node starts slower:
   without a weights cache, minutes rather than 57 s. The kind rehearsal seeds
   its control plane Cold, which kept it out of replacement; it is now a
   possible target, ranked last.
