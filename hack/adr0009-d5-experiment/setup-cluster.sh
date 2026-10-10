@@ -9,7 +9,8 @@
 # End state, asserted before exit:
 #   - kind cluster (1 control-plane + 3 workers)
 #   - operator installed by helm, reporter disabled (this experiment feeds
-#     NodeState by hand; a live reporter would overwrite the seeded warmth)
+#     NodeState by hand; a live reporter would overwrite the seeded
+#     utilisation. It never writes warmth)
 #   - three NodeStates, Warm at utilisation 0, deliberately symmetric: the
 #     placement comparator is not what D5 measures, so no node is given a
 #     reason to win

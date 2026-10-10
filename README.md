@@ -119,7 +119,7 @@ spec:
     extraArgs: ["--max-model-len", "4096", "--gpu-memory-utilization", "0.90"]
 ```
 
-The fleet controller places child `VllmService`s across nodes using **warmth-first placement** (per-node `NodeState` resources report warmth, GPU utilization and spot status), reacts to preemption notices with the surge-first sequence measured above, caps concurrent reschedules (`hysteresis`) to prevent thundering herds, and falls back to `drain-and-hold` when no healthy target exists. Reconciliation reads its own child resources as the source of truth, which eliminates oscillation from stale external state.
+The fleet controller places child `VllmService`s across nodes using **warmth-first placement** (per-node `NodeState` resources carry warmth, GPU utilization and spot status; the reporter DaemonSet writes the measured signals, and nothing in the operator writes warmth or the preemption notice: wherever they are set in this repo, they are set by hand), reacts to preemption notices with the surge-first sequence measured above, caps concurrent reschedules (`hysteresis`) to prevent thundering herds, and falls back to `drain-and-hold` when no healthy target exists. Reconciliation reads its own child resources as the source of truth, which eliminates oscillation from stale external state.
 
 ## Architecture
 
@@ -217,7 +217,7 @@ This section stays honest about boundaries, because the value is in what is actu
 
 **Driven by a real autoscaler, within a stated perimeter:** ADR-0009 exposes the `scale` subresource so an external autoscaler can drive the fleet, and nothing had tried one until [KEDA did](deploy/examples/keda). It drives this fleet **to and from zero** — queue idle, children drained in about twenty seconds; queue non-empty, fleet back under ten — because those transitions are written straight to the subresource by KEDA's scale executor (`scaleClient.Scales(ns).Update`), no HPA involved. It does **not** scale 1 to N: that path is the HPA's, and the HPA rejects a `FleetService` with `InvalidSelector`, since autoscaling wants a label query over pods and a fleet labels its children rather than their pods. Adding that label is not available either — the same map feeds the Deployment's immutable selector, which the `e2e` job asserts. A `.status.selector` would satisfy the HPA and select nothing, so it is deliberately absent. Scale-to-zero is the case this operator exists for: a replica costs ~18s to come back.
 
-**Simulated:** the preemption *notice* (status patch, as disclosed above). It is an input boundary: everything downstream of it is real. Earlier runs also seeded `NodeState` warmth and utilization by hand; the level-3 session replaced that with the reporter DaemonSet reading real hardware, so the seeding survives only in the kind rehearsals, where it is deterministic by design.
+**Simulated:** the preemption *notice* (status patch, as disclosed above). It is an input boundary: everything downstream of it is real. Node warmth is set by hand as well: no component writes it, and the level-3 session set every worker `Warm` on purpose, so that only the efficiency signals could decide (`hack/gpu-session/adr0007-ea-experiment/run_experiment.sh`). GPU utilization is what the level-3 session took from the reporter DaemonSet reading real hardware; earlier runs seeded it by hand, and that seeding survives only on kind, where it is deterministic by design.
 
 ## Testing & CI
 
