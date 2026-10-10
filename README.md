@@ -148,7 +148,7 @@ and Helm:
 
 ```bash
 kind create cluster --name vcso-release
-git clone --branch v0.4.0 --depth 1 https://github.com/MicheleCampi/vllm-coldstart-operator
+git clone --branch v0.5.0 --depth 1 https://github.com/MicheleCampi/vllm-coldstart-operator
 helm install vcso ./vllm-coldstart-operator/chart \
   --namespace vllm-system --create-namespace --wait
 kubectl wait vllmservice/ci-placeholder -n vllm-system \
@@ -158,12 +158,16 @@ kubectl get vllmservice ci-placeholder -n vllm-system \
 # Ready: 1/1 replicas ready and warm
 ```
 
+To upgrade from 0.4.0, apply the release's CRDs before `helm upgrade`, since
+Helm does not update them; the steps are in [CHANGELOG.md](CHANGELOG.md),
+under 0.5.0.
+
 The chart's defaults install the operator, its three CRDs and one
 VllmService, `ci-placeholder`: a `pause` container with no GPU and no health
 endpoint, which is Ready as soon as its pod runs. It exercises the control
 plane (reconcile, status, ownership), not inference. Verified on kind v0.30.0
 (Kubernetes v1.34.0) with Helm v3.21.0 and kubectl v1.36.1, running
-operator image `0.4.0`.
+operator image `0.5.0`.
 On Kubernetes 1.34.0, the default node image of kind v0.30.0, registering
 the CRDs prints `unrecognized format` warnings for their `int32`, `int64`
 and `float` fields. That release warned on integer and number formats by
