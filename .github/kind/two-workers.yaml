@@ -1,0 +1,8 @@
+# kind cluster for the CI preemption job: a control plane and two workers,
+# so that a replica has a node to leave and a survivor to move to.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker

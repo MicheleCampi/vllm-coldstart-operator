@@ -264,3 +264,14 @@ text.
 "What this ADR does not prove" still holds: none of it has run on GPUs, and
 no replacement onto a node Cold for the model has been timed against a real
 spot notice.
+
+## Postscript, 2026-10-10 — the preemption path is in CI
+
+The postscript on D2 and D1 says that D2's preemption path is not in CI.
+It now is: the CI job "preemption on multi-node kind" creates a kind
+cluster with two workers, places a replica on the Warm one, signals a
+preemption notice there, and asserts that the replica moves to the Cold
+one, with the fleet Ready again and a single child pod on the new node.
+Run from the workflow text, the job passes on main and fails against
+7c27c8d, the commit before D2: the replica stays on the noticed node and
+the fleet reads Degraded.

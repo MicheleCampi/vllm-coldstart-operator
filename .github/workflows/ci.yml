@@ -697,3 +697,126 @@ jobs:
           kubectl get all,vllmservice -A || true
           kubectl describe pods -n vllm-system || true
           kubectl logs -n vllm-system -l app.kubernetes.io/name=vllm-coldstart-operator --tail=200 || true
+
+  preemption:
+    name: preemption on multi-node kind
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.95
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-preemption-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build operator
+        run: cargo build --bin vllm-coldstart-operator
+
+      - name: Create kind cluster with two workers
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: preemption
+          config: .github/kind/two-workers.yaml
+
+      - name: Wait for every node and install the CRDs
+        # The action waits for the control plane only.
+        run: |
+          kubectl wait --for=condition=Ready nodes --all --timeout=180s
+          kubectl apply -f deploy/crd.yaml
+          for crd in vllmservices fleetservices nodestates; do
+            kubectl wait --for=condition=Established "crd/$crd.inference.michelecampi.dev" --timeout=30s
+          done
+
+      - name: Start operator in background
+        run: |
+          ./target/debug/vllm-coldstart-operator > operator.log 2>&1 &
+          echo $! > operator.pid
+          sleep 3
+          echo "operator started (pid $(cat operator.pid))"
+
+      - name: Place one replica on the Warm worker
+        # The first worker's NodeState is Warm, the second's Cold, so
+        # warmth-first placement starts on the first. The child's Deployment
+        # must carry the make-before-break strategy the move relies on.
+        run: |
+          read -r W1 W2 <<< "$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' -o jsonpath='{.items[*].metadata.name}')"
+          [ -n "$W1" ] && [ -n "$W2" ] || { echo "ERROR: want two workers, got '$W1' '$W2'"; exit 1; }
+          echo "W1=$W1" >> "$GITHUB_ENV"
+          echo "W2=$W2" >> "$GITHUB_ENV"
+          seed() {
+            kubectl create -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: NodeState
+          metadata:
+            name: $1
+          spec: {}
+          EOF
+            kubectl patch nodestate "$1" --subresource=status --type=merge -p "{\"status\":{\"warmth\":\"$2\"}}"
+          }
+          seed "$W1" Warm
+          seed "$W2" Cold
+          kubectl apply -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: FleetService
+          metadata:
+            name: pre-fleet
+            namespace: default
+          spec:
+            model: pre-model
+            replicas: 1
+            template:
+              gpu: 0
+              healthPath: ""
+              image: registry.k8s.io/pause:3.10
+          EOF
+          phase=""
+          for i in $(seq 1 60); do
+            phase=$(kubectl get fleetservice pre-fleet -o jsonpath='{.status.phase}' 2>/dev/null || true)
+            [ "$phase" = "Ready" ] && break
+            sleep 3
+          done
+          [ "$phase" = "Ready" ] || { echo "ERROR: pre-fleet phase is '$phase', want Ready"; exit 1; }
+          node=$(kubectl get fleetservice pre-fleet -o jsonpath='{.status.placements[0].nodeRef}')
+          [ "$node" = "$W1" ] || { echo "ERROR: placed on '$node', want the Warm worker $W1"; exit 1; }
+          strategy=$(kubectl get deployment pre-fleet-0 -o jsonpath='{.spec.strategy.rollingUpdate.maxSurge}/{.spec.strategy.rollingUpdate.maxUnavailable}')
+          [ "$strategy" = "1/0" ] || { echo "ERROR: child Deployment maxSurge/maxUnavailable is '$strategy', want 1/0"; exit 1; }
+          echo "pre-fleet Ready on $W1; child Deployment maxSurge/maxUnavailable $strategy"
+
+      - name: A preemption notice moves the replica to the Cold survivor (ADR-0005, ADR-0011 D2)
+        run: |
+          kubectl patch nodestate "$W1" --subresource=status --type=merge -p '{"status":{"spot":{"preemptionNoticeDetected":true}}}'
+          node=""; phase=""; pods=""
+          for i in $(seq 1 60); do
+            node=$(kubectl get fleetservice pre-fleet -o jsonpath='{.status.placements[0].nodeRef}')
+            phase=$(kubectl get fleetservice pre-fleet -o jsonpath='{.status.phase}')
+            pods=$(kubectl get pods -l app=pre-fleet-0 -o jsonpath='{.items[*].spec.nodeName}')
+            [ "$node" = "$W2" ] && [ "$phase" = "Ready" ] && [ "$pods" = "$W2" ] && break
+            sleep 3
+          done
+          echo "nodeRef=$node phase=$phase pods on [$pods]"
+          [ "$node" = "$W2" ] || { echo "ERROR: slot 0 is on '$node', want the Cold survivor $W2"; exit 1; }
+          pin=$(kubectl get vllmservice pre-fleet-0 -o jsonpath='{.spec.nodeName}')
+          [ "$pin" = "$W2" ] || { echo "ERROR: child pinned to '$pin', want $W2"; exit 1; }
+          [ "$phase" = "Ready" ] || { echo "ERROR: pre-fleet phase is '$phase', want Ready"; exit 1; }
+          [ "$pods" = "$W2" ] || { echo "ERROR: child pods on [$pods], want one on $W2"; exit 1; }
+          if grep -q "drain-and-hold" operator.log; then
+            echo "ERROR: the operator logged a drain-and-hold"; exit 1
+          fi
+          echo "replica moved from $W1 to the Cold survivor $W2; fleet Ready, one child pod, on $W2"
+
+      - name: Dump state on failure
+        if: failure()
+        run: |
+          cat operator.log || true
+          kubectl get fleetservice -o yaml || true
+          kubectl get nodestate -A -o yaml || true
+          kubectl get pods -A -o wide || true
+
+      - name: Stop operator
+        if: always()
+        run: kill "$(cat operator.pid)" 2>/dev/null || true

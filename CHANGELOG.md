@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The preemption path runs in CI.** A `preemption` job creates a kind
+  cluster with two workers (`.github/kind/two-workers.yaml`), places a
+  replica on the worker whose NodeState is Warm, signals a preemption
+  notice there, and asserts that the replica moves to the Cold one: the
+  placement and the child's pin change, the fleet is Ready again, and one
+  child pod runs on the new node. It also asserts that the child's
+  Deployment carries `maxSurge: 1` and `maxUnavailable: 0`, the strategy
+  that keeps the old pod until the new one is available. The `e2e` job runs
+  on one node and could not reach this path.
+
 ## [0.5.0] — 2026-10-10
 
 The release in which a FleetService that sets `nodePool.selector` works on
