@@ -24,7 +24,7 @@ with network, so it is noise for the cold-start trade-off.
 
 Phase breakdown, Qwen2.5-7B on A10:
 
-| Phase | Graph (default) | Eager (`--enforce-eager`) |
+| Phase | Graph (vLLM's default) | Eager (`--enforce-eager`, the operator's default) |
 |---|---|---|
 | Weight download (one-time) | 14.5s | 14.2s |
 | Model loading (14.29 GiB) | 17.6s | 17.1s |

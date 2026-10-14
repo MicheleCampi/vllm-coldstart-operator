@@ -10,7 +10,7 @@ Kubernetes already has a readiness model: a pod becomes Ready when its readiness
 - the process is up and accepting connections, and
 - the model is loaded, the GPU is warm, and the server can actually serve a token within normal latency.
 
-The vllm-coldstart-probe study measured this gap directly: for a 7B model the cold start is dominated not by disk I/O but by GPU warmup and synchronization after the process is already running, and enabling CUDA graphs makes the gap several times larger. A generic operator that wraps a Deployment inherits Kubernetes' single notion of readiness and therefore cannot distinguish "running" from "warm". An operator born from the profiling work can.
+The vllm-coldstart-probe study timed the engine construction inside this gap: for a 7B model on an A10 with a cold page cache it took 11.7 to 19.0 s in eager mode, and 47.7 s with CUDA graphs in the one capture of that configuration, about three times the same model's 15.1 s in eager mode (analysis/CAPTURES.md). The probe does not show how that time divides between reading weights and GPU work. A generic operator that wraps a Deployment inherits Kubernetes' single notion of readiness and therefore cannot distinguish "running" from "warm". An operator born from the profiling work can.
 
 ## Decision
 

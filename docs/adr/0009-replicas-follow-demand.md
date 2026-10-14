@@ -127,9 +127,10 @@ keep their current meaning. The three counts satisfy
 neither state (Placing, Draining).
 
 This is the decision the whole ADR exists for. A generic autoscaler
-observes demand and current ready replicas; if a replica takes ~18s to
-become useful on a 7B and considerably longer on a 32B (vllm-coldstart-probe,
-Phase A-D; cuda-graphs-experiment measured +7.0s and +15.9s of additional
+observes demand and current ready replicas; if a replica takes at least
+11.7 to 19.0 s just to construct its engine on a 7B (eager, A10, cold page
+cache) and 28.4 s on a 32B (AWQ, eager, on an A100) (vllm-coldstart-probe,
+analysis/CAPTURES.md; cuda-graphs-experiment measured +7.0s and +15.9s of additional
 cold start with graphs enabled), then during that window demand is still
 unmet and ready count is still low, so a naive loop scales again. The
 fleet already knows the replica is coming: it publishes that, so the
@@ -465,7 +466,8 @@ when it declined to publish a `packingBound` no writer could produce.
 **What this means for the claim.** D1's "an external autoscaler can drive
 the fleet" is true for the transition that matters most here and false
 for the rest. Scale-to-zero is the case this operator exists for — the
-cold-start arc is built on a replica costing ~18s to come back — and a
+cold-start arc is built on a replica costing at least 11.7 to 19.0 s to come
+back in eager mode, the time to construct its engine — and a
 fleet that drops to zero on an idle queue and returns on demand is now
 demonstrated against the autoscaler the ecosystem actually uses, not
 against the simulator D5 was measured with. Proportional scaling above

@@ -49,9 +49,10 @@ proportional scaling that does not happen.
 
 ## Why scale-to-zero is the case worth having
 
-A replica costs roughly eighteen seconds to come back — measured by the
-[cold-start probe](https://github.com/MicheleCampi/vllm-coldstart-probe),
-where kernel I/O is only ~7% of it and the rest is GPU warm-up. That is
+In eager mode, the operator's default, constructing the vLLM engine for a
+7B model on an A10 with a cold page cache took 11.7 to 19.0 s, measured by
+the [cold-start probe](https://github.com/MicheleCampi/vllm-coldstart-probe/blob/main/analysis/CAPTURES.md); a replica
+serves only after that. That is
 the whole reason this operator treats warmth as a lifecycle state, and a
 fleet that drops to zero on an idle queue and returns on demand is the
 behaviour the arc was built for.

@@ -24,8 +24,9 @@ spec:
   minReplicaCount: 0
   maxReplicaCount: 1
   pollingInterval: 10
-  # Cooldown before draining: a replica costs ~18s to come back (the
-  # cold-start probe measured it), so idling early is not free.
+  # Cooldown before draining: in eager mode a 7B replica on an A10 took
+  # 11.7 to 19.0 s just to construct its engine (vllm-coldstart-probe,
+  # analysis/CAPTURES.md), so idling early is not free.
   cooldownPeriod: 20
   initialCooldownPeriod: 20
   triggers:
