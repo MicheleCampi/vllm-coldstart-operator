@@ -543,12 +543,13 @@ jobs:
             sleep 1
           done
           msg=$(kubectl get fleetservice d3-cordoned -o jsonpath='{.status.message}')
-          kubectl uncordon "$NODE"
           [ "$phase" = "Placing" ] || { echo "ERROR: d3-cordoned phase is '$phase', want Placing"; exit 1; }
           case "$msg" in *"admits none of the schedulable Nodes"*) ;; *) echo "ERROR: d3-cordoned message is '$msg'"; exit 1 ;; esac
           if kubectl get vllmservice d3-cordoned-0 >/dev/null 2>&1; then
             echo "ERROR: d3-cordoned placed on a cordoned node"; exit 1
           fi
+          # Uncordon only after the checks: a schedulable node is a valid candidate again.
+          kubectl uncordon "$NODE"
 
           kubectl delete fleetservice d3-fleet d3-cordoned --wait=true
           kubectl create -f - <<EOF
