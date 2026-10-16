@@ -1,6 +1,6 @@
 # ADR-0002: Model cold start as a first-class lifecycle state
 
-- Status: Accepted
+- Status: Accepted; rationale corrected 2026-10-16 (see postscript)
 - Date: 2026-05-31
 
 ## Context
@@ -36,3 +36,7 @@ This is the decision that makes the operator more than a Deployment wrapper, and
 ## Note on the placeholder data plane
 
 On a CPU-only kind cluster the managed pod is a documented placeholder image, and warmupStrategy is recorded as an environment variable rather than driving a real vLLM flag. This is a deliberate scope boundary: the control plane (the lifecycle, ownership, and status modeling described here) is real and tested; the data plane is stubbed because a GPU and a real vLLM image are out of scope for a reproducible local/CI cluster. Validating that the Warming to Ready transition tracks the measured cold start on real vLLM is the next step, recorded in the README roadmap.
+
+## Postscript, 2026-10-16 — the throughput side was not quantified here
+
+The Decision said the warmupStrategy field configures "the cold-start/throughput trade-off the profiling work quantified". The profiling work (vllm-coldstart-probe) quantified only the cold-start side: CUDA graphs made the cold load about 3x slower (47.72 s vs 15.05 s). The other side was measured later, in cuda-graphs-experiment on an H100 with vLLM 0.23: decode was faster in every configuration, but end-to-end throughput ranged from +8.5% on a 7B model to −5.2% on a 32B model under sustained overload. The field's documentation now says decode speed instead of throughput; see [BENCHMARKS](../BENCHMARKS.md).

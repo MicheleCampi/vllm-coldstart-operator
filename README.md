@@ -96,7 +96,7 @@ spec:
   warmupStrategy: Eager   # Eager | Graph
 ```
 
-For each `VllmService`, the controller reconciles an owned Deployment via idempotent server-side apply (owner references make deletion garbage-collect everything), maps `warmupStrategy` to real vLLM configuration (`Eager` = faster cold start for scale-to-zero; `Graph` = CUDA graphs on, faster steady state — the operational lever behind the probe's finding that CUDA graphs make cold start ~3x slower), and derives a cold-start-aware phase written to `/status`: `Pending` -> `Warming` (process up, not yet able to serve) -> `Ready` (warm and serving).
+For each `VllmService`, the controller reconciles an owned Deployment via idempotent server-side apply (owner references make deletion garbage-collect everything), maps `warmupStrategy` to real vLLM configuration (`Eager` = faster cold start for scale-to-zero; `Graph` = CUDA graphs on, faster per-token decode but not always more throughput, see [BENCHMARKS](docs/BENCHMARKS.md) — the operational lever behind the probe's finding that CUDA graphs make cold start ~3x slower), and derives a cold-start-aware phase written to `/status`: `Pending` -> `Warming` (process up, not yet able to serve) -> `Ready` (warm and serving).
 
 ### `FleetService` — multi-node orchestration under preemption
 
