@@ -232,6 +232,7 @@ This section stays honest about boundaries, because the value is in what is actu
 
 - Disaggregation-aware orchestration on the Gateway API Inference Extension contract (one InferencePool v1 + `llm-d.ai/role` labels). Roles are owned by the LWS `DisaggregatedSet` and observed here through the labels its controller puts on pods; this operator adds per-role warmth (decode `CacheWarm` from `vllm:prefix_cache_*`), placement by warmth within the set's topology constraints, and make-before-break recovery. Design in [ADR-0006](docs/adr/0006-disaggregation-aware-orchestration.md) (2026-07-11); its 2026-09-19 postscript supersedes D1, under which `FleetService` would have owned the roles. Not implemented.
 - Real preemption-notice detection (cloud metadata endpoint) behind the same `NodeState` interface.
+- Validate on a GPU cluster that a `VllmService`'s Warming->Ready transition tracks the cold start measured in [BENCHMARKS](docs/BENCHMARKS.md), for both `Eager` and `Graph`.
 - Capstone write-up linking probe, operator, and the measured preemption data.
 
 ## License

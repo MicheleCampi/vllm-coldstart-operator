@@ -1,6 +1,6 @@
 # ADR-0002: Model cold start as a first-class lifecycle state
 
-- Status: Accepted; rationale corrected 2026-10-16 (see postscript)
+- Status: Accepted; rationale and data-plane note corrected 2026-10-16 (see postscripts)
 - Date: 2026-05-31
 
 ## Context
@@ -40,3 +40,7 @@ On a CPU-only kind cluster the managed pod is a documented placeholder image, an
 ## Postscript, 2026-10-16 — the throughput side was not quantified here
 
 The Decision said the warmupStrategy field configures "the cold-start/throughput trade-off the profiling work quantified". The profiling work (vllm-coldstart-probe) quantified only the cold-start side: CUDA graphs made the cold load about 3x slower (47.72 s vs 15.05 s). The other side was measured later, in cuda-graphs-experiment on an H100 with vLLM 0.23: decode was faster in every configuration, but end-to-end throughput ranged from +8.5% on a 7B model to −5.2% on a 32B model under sustained overload. The field's documentation now says decode speed instead of throughput; see [BENCHMARKS](../BENCHMARKS.md).
+
+## Postscript, 2026-10-16 — the data plane is real on GPU pods
+
+The note above said that warmupStrategy "is recorded as an environment variable rather than driving a real vLLM flag" and that validating the Warming to Ready transition on real vLLM "is the next step, recorded in the README roadmap". Today the operator runs real vLLM when the spec requests a GPU, and `Eager` adds `--enforce-eager` to `vllm serve` (src/main.rs). With no GPU requested the pod is still the inert placeholder, and warmupStrategy does not reach it in any form. The validation has not been done: [BENCHMARKS](../BENCHMARKS.md) gives the cold-start figures as what the transition is expected to wait on, not a measurement of it. The item is now in the README roadmap.
