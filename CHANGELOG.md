@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that keeps the old pod until the new one is available. The `e2e` job runs
   on one node and could not reach this path.
 
+- **The reporter runs in CI.** The `e2e` job no longer writes the
+  NodeState by hand: it starts the reporter with its synthetic source
+  (`hack/e2e-reporter.sh`), which creates the NodeState and writes its
+  status, and the job asserts that the reporter's next report leaves the
+  warmth it writes in place. The `chart-install` job turns on the reporter
+  DaemonSet with `reporter.synthetic` and a signal through
+  `reporter.extraEnv`, and asserts that it reports from the image built in
+  the job, through the chart's own ServiceAccount and Role.
+
 ### Changed
 
 - **Build images come from mirror.gcr.io.** A Docker Hub outage could stop the

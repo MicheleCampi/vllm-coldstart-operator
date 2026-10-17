@@ -214,32 +214,37 @@ jobs:
           echo "ERROR: Deployment not garbage-collected within 30s"
           exit 1
 
-      - name: Seed a NodeState for the fleet planner
+      - name: Start the reporter, which creates the NodeState the fleet planner reads
         run: |
-          # The per-node reporter does not run in CI, and without a NodeState
-          # carrying a status the fleet controller logs "no reported NodeState
-          # objects, nothing to place" and places nothing — a fleet e2e without
-          # this asserts on a system that was never asked to do anything.
+          # Without a NodeState carrying a status the fleet controller logs "no
+          # reported NodeState objects, nothing to place" and places nothing — a
+          # fleet e2e without one asserts on a system that was never asked to do
+          # anything. The reporter creates it and writes the status fields it
+          # owns, here from its synthetic source; hack/e2e-reporter.sh then
+          # writes the warmth, which the reporter does not own.
           #
           # The name must be the real node's: the child VllmService is pinned
           # with a kubernetes.io/hostname nodeSelector (ADR-0004), so a fixed
           # name in a manifest schedules nothing the moment the cluster is
           # named differently. Rehearsed locally on 2026-08-06, where exactly
-          # that produced FailedScheduling for 90s.
+          # that produced FailedScheduling for 90s. The script takes the name
+          # from the cluster.
+          bash hack/e2e-reporter.sh start
+          # The status is merge-patched by writers with disjoint field
+          # ownership (NodeStateStatus, src/fleet_types.rs): the reporter's
+          # next report must leave the warmth just written in place.
           NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
-          echo "seeding NodeState for node: $NODE"
-          kubectl create -f - <<EOF
-          apiVersion: inference.michelecampi.dev/v1alpha1
-          kind: NodeState
-          metadata:
-            name: $NODE
-          spec: {}
-          EOF
-          # status is a subresource: an apply carrying it drops it silently.
-          # Only `warmth` matters here — node_state_to_candidate requires the
-          # status to exist and treats every signal inside as Option.
-          kubectl patch nodestate "$NODE" --subresource=status --type=merge \
-            -p '{"status":{"warmth":"Warm"}}'
+          t1=$(kubectl get nodestate "$NODE" -o jsonpath='{.status.lastReportTime}')
+          t2="$t1"
+          for i in $(seq 1 30); do
+            t2=$(kubectl get nodestate "$NODE" -o jsonpath='{.status.lastReportTime}')
+            [ "$t2" != "$t1" ] && break
+            sleep 1
+          done
+          [ "$t2" != "$t1" ] || { echo "ERROR: no second report within 30s"; cat reporter.log; exit 1; }
+          w=$(kubectl get nodestate "$NODE" -o jsonpath='{.status.warmth}')
+          [ "$w" = "Warm" ] || { echo "ERROR: warmth is '$w' after the report at $t2, want Warm"; exit 1; }
+          echo "the report at $t2 left warmth Warm"
       - name: Apply a FleetService and wait for Ready
         run: |
           kubectl apply -f deploy/examples/ci-fleet.yaml
@@ -442,9 +447,11 @@ jobs:
       - name: A fleet with no candidate says why in its status (ADR-0011 D4)
         # With no NodeState the fleet has no candidate. It must still publish
         # a phase and a message, and the message must clear once a candidate
-        # appears. The NodeState is recreated as the seed step made it.
+        # appears. The reporter is stopped first, so nothing recreates the
+        # NodeState meanwhile, and started again as the seed step started it.
         run: |
           NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          bash hack/e2e-reporter.sh stop
           kubectl delete nodestate "$NODE" --wait=true
           kubectl apply -f - <<EOF
           apiVersion: inference.michelecampi.dev/v1alpha1
@@ -474,14 +481,7 @@ jobs:
             echo "ERROR: d4-fleet placed with no candidate"; exit 1
           fi
 
-          kubectl create -f - <<EOF
-          apiVersion: inference.michelecampi.dev/v1alpha1
-          kind: NodeState
-          metadata:
-            name: $NODE
-          spec: {}
-          EOF
-          kubectl patch nodestate "$NODE" --subresource=status --type=merge -p '{"status":{"warmth":"Warm"}}'
+          bash hack/e2e-reporter.sh start
           msg="unset"; placed=""
           for i in $(seq 1 40); do
             msg=$(kubectl get fleetservice d4-fleet -o jsonpath='{.status.message}')
@@ -497,11 +497,13 @@ jobs:
       - name: The node pool selector defines the candidates (ADR-0011 D3)
         # With a selector the candidates are the Nodes it admits, so a fleet
         # places with no NodeState at all; a cordoned Node is no candidate.
-        # The NodeState is recreated as the seed step made it.
+        # The reporter is stopped first, so nothing recreates the NodeState
+        # meanwhile, and started again at the end as the seed step started it.
         run: |
           NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
           HOST=$(kubectl get node "$NODE" -o jsonpath='{.metadata.labels.kubernetes\.io/hostname}')
           [ -n "$HOST" ] || { echo "ERROR: node $NODE has no kubernetes.io/hostname label"; exit 1; }
+          bash hack/e2e-reporter.sh stop
           kubectl delete nodestate "$NODE" --wait=true
           fleet() {
             kubectl apply -f - <<EOF
@@ -552,14 +554,7 @@ jobs:
           kubectl uncordon "$NODE"
 
           kubectl delete fleetservice d3-fleet d3-cordoned --wait=true
-          kubectl create -f - <<EOF
-          apiVersion: inference.michelecampi.dev/v1alpha1
-          kind: NodeState
-          metadata:
-            name: $NODE
-          spec: {}
-          EOF
-          kubectl patch nodestate "$NODE" --subresource=status --type=merge -p '{"status":{"warmth":"Warm"}}'
+          bash hack/e2e-reporter.sh start
           echo "with no NodeState d3-fleet placed on $NODE through the selector; cordoned, the node was no candidate"
 
       - name: Restart the operator over live children
@@ -646,6 +641,12 @@ jobs:
           echo "selector immutability confirmed: adding a label to the shared"
           echo "map is a breaking change for existing Deployments, and any"
           echo "version that needs one has to migrate rather than apply"
+      - name: Reporter log on failure
+        if: failure()
+        run: cat reporter.log || true
+      - name: Stop reporter
+        if: always()
+        run: bash hack/e2e-reporter.sh stop || true
       - name: Stop operator
         if: always()
         run: kill "$(cat operator.pid)" 2>/dev/null || true
@@ -705,6 +706,31 @@ jobs:
           got=$(kubectl get pods -n vllm-system -l app.kubernetes.io/name=vllm-coldstart-operator -o jsonpath='{.items[0].status.containerStatuses[0].imageID}')
           [ "$got" = "$want" ] || { echo "::error::operator runs $got, not the image built here ($want)"; exit 1; }
           echo "operator runs the image built here: $want"
+          echo "IMAGE_ID=$want" >> "$GITHUB_ENV"
+
+      - name: The reporter DaemonSet reports as the chart ships it
+        # The e2e job runs the reporter as a process with the job's admin
+        # kubeconfig, which cannot show that the chart's own pieces work: the
+        # reporter's ServiceAccount and Role, the image built above, the node
+        # name from the downward API, a signal value through reporter.extraEnv.
+        run: |
+          /tmp/linux-amd64/helm upgrade vcso chart --namespace vllm-system --reuse-values \
+            --set reporter.enabled=true --set reporter.synthetic=true \
+            --set-json 'reporter.extraEnv=[{"name":"REPORTER_SYNTHETIC_GPU_UTILIZATION","value":"0.25"}]' \
+            --wait --timeout 2m
+          NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+          t=""
+          for i in $(seq 1 30); do
+            t=$(kubectl get nodestate "$NODE" -n vllm-system -o jsonpath='{.status.lastReportTime}' 2>/dev/null || true)
+            [ -n "$t" ] && break
+            sleep 1
+          done
+          [ -n "$t" ] || { echo "::error::no report on NodeState $NODE in vllm-system within 30s"; exit 1; }
+          u=$(kubectl get nodestate "$NODE" -n vllm-system -o jsonpath='{.status.gpuUtilization}')
+          [ "$u" = "0.25" ] || { echo "::error::gpuUtilization is '$u', reporter.extraEnv set 0.25"; exit 1; }
+          got=$(kubectl get pods -n vllm-system -l app.kubernetes.io/component=reporter -o jsonpath='{.items[0].status.containerStatuses[0].imageID}')
+          [ "$got" = "$IMAGE_ID" ] || { echo "::error::reporter runs $got, not the image built here ($IMAGE_ID)"; exit 1; }
+          echo "reporter DaemonSet reported on $NODE at $t (gpuUtilization $u), image $got"
 
       - name: Dump cluster state on failure
         if: failure()
@@ -712,6 +738,8 @@ jobs:
           kubectl get all,vllmservice -A || true
           kubectl describe pods -n vllm-system || true
           kubectl logs -n vllm-system -l app.kubernetes.io/name=vllm-coldstart-operator --tail=200 || true
+          kubectl get nodestate -A -o yaml || true
+          kubectl logs -n vllm-system -l app.kubernetes.io/component=reporter --tail=100 || true
 
   preemption:
     name: preemption on multi-node kind

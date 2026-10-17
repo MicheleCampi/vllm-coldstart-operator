@@ -476,3 +476,26 @@ one remains the controller's own, driven by `spec.replicas`.
 Not measured here: behaviour under a real vLLM workload rather than a
 queue stub, and whether the activation latency holds when the replica has
 to load weights rather than start a pause container.
+
+## Postscript, 2026-10-17 — the e2e runs the reporter
+
+The 2026-08-07 postscript says the per-node reporter does not run in CI,
+so the e2e seeded a `NodeState` by hand. From this date it runs. The e2e
+job starts the reporter as a process next to the operator, with its
+synthetic source (`REPORTER_SYNTHETIC=1`, one signal set), and the
+reporter creates the node's `NodeState` and writes its status
+(`hack/e2e-reporter.sh`). The two steps that need no `NodeState` stop the
+reporter before deleting it and start it again afterwards, where they
+used to recreate it by hand. The chart-install job turns on the reporter
+DaemonSet as the chart ships it and checks that it reports, which the
+process, running with the job's admin kubeconfig, cannot show for the
+reporter's own Role.
+
+What the job still writes is the warmth. The reporter does not own that
+field (`src/bin/reporter.rs`, module comment), no component in this
+repository writes it, and the planner derives warmth from the
+`VllmService`s the cluster runs (ADR-0011 D1), so the job writes `Warm`
+once the reporter has reported, standing in for a warmth writer. The
+status is merge-patched by writers with disjoint field ownership
+(`NodeStateStatus`, `src/fleet_types.rs`), and the job now checks it:
+after the warmth is written, the reporter's next report leaves it `Warm`.

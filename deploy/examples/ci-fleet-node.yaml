@@ -1,18 +1,18 @@
-# A NodeState the e2e writes by hand, standing in for the per-node reporter
-# that does not run in CI. Without at least one NodeState carrying a status
-# the fleet controller logs "no reported NodeState objects, nothing to place"
-# and places nothing, so a fleet e2e without this asserts on a system that
-# was never asked to do anything.
+# A NodeState as the reporter creates one for a node: an empty spec, so the
+# CRD's defaults apply, and no status until its first report.
+# hack/validate-manifests.sh validates it against the CRD with the other
+# examples and uses it for the NodeState kind in its unknown-field
+# self-test. The e2e job does not apply it: the reporter runs there and
+# creates the NodeState itself (hack/e2e-reporter.sh).
 #
-# The status block here is deliberately minimal: node_state_to_candidate
-# (src/fleet_controller.rs) requires only that `status` exists — every
-# signal inside it is Option and absent means absent, per the ADR-0007
-# fail-open contract. A candidate with no efficiency signal is exactly what
-# a freshly joined node looks like before its first report.
+# node_state_to_candidate (src/fleet_controller.rs) requires only that a
+# status exists: every signal inside it is Option and absent means absent,
+# per the ADR-0007 fail-open contract. A candidate with no efficiency signal
+# is exactly what a freshly joined node looks like before its first report.
 #
-# Applied in two steps: `kubectl apply` for the object, then
-# `kubectl patch --subresource=status` for the status, because status is a
-# subresource and an apply that carries it silently drops it.
+# A status cannot be applied with this object: status is a subresource, and
+# an apply that carries it silently drops it. Its writers merge-patch it
+# with `kubectl patch --subresource=status`, each owning its own fields.
 apiVersion: inference.michelecampi.dev/v1alpha1
 kind: NodeState
 metadata:
