@@ -1,9 +1,12 @@
 # Scale-to-zero with KEDA
 
-What works, what does not, and why — measured on kind, 2026-08-17.
+What works, what does not, and why — measured on kind, 2026-08-17. The
+`keda` CI job repeats the round trip on every push, with the KEDA 2.21.0
+chart pinned by SHA-256 and its three images by digest
+(`.github/workflows/ci.yml`).
 
     helm repo add kedacore https://kedacore.github.io/charts && helm repo update
-    helm install keda kedacore/keda -n keda --create-namespace --wait
+    helm install keda kedacore/keda --version 2.21.0 -n keda --create-namespace --wait
     kubectl apply -f queue-stub.yaml
     kubectl apply -f scaledobject-scale-to-zero.yaml
 

@@ -499,3 +499,15 @@ once the reporter has reported, standing in for a warmth writer. The
 status is merge-patched by writers with disjoint field ownership
 (`NodeStateStatus`, `src/fleet_types.rs`), and the job now checks it:
 after the warmth is written, the reporter's next report leaves it `Warm`.
+
+## Postscript, 2026-10-17 — KEDA in CI
+
+The 2026-08-17 postscript measured "KEDA 2.x" once, by hand, and did not
+record the version. A `keda` CI job now repeats the two 0↔1 rows of its
+table on every push: KEDA 2.21.0, the chart pinned by SHA-256 and its
+three images by digest, the stub and ScaledObject of `deploy/examples/keda`
+applied as they are, against `ci-fleet` with the reporter running. It
+asserts that an idle queue takes the fleet to `spec.replicas: 0` with no
+child, and that a waiting request brings it back to one Ready replica.
+The 1 → N row is not asserted: its outcome is the HPA's rejection, which
+the postscript explains.

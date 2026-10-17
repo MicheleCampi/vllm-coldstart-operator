@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `reporter.extraEnv`, and asserts that it reports from the image built in
   the job, through the chart's own ServiceAccount and Role.
 
+- **KEDA scale-to-zero runs in CI.** A `keda` job installs KEDA 2.21.0
+  from its chart, pinned by SHA-256, with its three images pinned by
+  digest, applies `deploy/examples/keda`, and asserts that an idle queue
+  takes `ci-fleet` to `spec.replicas: 0` with no child and that a waiting
+  request brings it back to one Ready replica. The queue stub's nginx
+  now comes from mirror.gcr.io by digest.
+
 ### Changed
 
 - **Build images come from mirror.gcr.io.** A Docker Hub outage could stop the

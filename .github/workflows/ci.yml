@@ -13,6 +13,14 @@ env:
   # tools.lock of gke-llm-inference-platform.
   HELM_URL: https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz
   HELM_SHA256: 0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36
+  # KEDA for the keda job: the chart by version and SHA-256, and its three
+  # images by digest (the chart defaults them to a tag), so the release
+  # under test cannot move.
+  KEDA_CHART_URL: https://kedacore.github.io/charts/keda-2.21.0.tgz
+  KEDA_CHART_SHA256: a7da56bf41a33dad9d2fc82a6fdecee552fff947d80bf1e1dbcf4db0f9e26dee
+  KEDA_IMAGE_KEDA: 2.21.0@sha256:81fe6547ce8d1cc29273f887b76507e9b853e5bc1f875ec23fe60061a38ed809
+  KEDA_IMAGE_METRICS: 2.21.0@sha256:255375037fe592732eeb554743aae360c2da88cf0b9b1258d0a987ef885f0881
+  KEDA_IMAGE_WEBHOOKS: 2.21.0@sha256:e1969628cca6123e32eea13c47c75817091af2657fa68d9d0d58a8620d1b75b1
 
 jobs:
   check:
@@ -982,3 +990,132 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate the manifests with kubeconform
         run: bash hack/validate-manifests.sh
+
+  keda:
+    name: KEDA scales a fleet to zero and back on kind
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build operator and reporter
+        run: cargo build --bins
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: keda
+
+      - name: Install Helm
+        run: |
+          curl -fsSL -o /tmp/helm.tgz "$HELM_URL"
+          echo "$HELM_SHA256  /tmp/helm.tgz" | sha256sum -c -
+          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+
+      - name: Install KEDA, chart and images pinned
+        # The chart composes registry/repository:tag, so a tag carrying a
+        # digest makes each pod run exactly the image pinned in env.
+        run: |
+          curl -fsSL -o /tmp/keda.tgz "$KEDA_CHART_URL"
+          echo "$KEDA_CHART_SHA256  /tmp/keda.tgz" | sha256sum -c -
+          /tmp/linux-amd64/helm install keda /tmp/keda.tgz --namespace keda --create-namespace \
+            --set image.keda.tag="$KEDA_IMAGE_KEDA" \
+            --set image.metricsApiServer.tag="$KEDA_IMAGE_METRICS" \
+            --set image.webhooks.tag="$KEDA_IMAGE_WEBHOOKS" \
+            --wait --timeout 5m
+          for d in keda-operator keda-operator-metrics-apiserver keda-admission-webhooks; do
+            kubectl rollout status "deployment/$d" -n keda --timeout=2m
+          done
+          got=$(kubectl get pods -n keda -o jsonpath='{range .items[*]}{.spec.containers[0].image}{"\n"}{end}' | sort)
+          want=$(printf '%s\n' "ghcr.io/kedacore/keda:$KEDA_IMAGE_KEDA" "ghcr.io/kedacore/keda-metrics-apiserver:$KEDA_IMAGE_METRICS" "ghcr.io/kedacore/keda-admission-webhooks:$KEDA_IMAGE_WEBHOOKS" | sort)
+          [ "$got" = "$want" ] || { echo "::error::KEDA pods run [$got], want [$want]"; exit 1; }
+          echo "KEDA runs the pinned images:"
+          echo "$got"
+
+      - name: Install CRD
+        run: |
+          kubectl apply -f deploy/crd.yaml
+          kubectl wait --for=condition=Established crd --all --timeout=30s
+
+      - name: Start operator and reporter
+        # Without a NodeState the fleet has no candidate (see the e2e job).
+        run: |
+          ./target/debug/vllm-coldstart-operator > operator.log 2>&1 &
+          echo $! > operator.pid
+          sleep 3
+          echo "operator started (pid $(cat operator.pid))"
+          bash hack/e2e-reporter.sh start
+
+      - name: The fleet is Ready with one replica
+        run: |
+          kubectl apply -f deploy/examples/ci-fleet.yaml
+          ready=""
+          for i in $(seq 1 40); do
+            ready=$(kubectl get fleetservice ci-fleet -o jsonpath='{.status.phase}/{.status.readyReplicas}' 2>/dev/null || true)
+            [ "$ready" = "Ready/1" ] && break
+            sleep 3
+          done
+          [ "$ready" = "Ready/1" ] || { echo "ERROR: ci-fleet is '$ready', want Ready/1"; cat operator.log; exit 1; }
+
+      - name: An idle queue drains the fleet to zero
+        # The stub serves {"waiting": 0}. After its cooldown KEDA writes
+        # spec.replicas 0 through the scale subresource, and the fleet
+        # controller deletes the child.
+        run: |
+          kubectl apply -f deploy/examples/keda/queue-stub.yaml
+          kubectl rollout status deployment/queue-stub --timeout=2m
+          kubectl apply -f deploy/examples/keda/scaledobject-scale-to-zero.yaml
+          r=""; child=""
+          for i in $(seq 1 40); do
+            r=$(kubectl get fleetservice ci-fleet -o jsonpath='{.spec.replicas}')
+            child=$(kubectl get vllmservice ci-fleet-0 -o name 2>/dev/null || true)
+            [ "$r" = "0" ] && [ -z "$child" ] && break
+            sleep 3
+          done
+          [ "$r" = "0" ] || { echo "ERROR: ci-fleet spec.replicas is '$r', want 0"; exit 1; }
+          [ -z "$child" ] || { echo "ERROR: $child still exists with spec.replicas 0"; exit 1; }
+          echo "idle queue: spec.replicas 0 and no child after about $((i*3))s"
+
+      - name: A waiting request brings the fleet back to one
+        run: |
+          kubectl create configmap queue-stub-cfg --from-literal=queue.json='{"waiting": 4}' --dry-run=client -o yaml | kubectl apply -f -
+          kubectl rollout restart deployment/queue-stub
+          kubectl rollout status deployment/queue-stub --timeout=2m
+          r=""; ready=""
+          for i in $(seq 1 40); do
+            r=$(kubectl get fleetservice ci-fleet -o jsonpath='{.spec.replicas}')
+            ready=$(kubectl get fleetservice ci-fleet -o jsonpath='{.status.phase}/{.status.readyReplicas}')
+            [ "$r" = "1" ] && [ "$ready" = "Ready/1" ] && break
+            sleep 3
+          done
+          [ "$r" = "1" ] || { echo "ERROR: ci-fleet spec.replicas is '$r', want 1"; exit 1; }
+          [ "$ready" = "Ready/1" ] || { echo "ERROR: ci-fleet is '$ready', want Ready/1"; exit 1; }
+          echo "waiting 4: spec.replicas 1 and the fleet Ready after about $((i*3))s"
+
+      - name: Dump state on failure
+        if: failure()
+        run: |
+          cat operator.log || true
+          cat reporter.log || true
+          kubectl get scaledobject,hpa -A -o yaml || true
+          kubectl get fleetservice,vllmservice -o yaml || true
+          kubectl get pods -A -o wide || true
+          kubectl logs -n keda deployment/keda-operator --tail=200 || true
+
+      - name: Stop reporter and operator
+        if: always()
+        run: |
+          bash hack/e2e-reporter.sh stop || true
+          kill "$(cat operator.pid)" 2>/dev/null || true
