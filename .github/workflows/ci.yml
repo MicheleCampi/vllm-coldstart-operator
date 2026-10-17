@@ -835,3 +835,109 @@ jobs:
       - name: Stop operator
         if: always()
         run: kill "$(cat operator.pid)" 2>/dev/null || true
+
+  sim-load:
+    name: load through the llm-d simulator on kind
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build operator
+        run: cargo build --bins
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: sim-load
+
+      - name: Build and load the simulator image
+        # The operator's gpu=0 path injects no command or args, so the image
+        # configures itself (hack/rehearsal/Dockerfile.sim).
+        run: |
+          docker build -t llmd-sim-rehearsal:v0.8.2 -f hack/rehearsal/Dockerfile.sim hack/rehearsal
+          kind load docker-image llmd-sim-rehearsal:v0.8.2 --name sim-load
+
+      - name: Install CRD
+        run: |
+          kubectl apply -f deploy/crd.yaml
+          kubectl wait --for=condition=Established crd/vllmservices.inference.michelecampi.dev --timeout=30s
+
+      - name: Start operator in background
+        run: |
+          ./target/debug/vllm-coldstart-operator > operator.log 2>&1 &
+          echo $! > operator.pid
+          sleep 3
+          echo "operator started (pid $(cat operator.pid))"
+
+      - name: Serve one replica from the simulator
+        # healthPath makes Ready mean the simulator answers, unlike the pause
+        # placeholder of the other jobs (healthPath "").
+        run: |
+          kubectl apply -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: VllmService
+          metadata:
+            name: sim-load
+            namespace: default
+          spec:
+            model: facebook/opt-125m
+            replicas: 1
+            warmupStrategy: Eager
+            image: "llmd-sim-rehearsal:v0.8.2"
+            gpu: 0
+            healthPath: /health
+          EOF
+          kubectl wait --for=jsonpath='{.status.phase}'=Ready vllmservice/sim-load --timeout=180s
+
+      - name: Drive load through the operator's Service
+        run: |
+          python3 -m venv /tmp/loadgen && /tmp/loadgen/bin/pip install --quiet aiohttp==3.14.1
+          kubectl port-forward svc/sim-load 8001:8000 > port-forward.log 2>&1 &
+          echo $! > port-forward.pid
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8001/health > /dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:8001/health > /dev/null
+          /tmp/loadgen/bin/python hack/loadgen/loadgen.py --target sim=http://127.0.0.1:8001 \
+            --model facebook/opt-125m --duration 30 --concurrency 4 --max-tokens 64 --seed 42 \
+            --out sim-load.jsonl
+
+      - name: Every request served
+        run: |
+          python3 - sim-load.jsonl <<'PY'
+          import json, sys
+          recs = [json.loads(l) for l in open(sys.argv[1]).read().splitlines()[1:]]
+          bad = [r for r in recs if not r.get("ok") or r.get("status") != 200]
+          print(f"{len(recs)} requests, {len(bad)} failed")
+          for r in bad[:5]:
+              print("failed:", r.get("status"), r.get("error"))
+          sys.exit(1 if bad or len(recs) < 20 else 0)
+          PY
+
+      - name: Upload load record and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sim-load
+          path: |
+            sim-load.jsonl
+            operator.log
+            port-forward.log
+          if-no-files-found: ignore
+
+      - name: Stop port-forward and operator
+        if: always()
+        run: |
+          kill "$(cat port-forward.pid)" 2>/dev/null || true
+          kill "$(cat operator.pid)" 2>/dev/null || true
