@@ -718,6 +718,10 @@ jobs:
             --set reporter.enabled=true --set reporter.synthetic=true \
             --set-json 'reporter.extraEnv=[{"name":"REPORTER_SYNTHETIC_GPU_UTILIZATION","value":"0.25"}]' \
             --wait --timeout 2m
+          # helm --wait returned here with the DaemonSet at 0 of 1 ready and
+          # the reporter pod still ContainerCreating, before the pod's status
+          # carried an imageID (seen in CI). Wait for the rollout itself.
+          kubectl rollout status daemonset/vcso-vllm-coldstart-operator-reporter -n vllm-system --timeout=2m
           NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
           t=""
           for i in $(seq 1 30); do
