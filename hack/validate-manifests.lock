@@ -1,0 +1,7 @@
+# Tools for hack/validate-manifests.sh, pinned as in MicheleCampi/capstone-iac
+# ci/tools.lock. Every artifact is verified against the SHA-256 below before
+# use; a mismatch fails the run.
+#
+# name                url                                                                                                    sha256
+kubeconform           https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz            9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+openapi2jsonschema    https://raw.githubusercontent.com/yannh/kubeconform/02374e583d700721f57300fae78e11acd27ee539/scripts/openapi2jsonschema.py  d145babfbb765004030764e1b4e518bfb7a4bd7f111691a08fa57983b81881f3

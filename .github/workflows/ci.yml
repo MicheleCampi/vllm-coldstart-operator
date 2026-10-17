@@ -941,3 +941,12 @@ jobs:
         run: |
           kill "$(cat port-forward.pid)" 2>/dev/null || true
           kill "$(cat operator.pid)" 2>/dev/null || true
+
+  manifests:
+    name: examples and README against the CRDs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate the manifests with kubeconform
+        run: bash hack/validate-manifests.sh
