@@ -3,8 +3,9 @@
 # blocks of README.md, against the CRDs in deploy/crd.yaml with
 # kubeconform -strict. No cluster, same run in CI and locally:
 #   bash hack/validate-manifests.sh
-# Needs curl, python3 with venv, and network access for the tools pinned
-# in hack/validate-manifests.lock, PyYAML and the Kubernetes schemas.
+# Needs curl, git, python3 with venv, and network access for
+# inference-platform-ci (pinned in hack/platform-ci.env), the tools and
+# PyYAML it pins, and the Kubernetes schemas.
 #
 # Every ```yaml block in README.md must be a whole manifest (apiVersion
 # and kind); fence fragments differently. KEDA's ScaledObject is skipped:
@@ -16,36 +17,28 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$PWD
-K8S_SCHEMA_VERSION=1.34.12
-K8S_SCHEMA_COMMIT=8df8a883b68a24a104b4a9e43c1288090ae60b3b
-PYYAML_VERSION=6.0.3
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 mkdir -p "$W/bin"; export PATH="$W/bin:$PATH"
 fail=0
-pass() { echo "PASS $1"; }
-check() { local n=$1; shift; if "$@" >"$W/$n.log" 2>&1; then pass "$n"; else echo "FAIL $n"; tail -20 "$W/$n.log"; fail=1; fi; }
-expect_reject() {
-  local n=$1 reason=$2; shift 2
-  if "$@" >"$W/$n.log" 2>&1; then echo "FAIL $n: accepted, should have been rejected"; fail=1
-  elif grep -q -E "$reason" "$W/$n.log"; then echo "PASS $n: rejected ($(grep -m1 -o -E ".{0,40}$reason.{0,40}" "$W/$n.log"))"
-  else echo "FAIL $n: rejected for another reason"; tail -5 "$W/$n.log"; fail=1; fi
-}
 
-echo "== tools, verified by SHA-256"
-while read -r name url sha; do
-  case "$name" in ''|'#'*) continue ;; esac
-  f="$W/$(basename "$url")"
-  curl -fsSL --retry 3 -o "$f" "$url" || { echo "FAIL download $name"; exit 1; }
-  got=$(sha256sum "$f" | cut -d' ' -f1)
-  [ "$got" = "$sha" ] || { echo "FAIL checksum $name: expected $sha, got $got"; exit 1; }
-  case "$f" in
-    *.tar.gz) mkdir -p "$W/$name.x" && tar -xzf "$f" -C "$W/$name.x" && install -m 0755 "$(find "$W/$name.x" -type f -name "$name" | head -1)" "$W/bin/$name" ;;
-    *.py)     install -m 0644 "$f" "$W/bin/$name.py" ;;
-  esac || { echo "FAIL install $name"; exit 1; }
-  echo "ok $name ${sha:0:12}"
-done < hack/validate-manifests.lock
-python3 -m venv "$W/venv" && "$W/venv/bin/pip" install --quiet --disable-pip-version-check "pyyaml==$PYYAML_VERSION" || { echo "FAIL pyyaml"; exit 1; }
-echo "ok pyyaml $PYYAML_VERSION"
+echo "== inference-platform-ci at the tag pinned in hack/platform-ci.env"
+# The tool pins, installers, helpers (pass, check, expect_reject) and the
+# Kubernetes schema pins come from there. The tag must resolve to the pinned
+# commit before anything from it runs, so this check cannot come from its
+# own lib.sh. PLATFORM_CI_ENV replaces hack/platform-ci.env, for testing
+# that a wrong pin fails.
+. "${PLATFORM_CI_ENV:-hack/platform-ci.env}"
+P=$W/platform-ci
+git init -q "$P" && git -C "$P" fetch -q --depth 1 https://github.com/MicheleCampi/inference-platform-ci.git "refs/tags/$PLATFORM_CI_TAG:refs/tags/$PLATFORM_CI_TAG" || { echo "FAIL fetch inference-platform-ci $PLATFORM_CI_TAG"; exit 1; }
+got=$(git -C "$P" rev-parse --verify -q "refs/tags/$PLATFORM_CI_TAG^{commit}")
+[ "$got" = "$PLATFORM_CI_COMMIT" ] || { echo "FAIL inference-platform-ci $PLATFORM_CI_TAG resolves to $got, not the pinned $PLATFORM_CI_COMMIT"; exit 1; }
+git -C "$P" checkout -q "$PLATFORM_CI_COMMIT" || { echo "FAIL checkout inference-platform-ci"; exit 1; }
+echo "ok inference-platform-ci ${PLATFORM_CI_COMMIT:0:12}"
+. "$P/lib.sh" && . "$P/versions.env" || { echo "FAIL lib.sh or versions.env"; exit 1; }
+
+echo "== tools and PyYAML, verified by SHA-256"
+bash "$P/install.sh" "$W/bin" "$P/tools.lock" kubeconform openapi2jsonschema || { echo "FAIL tools"; exit 1; }
+bash "$P/install-python.sh" "$W/venv" "$P/requirements.lock" || { echo "FAIL pyyaml"; exit 1; }
 PY="$W/venv/bin/python"
 
 echo "== schemas from deploy/crd.yaml"
