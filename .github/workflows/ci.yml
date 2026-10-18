@@ -950,19 +950,45 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8001/health > /dev/null && break; sleep 1; done
           curl -sf http://127.0.0.1:8001/health > /dev/null
           /tmp/loadgen/bin/python hack/loadgen/loadgen.py --target sim=http://127.0.0.1:8001 \
-            --model facebook/opt-125m --duration 30 --concurrency 4 --max-tokens 64 --seed 42 \
+            --model facebook/opt-125m --profile hack/loadgen/profiles/azure-conv-2023-peak.csv --keep 0.1 --seed 42 \
             --out sim-load.jsonl
 
       - name: Every request served
         run: |
           python3 - sim-load.jsonl <<'PY'
           import json, sys
-          recs = [json.loads(l) for l in open(sys.argv[1]).read().splitlines()[1:]]
+          # Pinned from a local run of the same profile, keep and seed: another
+          # value means the profile, the thinning or the prompt generation changed.
+          SEQ = "b170da22aa6101c6c20fbbaa9c9d2b647006161e2dffc7bf8710ec8135acdf62"
+          lines = open(sys.argv[1]).read().splitlines()
+          head, recs = json.loads(lines[0]), [json.loads(l) for l in lines[1:]]
+          def q(v, p):
+              s = sorted(v)
+              return s[min(len(s) - 1, int(p * len(s)))] if s else None
+          fails = []
+          if head.get("sequence_sha256") != SEQ:
+              fails.append(f"sequence sha256 {head.get('sequence_sha256')} is not the pinned {SEQ}")
+          if len(recs) != head.get("requests_per_target"):
+              fails.append(f"{len(recs)} records for {head.get('requests_per_target')} scheduled requests")
           bad = [r for r in recs if not r.get("ok") or r.get("status") != 200]
-          print(f"{len(recs)} requests, {len(bad)} failed")
-          for r in bad[:5]:
-              print("failed:", r.get("status"), r.get("error"))
-          sys.exit(1 if bad or len(recs) < 20 else 0)
+          fails += [f"failed: {r.get('status')} {r.get('error')}" for r in bad[:5]]
+          tok = [r for r in recs if (r.get("prompt_tokens"), r.get("completion_tokens")) != (r["context_tokens"], r["generated_tokens"])]
+          fails += [f"tokens at trace line {r['trace_line']}: served {r.get('prompt_tokens')}/{r.get('completion_tokens')}, profile {r['context_tokens']}/{r['generated_tokens']}" for r in tok[:5]]
+          late = max((r["send_delay_ms"] for r in recs), default=0.0)
+          if late > 250:
+              fails.append(f"send delay {late} ms: the generator fell behind the schedule")
+          ttft = [r["ttft_ms"] for r in recs if r.get("ttft_ms") is not None]
+          tpot = [round((r["last_token_ms"] - r["ttft_ms"]) / (r["completion_tokens"] - 1), 1) for r in recs if r.get("last_token_ms") is not None and r.get("ttft_ms") is not None and (r.get("completion_tokens") or 0) > 1]
+          ev = sorted(e for r in recs if r.get("ts_end") for e in ((r["ts_start"], 1), (r["ts_end"], -1)))
+          cur = top = 0
+          for _, d in ev:
+              cur += d
+              top = max(top, cur)
+          print(f"{len(recs)} requests, {len(bad)} failed, {len(tok)} token mismatches, send delay max {late} ms")
+          print(f"recorded, not asserted: ttft ms p50/p90/p99 {q(ttft, 0.5)}/{q(ttft, 0.9)}/{q(ttft, 0.99)}, tpot ms p50/p99 {q(tpot, 0.5)}/{q(tpot, 0.99)}, max in flight {top}")
+          for f in fails:
+              print(f)
+          sys.exit(1 if fails else 0)
           PY
 
       - name: Upload load record and logs

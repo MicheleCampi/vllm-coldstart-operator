@@ -46,6 +46,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   any of the three stops coming from the mirror, or if the frontend or the
   base loses its digest.
 
+- **The simulator load test replays a production trace.** The `sim-load`
+  job drove 30 seconds of closed-loop load at a fixed concurrency of four,
+  with prompts of one length and responses capped at 64 tokens. It now
+  replays, open-loop, a seeded 10% sample of the busiest five minutes of
+  the Azure LLM inference trace 2023 (conversation service, CC-BY-4.0):
+  each request leaves at its time in the trace with the trace's prompt and
+  response lengths (`hack/loadgen/profiles/azure-conv-2023-peak.csv`,
+  rebuilt by `hack/loadgen/build_profile.py`). The job fails if the
+  replayed sequence is not the one pinned in the workflow, if any request
+  is not answered with 200 or is served a token count other than the
+  profile's, or if a request leaves more than 250 ms after its time.
+  Latency is recorded and not asserted. The simulator now admits 16,384
+  tokens per request. See ADR-0012.
+
 ## [0.5.0] — 2026-10-10
 
 The release in which a FleetService that sets `nodePool.selector` works on
