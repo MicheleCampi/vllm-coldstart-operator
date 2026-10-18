@@ -60,6 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Latency is recorded and not asserted. The simulator now admits 16,384
   tokens per request. See ADR-0012.
 
+- **The simulator load test asserts service level objectives (ADR-0013).**
+  `sim-load` replays the trace profile twice. At 2.5% it asserts, from
+  `hack/loadgen/slo.json`, a time to first token of at most 1 s and a time
+  per output token of at most 50 ms for 95% of requests, and 99.5% of
+  requests served; one replica of the simulator met them up to about 0.4
+  requests per second. At 10% it overloads the replica and reports the
+  objectives, missed, with the error budget consumed. Both runs check the
+  load generator's mean latencies against the ones the simulator measures,
+  within 25 ms. The checks run in `hack/loadgen/slo_check.py`.
+
 ## [0.5.0] — 2026-10-10
 
 The release in which a FleetService that sets `nodePool.selector` works on

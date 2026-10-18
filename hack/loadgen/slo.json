@@ -1,0 +1,9 @@
+{
+  "doc": "ADR-0013",
+  "ttft_ms": 1000,
+  "tpot_ms": 50,
+  "latency_share": 0.95,
+  "success_share": 0.995,
+  "max_send_delay_ms": 250,
+  "mean_tolerance_ms": 25
+}
