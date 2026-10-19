@@ -34,6 +34,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   request brings it back to one Ready replica. The queue stub's nginx
   now comes from mirror.gcr.io by digest.
 
+- **A fleet scales from 1 to N (ADR-0014).** The FleetService `scale`
+  subresource now has a selector, `.status.selector`, set to
+  `inference.michelecampi.dev/fleet=<name>`, so an HPA, and KEDA through
+  it, can drive a fleet above one replica; until now the HPA refused a
+  fleet with `InvalidSelector`. A `scale-out` job applies
+  `deploy/examples/keda/scaledobject-scale-out.yaml`, a KEDA Prometheus
+  trigger on the fleet's running plus waiting requests averaged over a
+  minute, with a threshold of 1.3 per replica and a cap of 3; replays the
+  10% trace profile through the fleet's Service; and asserts that the
+  fleet reaches two replicas, never exceeds three, and serves from at
+  least two pods. The objectives are reported, not asserted. The load
+  generator's new `--force-close` opens one connection per request, so
+  that the Service spreads requests across pods, and the run record says
+  so in its `run_config`.
+
 ### Changed
 
 - **Build images come from mirror.gcr.io.** A Docker Hub outage could stop the
@@ -69,6 +84,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   objectives, missed, with the error budget consumed. Both runs check the
   load generator's mean latencies against the ones the simulator measures,
   within 25 ms. The checks run in `hack/loadgen/slo_check.py`.
+
+- **A fleet's pods carry the fleet's label.** A fleet's children already
+  carried `inference.michelecampi.dev/fleet`; their pods now carry it
+  too, in the pod template only, so the Deployment's selector, which is
+  immutable, does not change. A standalone `VllmService` keeps its pod
+  template as it was.
+
+- **One KEDA install for both jobs.** The `keda` and `scale-out` jobs
+  install KEDA through the same script, `hack/keda-install.sh`.
+
+### Upgrading from 0.5.0
+
+Apply the CRDs before `helm upgrade`, with the commands given for 0.5.0
+below and this release's tag. With the 0.5.0 CRDs left in place, the
+FleetService `scale` subresource has no `labelSelectorPath`, and the HPA
+keeps refusing a fleet with `InvalidSelector`.
+
+Every fleet child rolls out once, because its pod template gains the
+fleet label. The rollout surges first (`maxSurge: 1`,
+`maxUnavailable: 0`) and the new pod is pinned to the old one's node, so
+on a node with no spare GPU the new pod stays Pending while the old one
+keeps serving, and the rollout completes only once a GPU is free there.
+This follows from the strategy and the pin; no GPU node has run it.
 
 ## [0.5.0] — 2026-10-10
 

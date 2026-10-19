@@ -18,37 +18,41 @@ back in under ten:
       --from-literal=queue.json='{"waiting": 4}' --dry-run=client -o yaml \
       | kubectl apply -f - && kubectl rollout restart deployment/queue-stub
 
-## The perimeter, and why it is not an oversight
+## Two paths: to and from zero, and 1 → N
 
-KEDA drives this fleet **to and from zero only**. It does not scale 1 → N.
+KEDA drives this fleet **to and from zero** and, since ADR-0014, **from 1
+to N** as well. The two halves take different paths.
 
-The two halves take different paths. Activation and idling go through
-KEDA's own scale executor, which writes the `scale` subresource directly
-(`scaleClient.Scales(ns).Update`) — exactly what ADR-0009 D1 exposes.
-Everything above that boundary belongs to the HPA, and the HPA rejects a
-`FleetService`:
+Activation and idling go through KEDA's own scale executor, which writes
+the `scale` subresource directly (`scaleClient.Scales(ns).Update`),
+exactly what ADR-0009 D1 exposes. No HPA is involved.
+
+Everything above that boundary belongs to the HPA, and until ADR-0014 the
+HPA rejected a `FleetService`:
 
     ScalingActive=False  InvalidSelector:
     the HPA target's scale is missing a selector
 
 Autoscaling defines that field as *"the label query over pods that should
-match the replicas count"*, and a fleet has none to give: it labels its
-children — `VllmService` objects — in their metadata, while the pods carry
-`app` and `managed-by` and nothing ties a pod to a fleet.
+match the replicas count"*, and a fleet had none to give: it labeled its
+children, `VllmService` objects, and not their pods. The label could not
+simply be added to the pods, because the same map fed the Deployment's
+`LabelSelector`, which is immutable after creation; the e2e job asserts
+that the API server rejects such a change.
 
-Adding the label to the pods is not available either. The same label map
-feeds the Deployment's `LabelSelector`, which is immutable after creation,
-so the change would break apply on every existing Deployment — the e2e job
-asserts that rejection on purpose.
+ADR-0014 separates the two. A fleet's child adds the fleet label to its
+pods' template only, leaving the Deployment's selector as it was, byte for
+byte, and the fleet publishes the matching query as `.status.selector`
+(`inference.michelecampi.dev/fleet=<name>`). The field selects exactly the
+fleet's pods, unlike the one ADR-0009 declined. The cost is one rollout
+of each fleet child when the operator is upgraded, surge first
+(`maxSurge: 1`, `maxUnavailable: 0`).
 
-A `.status.selector` field could be declared and the HPA would accept it,
-since the metric KEDA registers is `external` and carries its own
-selector. It would also be a field claiming to select pods that selects
-nothing. Not done, for the same reason ADR-0010 D1 declined to publish a
-bound no writer could produce.
-
-`maxReplicaCount` is therefore 1. A larger number would promise
-proportional scaling that does not happen.
+`scaledobject-scale-to-zero.yaml` keeps `maxReplicaCount: 1`: it is the
+zero round trip the `keda` CI job repeats. `scaledobject-scale-out.yaml`
+is the 1 → N example the `scale-out` CI job runs: a Prometheus trigger on
+the fleet's running plus waiting requests, averaged over a minute, with a
+threshold of 1.3 per replica and a cap of 3 replicas.
 
 ## Why scale-to-zero is the case worth having
 

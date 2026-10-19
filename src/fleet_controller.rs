@@ -42,8 +42,9 @@ use vllm_coldstart_operator::fleet_placement::{
 };
 use vllm_coldstart_operator::fleet_planning::plan_initial_placements;
 use vllm_coldstart_operator::fleet_types::{
-    fleet_phase_for, placement_phase_for, surplus_hysteresis, FleetService, FleetServiceStatus,
-    NodeState, PlacementDecisionInputs, PlacementStatus, PlacementStrategy,
+    fleet_phase_for, fleet_selector, placement_phase_for, surplus_hysteresis, FleetService,
+    FleetServiceStatus, NodeState, PlacementDecisionInputs, PlacementStatus, PlacementStrategy,
+    FLEET_LABEL,
 };
 use vllm_coldstart_operator::metrics::Metrics;
 use vllm_coldstart_operator::{VllmService, VllmServiceSpec};
@@ -249,7 +250,7 @@ fn build_owned_vllm_service(
         "app.kubernetes.io/managed-by".to_string(),
         FLEET_MANAGER.to_string(),
     );
-    labels.insert("inference.michelecampi.dev/fleet".to_string(), fleet_name);
+    labels.insert(FLEET_LABEL.to_string(), fleet_name);
 
     Ok(VllmService {
         metadata: ObjectMeta {
@@ -386,7 +387,9 @@ pub async fn reconcile(
         // phase and desired count for a fleet that has none yet: children a
         // fleet already placed may still be running, and a full status write
         // here would report them gone.
-        let mut status = json!({ "message": reason });
+        // The selector depends on the fleet's name alone, so it is written here
+        // too: the scale subresource has one from the first write (ADR-0014).
+        let mut status = json!({ "message": reason, "selector": fleet_selector(&name) });
         if fleet.status.as_ref().is_none_or(|s| s.phase.is_empty()) {
             status["phase"] = json!(fleet_phase_for(fleet.spec.replicas, 0, false));
             status["desiredReplicas"] = json!(fleet.spec.replicas);
@@ -409,7 +412,7 @@ pub async fn reconcile(
     //    preserved verbatim across reconciles and do not oscillate when node
     //    warmth changes.
     let services: Api<VllmService> = Api::namespaced(ctx.client.clone(), &ns);
-    let lp = ListParams::default().labels(&format!("inference.michelecampi.dev/fleet={name}"));
+    let lp = ListParams::default().labels(&fleet_selector(&name));
     let existing = services.list(&lp).await?;
     let mut current: BTreeMap<usize, String> = BTreeMap::new();
     // Observed readiness of each existing child, keyed by child name. A
@@ -499,10 +502,7 @@ pub async fn reconcile(
             }
             let node = s.spec.node_name.as_deref()?;
             let own = s.namespace().as_deref() == Some(ns.as_str())
-                && s.labels()
-                    .get("inference.michelecampi.dev/fleet")
-                    .map(String::as_str)
-                    == Some(name.as_str());
+                && s.labels().get(FLEET_LABEL).map(String::as_str) == Some(name.as_str());
             Some((node, s.status.as_ref().map(|st| st.phase.as_str()), own))
         })),
         Err(e) => {
@@ -813,6 +813,7 @@ pub async fn reconcile(
             active_reschedules,
             placements,
             message: String::new(),
+            selector: fleet_selector(&name),
         }
     });
     fleets

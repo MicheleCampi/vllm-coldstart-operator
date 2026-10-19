@@ -511,3 +511,24 @@ asserts that an idle queue takes the fleet to `spec.replicas: 0` with no
 child, and that a waiting request brings it back to one Ready replica.
 The 1 → N row is not asserted: its outcome is the HPA's rejection, which
 the postscript explains.
+
+## Postscript, 2026-10-19 — 1→N goes through the HPA (ADR-0014)
+
+The 2026-08-17 postscript found 1→N out of reach and declined a
+`.status.selector` that would select nothing. ADR-0014 lifts the limit
+without contradicting either finding. The fact the limit rested on still
+holds: the label map in `build_deployment` still feeds the Deployment's
+`LabelSelector`, unchanged, and the e2e job still asserts that a selector
+change is rejected. What changed is that a fleet's child now adds the
+fleet label to its pod template alone (`src/main.rs:80-86`), so its pods
+carry `inference.michelecampi.dev/fleet=<name>` while the selector stays
+as it was. The fleet publishes that query as `.status.selector`
+(`src/fleet_types.rs:25`), and the field now selects exactly the fleet's
+pods, which is what "What was deliberately not done" asked of it.
+
+The HPA accepts the fleet as a scale target, and the `scale-out` CI job
+drives it under load from one replica to its cap of three. D1's claim
+that an external autoscaler can drive the fleet now covers 1→N as well
+as the transitions to and from zero; scaling back down from N is not
+measured. The measurements and what they do not prove are in ADR-0014.
+The text above stands as written.

@@ -469,6 +469,12 @@ spec:
                   is still coming up and make an autoscaler scale on top of it.
                 format: int32
                 type: integer
+              selector:
+                default: ''
+                description: |-
+                  ADR-0014: the scale subresource's label selector, the label query
+                  over this fleet's pods. The HPA refuses a scale target without one.
+                type: string
               warmingReplicas:
                 default: 0
                 description: |-
@@ -488,6 +494,7 @@ spec:
     storage: true
     subresources:
       scale:
+        labelSelectorPath: .status.selector
         specReplicasPath: .spec.replicas
         statusReplicasPath: .status.replicas
       status: {}

@@ -26,6 +26,7 @@ use serde_json::json;
 use thiserror::Error;
 use tracing::{info, warn};
 
+use vllm_coldstart_operator::fleet_types::FLEET_LABEL;
 use vllm_coldstart_operator::{
     metrics::Metrics, phase_for, VllmService, VllmServiceStatus, WarmupStrategy,
 };
@@ -75,6 +76,14 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         "app.kubernetes.io/managed-by".to_string(),
         MANAGER.to_string(),
     );
+
+    // ADR-0014: the selector stays `labels`, byte for byte, because a
+    // Deployment's selector is immutable. A fleet's child adds the fleet
+    // label to its pods only, so the fleet's scale selector matches them.
+    let mut pod_labels = labels.clone();
+    if let Some(fleet) = svc.labels().get(FLEET_LABEL) {
+        pod_labels.insert(FLEET_LABEL.to_string(), fleet.clone());
+    }
 
     let enforce_eager = matches!(svc.spec.warmup_strategy, WarmupStrategy::Eager);
 
@@ -236,7 +245,7 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
 
     let template = PodTemplateSpec {
         metadata: Some(ObjectMeta {
-            labels: Some(labels.clone()),
+            labels: Some(pod_labels),
             ..Default::default()
         }),
         spec: Some(PodSpec {
@@ -499,6 +508,51 @@ mod tests {
             "spec": {"model": "facebook/opt-125m", "gpu": 0}
         }))
         .expect("valid fixture")
+    }
+
+    fn fleet_child() -> VllmService {
+        let mut svc = sample();
+        svc.metadata.labels = Some(BTreeMap::from([(FLEET_LABEL.to_string(), "f".to_string())]));
+        svc
+    }
+
+    #[test]
+    fn a_fleet_child_labels_its_pods_and_keeps_the_selector() {
+        // ADR-0014: the selector is immutable, so a child must keep exactly
+        // the one a standalone service has; only its pods gain the fleet label.
+        let alone = build_deployment(&sample())
+            .expect("deployment")
+            .spec
+            .expect("spec");
+        let child = build_deployment(&fleet_child())
+            .expect("deployment")
+            .spec
+            .expect("spec");
+        assert_eq!(child.selector, alone.selector);
+        let pod = child
+            .template
+            .metadata
+            .and_then(|m| m.labels)
+            .expect("pod labels");
+        assert_eq!(pod.get(FLEET_LABEL).map(String::as_str), Some("f"));
+        for (k, v) in child.selector.match_labels.expect("match labels") {
+            assert_eq!(pod.get(&k), Some(&v));
+        }
+    }
+
+    #[test]
+    fn a_standalone_service_keeps_its_pod_template() {
+        // No fleet label, no change: upgrading rolls out no standalone service.
+        let spec = build_deployment(&sample())
+            .expect("deployment")
+            .spec
+            .expect("spec");
+        let pod = spec
+            .template
+            .metadata
+            .and_then(|m| m.labels)
+            .expect("pod labels");
+        assert_eq!(Some(pod), spec.selector.match_labels);
     }
 
     #[test]

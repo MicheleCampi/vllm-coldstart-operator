@@ -233,9 +233,11 @@ async def replay(
 ) -> None:
     # Open loop: each request goes out at its scheduled time whatever is in
     # flight, so the connection pool must not cap concurrency (limit=0).
+    # --force-close opens one connection per request: a Kubernetes Service
+    # balances per connection, so this spreads requests across its pods.
     t_start = clock[0]
     timeout = aiohttp.ClientTimeout(total=args.request_timeout)
-    connector = aiohttp.TCPConnector(limit=0)
+    connector = aiohttp.TCPConnector(limit=0, force_close=args.force_close)
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         sends = []
         for r in reqs:
@@ -269,9 +271,16 @@ async def main() -> None:
     ap.add_argument("--out", required=True, help="JSONL output path")
     ap.add_argument("--profile", help="open loop: replay this profile CSV instead")
     ap.add_argument("--keep", type=float, default=1.0, help="fraction of rows kept")
+    ap.add_argument(
+        "--force-close",
+        action="store_true",
+        help="open loop: close each connection after its response",
+    )
     args = ap.parse_args()
     if args.profile is None and args.duration is None:
         ap.error("--duration is required without --profile")
+    if args.force_close and args.profile is None:
+        ap.error("--force-close applies to the open loop only (--profile)")
     if not 0.0 < args.keep <= 1.0:
         ap.error("--keep must be in (0, 1]")
 
@@ -303,6 +312,7 @@ async def main() -> None:
                 "profile": args.profile,
                 "profile_sha256": profile_sha,
                 "keep": args.keep,
+                "force_close": args.force_close,
                 "requests_per_target": len(reqs),
                 "sequence_sha256": seq_sha,
             }

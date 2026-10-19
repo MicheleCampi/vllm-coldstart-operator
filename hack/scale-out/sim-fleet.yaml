@@ -1,0 +1,33 @@
+# The fleet the scale-out CI job loads (ADR-0014): the llm-d simulator
+# image, configured by its own Dockerfile (hack/rehearsal/Dockerfile.sim),
+# no GPU, and Ready only when the simulator answers /health.
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: FleetService
+metadata:
+  name: sim-fleet
+  namespace: default
+spec:
+  model: facebook/opt-125m
+  replicas: 1
+  template:
+    gpu: 0
+    healthPath: /health
+    image: llmd-sim-rehearsal:v0.8.2
+---
+# One entry point over every replica, by the label the fleet puts on
+# its pods. The test owns it, not the operator: routing belongs to the
+# router layer (ADR-0007 D5, ADR-0008 D1). kube-proxy balances per
+# connection, so the load generator runs with --force-close.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sim-fleet-nodeport
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    inference.michelecampi.dev/fleet: sim-fleet
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30080

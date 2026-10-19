@@ -1,0 +1,47 @@
+# 1 -> N for a FleetService, driven by KEDA through the HPA (ADR-0014).
+#
+# The fleet's scale subresource has a selector, the label query over the
+# pods its children run, so the HPA that KEDA creates accepts the fleet as
+# a target. The scale-out CI job applies this object to the fleet in
+# hack/scale-out/sim-fleet.yaml, with the Prometheus in
+# hack/scale-out/prometheus.yaml.
+#
+# Signal: requests in flight over the fleet, running plus waiting as the
+# engine reports them, averaged over a minute so that a burst does not
+# buy a replica. Threshold: 1.3 per replica, from Little's law on measured
+# numbers (ADR-0014). One replica serves about 0.4 req/s (ADR-0013) and a
+# request took 3.36 s end to end when nothing queued, so a replica at
+# capacity holds 0.4 x 3.36 = 1.34 requests; rounding down adds a replica
+# slightly early. maxReplicaCount 3 is the cap.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: sim-fleet-scale-out
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: inference.michelecampi.dev/v1alpha1
+    kind: FleetService
+    name: sim-fleet
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  advanced:
+    horizontalPodAutoscalerConfig:
+      # ADR-0009 D4: scale-up is immediate and scale-down is not its
+      # mirror. The HPA waits for five minutes of lower demand, and the
+      # fleet's own hysteresis then gates the removal.
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+        scaleDown:
+          stabilizationWindowSeconds: 300
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        # Two sums: avg_over_time drops the metric name, so one selector over
+        # both gauges leaves two series per pod with one labelset, which
+        # Prometheus rejects. The samples share a scrape, so the sum of the
+        # averages is the average of the sum.
+        query: 'sum(avg_over_time(vllm:num_requests_running{fleet="sim-fleet"}[1m])) + sum(avg_over_time(vllm:num_requests_waiting{fleet="sim-fleet"}[1m]))'
+        threshold: "1.3"

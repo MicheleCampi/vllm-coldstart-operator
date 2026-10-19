@@ -21,7 +21,8 @@ use serde::{Deserialize, Serialize};
     shortname = "fleet",
     scale(
         spec_replicas_path = ".spec.replicas",
-        status_replicas_path = ".status.replicas"
+        status_replicas_path = ".status.replicas",
+        label_selector_path = ".status.selector"
     ),
     printcolumn = r#"{"name":"Phase","type":"string","jsonPath":".status.phase"}"#,
     printcolumn = r#"{"name":"Desired","type":"integer","jsonPath":".status.desiredReplicas"}"#,
@@ -184,6 +185,17 @@ fn default_max_concurrent_reschedules() -> i32 {
     1
 }
 
+/// Label key a fleet writes on its children and, through them, on their
+/// pods (ADR-0014). One definition, so the label and the selector that
+/// reads it cannot drift apart.
+pub const FLEET_LABEL: &str = "inference.michelecampi.dev/fleet";
+
+/// The label query over a fleet's pods: the scale subresource's selector
+/// (`.status.selector`), and the query that lists the fleet's children.
+pub fn fleet_selector(fleet_name: &str) -> String {
+    format!("{FLEET_LABEL}={fleet_name}")
+}
+
 /// Observed state, written back by the fleet controller.
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(rename_all = "camelCase")]
@@ -201,6 +213,10 @@ pub struct FleetServiceStatus {
     /// is still coming up and make an autoscaler scale on top of it.
     #[serde(default)]
     pub replicas: i32,
+    /// ADR-0014: the scale subresource's label selector, the label query
+    /// over this fleet's pods. The HPA refuses a scale target without one.
+    #[serde(default)]
+    pub selector: String,
     /// ADR-0009 D3 (as amended in the postscript): placements the fleet
     /// holds that are not serving yet but are being brought up — `Pending`
     /// or `Warming`. Excludes `Draining`/`Rescheduling`, which is capacity
@@ -467,6 +483,24 @@ pub struct NodeStateStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scale_subresource_reads_the_fleet_selector() {
+        use kube::CustomResourceExt;
+        // ADR-0014: written out on purpose. Changing the key would leave the
+        // pods of every running fleet outside its selector, so it must fail here.
+        assert_eq!(fleet_selector("f"), "inference.michelecampi.dev/fleet=f");
+        let crd = FleetService::crd();
+        let scale = crd.spec.versions[0]
+            .subresources
+            .as_ref()
+            .and_then(|s| s.scale.as_ref())
+            .expect("scale subresource");
+        assert_eq!(
+            scale.label_selector_path.as_deref(),
+            Some(".status.selector")
+        );
+    }
 
     #[test]
     fn status_with_only_phase_and_message_deserializes() {

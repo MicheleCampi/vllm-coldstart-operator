@@ -616,13 +616,13 @@ jobs:
           echo "operator restart adopted the child without recreating it"
       - name: Pin the selector immutability constraint
         run: |
-          # ADR-0008 fact 3: build_deployment feeds one `labels` map to the
-          # pod template, the LabelSelector and the Deployment metadata
-          # (src/main.rs, three clones of the same BTreeMap). A Deployment's
-          # selector is immutable after creation, so any future version that
-          # adds a key to that map — fleet membership being the obvious
-          # candidate, which fact 2 says is missing — breaks apply on every
-          # Deployment that already exists.
+          # ADR-0008 fact 3: a Deployment's selector is immutable after
+          # creation, so any version that adds a key to the LabelSelector
+          # that build_deployment writes breaks apply on every Deployment
+          # that already exists. Fleet membership (ADR-0014) is therefore a
+          # label on the pod template only: the selector and the Deployment
+          # metadata keep the `labels` map, and the template gets a copy with
+          # the fleet key added (src/main.rs, pod_labels).
           #
           # This step does not test the operator. It pins the constraint the
           # operator has to evolve within, by proving the API server rejects
@@ -646,9 +646,9 @@ jobs:
             echo "ERROR: apply failed for some reason other than immutability"
             exit 1
           }
-          echo "selector immutability confirmed: adding a label to the shared"
-          echo "map is a breaking change for existing Deployments, and any"
-          echo "version that needs one has to migrate rather than apply"
+          echo "selector immutability confirmed: adding a key to the selector"
+          echo "is a breaking change for existing Deployments, and a version"
+          echo "that needs one has to migrate rather than apply"
       - name: Reporter log on failure
         if: failure()
         run: cat reporter.log || true
@@ -1035,24 +1035,7 @@ jobs:
           tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
 
       - name: Install KEDA, chart and images pinned
-        # The chart composes registry/repository:tag, so a tag carrying a
-        # digest makes each pod run exactly the image pinned in env.
-        run: |
-          curl -fsSL -o /tmp/keda.tgz "$KEDA_CHART_URL"
-          echo "$KEDA_CHART_SHA256  /tmp/keda.tgz" | sha256sum -c -
-          /tmp/linux-amd64/helm install keda /tmp/keda.tgz --namespace keda --create-namespace \
-            --set image.keda.tag="$KEDA_IMAGE_KEDA" \
-            --set image.metricsApiServer.tag="$KEDA_IMAGE_METRICS" \
-            --set image.webhooks.tag="$KEDA_IMAGE_WEBHOOKS" \
-            --wait --timeout 5m
-          for d in keda-operator keda-operator-metrics-apiserver keda-admission-webhooks; do
-            kubectl rollout status "deployment/$d" -n keda --timeout=2m
-          done
-          got=$(kubectl get pods -n keda -o jsonpath='{range .items[*]}{.spec.containers[0].image}{"\n"}{end}' | sort)
-          want=$(printf '%s\n' "ghcr.io/kedacore/keda:$KEDA_IMAGE_KEDA" "ghcr.io/kedacore/keda-metrics-apiserver:$KEDA_IMAGE_METRICS" "ghcr.io/kedacore/keda-admission-webhooks:$KEDA_IMAGE_WEBHOOKS" | sort)
-          [ "$got" = "$want" ] || { echo "::error::KEDA pods run [$got], want [$want]"; exit 1; }
-          echo "KEDA runs the pinned images:"
-          echo "$got"
+        run: bash hack/keda-install.sh
 
       - name: Install CRD
         run: |
@@ -1123,6 +1106,148 @@ jobs:
           kubectl get fleetservice,vllmservice -o yaml || true
           kubectl get pods -A -o wide || true
           kubectl logs -n keda deployment/keda-operator --tail=200 || true
+
+      - name: Stop reporter and operator
+        if: always()
+        run: |
+          bash hack/e2e-reporter.sh stop || true
+          kill "$(cat operator.pid)" 2>/dev/null || true
+
+  scale-out:
+    name: KEDA scales a fleet 1 to N under load on kind
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build operator and reporter
+        run: cargo build --bins
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: scale-out
+
+      - name: Build and load the simulator image
+        run: |
+          docker build -t llmd-sim-rehearsal:v0.8.2 -f hack/rehearsal/Dockerfile.sim hack/rehearsal
+          kind load docker-image llmd-sim-rehearsal:v0.8.2 --name scale-out
+
+      - name: Install Helm
+        run: |
+          curl -fsSL -o /tmp/helm.tgz "$HELM_URL"
+          echo "$HELM_SHA256  /tmp/helm.tgz" | sha256sum -c -
+          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+
+      - name: Install KEDA, chart and images pinned
+        run: bash hack/keda-install.sh
+
+      - name: Install Prometheus, image pinned
+        # The manifest is the one place the image is pinned; the pod must
+        # run exactly that reference.
+        run: |
+          kubectl apply -f hack/scale-out/prometheus.yaml
+          kubectl rollout status deployment/prometheus -n monitoring --timeout=2m
+          want=$(grep -o -E 'mirror\.gcr\.io/prom/prometheus:[^ ]+' hack/scale-out/prometheus.yaml)
+          got=$(kubectl get pods -n monitoring -l app=prometheus -o jsonpath='{.items[*].spec.containers[0].image}')
+          [ "$got" = "$want" ] || { echo "::error::Prometheus runs [$got], want [$want]"; exit 1; }
+          echo "Prometheus runs the pinned image: $got"
+
+      - name: Install CRD
+        run: |
+          kubectl apply -f deploy/crd.yaml
+          kubectl wait --for=condition=Established crd --all --timeout=30s
+
+      - name: Start operator and reporter
+        # Without a NodeState the fleet has no candidate (see the e2e job).
+        run: |
+          ./target/debug/vllm-coldstart-operator > operator.log 2>&1 &
+          echo $! > operator.pid
+          sleep 3
+          echo "operator started (pid $(cat operator.pid))"
+          bash hack/e2e-reporter.sh start
+
+      - name: The fleet serves one replica through its NodePort
+        # The runner reaches the kind node's IP directly; kube-proxy then
+        # balances each connection over the fleet's Ready pods.
+        run: |
+          kubectl apply -f hack/scale-out/sim-fleet.yaml
+          ready=""
+          for i in $(seq 1 60); do
+            ready=$(kubectl get fleetservice sim-fleet -o jsonpath='{.status.phase}/{.status.readyReplicas}' 2>/dev/null || true)
+            [ "$ready" = "Ready/1" ] && break
+            sleep 3
+          done
+          [ "$ready" = "Ready/1" ] || { echo "ERROR: sim-fleet is '$ready', want Ready/1"; cat operator.log; exit 1; }
+          node_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' scale-out-control-plane)
+          for i in $(seq 1 30); do curl -sf "http://$node_ip:30080/health" > /dev/null && break; sleep 1; done
+          curl -sf "http://$node_ip:30080/health" > /dev/null
+          echo "FLEET_URL=http://$node_ip:30080" >> "$GITHUB_ENV"
+          echo "fleet Ready/1, serving at http://$node_ip:30080"
+
+      - name: Prometheus scrapes the fleet's pod
+        run: |
+          up=""
+          for i in $(seq 1 40); do
+            up=$(kubectl get --raw '/api/v1/namespaces/monitoring/services/prometheus:9090/proxy/api/v1/query?query=up' | python3 -c 'import json, sys; print(" ".join(r["metric"].get("fleet", "") + "=" + r["value"][1] for r in json.load(sys.stdin)["data"]["result"]))' || true)
+            [ "$up" = "sim-fleet=1" ] && break
+            sleep 3
+          done
+          [ "$up" = "sim-fleet=1" ] || { echo "ERROR: Prometheus targets are '$up', want sim-fleet=1"; exit 1; }
+          echo "Prometheus scrapes the fleet: $up"
+
+      - name: The HPA accepts the fleet as a scale target
+        # Before ADR-0014 this HPA reported ScalingActive=False with
+        # InvalidSelector: the fleet's scale subresource had no selector.
+        run: |
+          kubectl apply -f deploy/examples/keda/scaledobject-scale-out.yaml
+          active=""
+          for i in $(seq 1 40); do
+            active=$(kubectl get hpa keda-hpa-sim-fleet-scale-out -o jsonpath='{.status.conditions[?(@.type=="ScalingActive")].status}' 2>/dev/null || true)
+            [ "$active" = "True" ] && break
+            sleep 3
+          done
+          [ "$active" = "True" ] || { echo "ERROR: ScalingActive is '$active', want True"; kubectl describe hpa; exit 1; }
+          kubectl get hpa keda-hpa-sim-fleet-scale-out
+
+      - name: Under load the fleet scales out, within its cap
+        # keep 0.1 overloads one replica (the sim-load job); what is asserted
+        # and what is only reported is in ADR-0014.
+        run: |
+          python3 -m venv /tmp/loadgen && /tmp/loadgen/bin/pip install --quiet aiohttp==3.14.1
+          bash hack/scale-out/measure.sh
+
+      - name: Upload load record and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scale-out
+          path: |
+            scale-out.*
+            operator.log
+            reporter.log
+          if-no-files-found: ignore
+
+      - name: Dump state on failure
+        if: failure()
+        run: |
+          kubectl get scaledobject,hpa -A -o yaml || true
+          kubectl get fleetservice,vllmservice -o yaml || true
+          kubectl get pods -A -o wide || true
+          kubectl logs -n keda deployment/keda-operator --tail=200 || true
+          kubectl logs -n monitoring deployment/prometheus --tail=100 || true
 
       - name: Stop reporter and operator
         if: always()

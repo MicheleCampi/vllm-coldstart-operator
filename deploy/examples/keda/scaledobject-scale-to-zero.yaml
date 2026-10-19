@@ -1,12 +1,11 @@
 # Scale-to-zero for a FleetService, driven by KEDA.
 #
-# Perimeter, from the 2026-08-17 postscript on ADR-0009: KEDA handles the
-# transitions to and from zero by writing the scale subresource directly,
-# which is all D1 provides and all this needs. It does NOT scale 1 -> N:
-# that path goes through the HPA, and the HPA rejects a FleetService with
-# `InvalidSelector` because the fleet has no label query over pods to
-# give. minReplicaCount is therefore 0 and maxReplicaCount is 1 — writing
-# a larger max would promise proportional scaling that does not happen.
+# Perimeter: KEDA handles the transitions to and from zero by writing the
+# scale subresource directly, which is all ADR-0009 D1 provides and all
+# this needs. maxReplicaCount stays 1 because this example is the zero
+# round trip; scaling 1 -> N goes through the HPA, which accepts a fleet
+# since ADR-0014 gave it a selector, and scaledobject-scale-out.yaml is
+# that example.
 #
 # The trigger here reads a queue-depth endpoint. In a real deployment that
 # is the vLLM `/metrics` scrape or an aggregator over it; the stub in this
