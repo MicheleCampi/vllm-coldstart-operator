@@ -1,6 +1,6 @@
 # ADR-0014: A fleet selector for scaling from one to N
 
-Status: Accepted, rehearsed on kind 2026-10-19
+Status: Accepted, rehearsed on kind and measured in CI 2026-10-19
 Date: 2026-10-19
 
 ## Context
@@ -143,7 +143,7 @@ the two sums, passed every step.
 | 44 s | 3 | 2 | 3 |
 | 50 s | 3 | 3 | 3 |
 
-The replica counts were sampled every 2 s. All 222 requests were
+The replica counts were sampled about every 2 s. All 222 requests were
 answered with 200, offered at 0.746 requests per second, with a largest
 send delay of 3.6 ms. The three pods served 106, 63 and 53 requests; the
 first was alone for the first 35 s. Time to first token was at most 1 s
@@ -166,6 +166,57 @@ requests in flight were on one replica while 9 slots on the other two
 were free (fact 4). If each request picked a pod uniformly and
 independently, that concentration would be rare, roughly 1 in 350 by an
 estimate that ignores how long requests last.
+
+### In CI, 2026-10-19
+
+The pull request's run (GitHub Actions run 39334011664, commit
+ef074fc) ran the `scale-out` and `sim-load` jobs side by side, on two
+runners of the same image (ubuntu-24.04, version 20261012.334.1) with
+the same simulator image. Both replayed the same 222 requests at keep
+0.1, seed 42 (sequence `b170da22`, checked by `slo_check.py`), at 0.746
+requests per second; every one was answered with 200 and the profile's
+token counts. `sim-load` sent them to one replica, `scale-out` to the
+fleet, one connection per request (`"force_close": true` in its record).
+
+| Keep 0.1, seed 42 | One replica, `sim-load` | Fleet, `scale-out` |
+|---|---|---|
+| TTFT at most 1 s | 68.9% | 96.4% |
+| TTFT error budget consumed | 622% (69 misses) | 72% (8 misses) |
+| TTFT p50 / p95 / p99, ms | 442.0 / 8565.1 / 10221.4 | 314.2 / 703.9 / 3743.9 |
+| TPOT at most 50 ms | 100% | 100% |
+| Most requests in flight | 13 | 9 |
+| Client minus simulator, TTFT / e2e, ms | 2.2 / 1.4 | 2.2 / 1.2 |
+
+The fleet's replicas, sampled about every 2 s from 1.3 s before the first
+request (`scale-out.replicas` in the job's artifact):
+
+| From the start of sampling | spec.replicas | Ready | HPA desired |
+|---|---|---|---|
+| 0 s | 1 | 1 | 1 |
+| 25 s | 2 | 1 | 2 |
+| 32 s | 2 | 2 | 2 |
+| 280 s | 3 | 2 | 3 |
+| 288 s | 3 | 3 | 3 |
+
+Unlike the rehearsal, the fleet served most of the replay on two
+replicas: the third was Ready at 288 s, near the end of the 300 s
+replay, and its pod served 5 requests, against 129 and 88. The HPA
+asks for a third replica only once the minute's average of requests
+in flight is above twice the threshold of D3, 2 x 1.3 = 2.6; the job
+does not record the metric itself, so this run cannot say how close
+it came before 280 s.
+
+The eight slow requests came in the same two groups as in the
+rehearsal: three between 8.8 and 16.1 s after the first request, with
+one replica Ready, and five between 262.7 and 270.8 s, with two. In
+both runs the second group starts in the heaviest ten seconds of the
+sequence: from 260 to 270 s it sends 13 requests and 1871 output
+tokens, against a mean of 927 tokens per ten seconds. That window is a
+condition, not a sufficient cause: the one from 200 s sends 1836
+tokens and the one from 150 s sends 14 requests, and neither produced
+a slow request. With the per-connection spread of fact 5, which the
+rehearsal saw at +270 s, it is the likely explanation; this run did
+not record the load per pod.
 
 ## Consequences
 
