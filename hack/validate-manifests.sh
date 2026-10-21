@@ -8,8 +8,10 @@
 # PyYAML it pins, and the Kubernetes schemas.
 #
 # Every ```yaml block in README.md must be a whole manifest (apiVersion
-# and kind); fence fragments differently. KEDA's ScaledObject is skipped:
-# its CRD belongs to KEDA, not to this operator.
+# and kind); fence fragments differently. KEDA's ScaledObject and the HTTP
+# Add-on's InterceptorRoute are skipped: their CRDs belong to KEDA, not to
+# this operator. The scale-from-zero job applies the InterceptorRoute to a
+# cluster that has the add-on's CRD.
 #
 # The self-test adds an unknown field to the spec of one example of each
 # kind and requires it to be rejected for that reason: a check that cannot
@@ -60,7 +62,7 @@ for i, b in enumerate(blocks, 1):
     open(f'{out}/block-{i}.yaml', 'w').write(b)
 print(f'  {len(blocks)} yaml blocks from README.md')
 PY
-KC=(kubeconform -strict -summary -skip ScaledObject -kubernetes-version "$K8S_SCHEMA_VERSION"
+KC=(kubeconform -strict -summary -skip ScaledObject,InterceptorRoute -kubernetes-version "$K8S_SCHEMA_VERSION"
     -schema-location "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/$K8S_SCHEMA_COMMIT/{{.NormalizedKubernetesVersion}}-standalone{{.StrictSuffix}}/{{.ResourceKind}}{{.KindSuffix}}.json"
     -schema-location "$W/schemas/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json")
 check examples "${KC[@]}" deploy/examples
