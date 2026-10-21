@@ -49,6 +49,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that the Service spreads requests across pods, and the run record says
   so in its `run_config`.
 
+- **A fleet wakes from zero through the KEDA HTTP Add-on (ADR-0015).** A
+  `scale-from-zero` job installs the add-on 0.16.0, its chart pinned by
+  SHA-256 and its images by digest, with the interceptor fixed at three
+  replicas (`hack/keda-http-install.sh`), and applies
+  `deploy/examples/keda/scale-from-zero.yaml`: an `InterceptorRoute`
+  that holds a request until a fleet replica is Ready, for at most 120 s
+  and 16 requests per interceptor replica, and a ScaledObject from 0 to
+  3 whose add-on trigger wakes the fleet and whose Prometheus trigger,
+  ADR-0014's, scales it from 1 to N. The job starts the fleet at zero,
+  replays the 10% trace profile through the interceptor, and asserts
+  that a replica became Ready, that no request was rejected (503) or
+  held past readiness (504), and that at least 99.5% were served
+  (`hack/scale-from-zero/coldstart.py`); then, with no load, that the
+  fleet returns to zero 300 to 480 s after the last response with no
+  pod left, and it reports the replica-seconds the fleet stayed up with
+  nothing to serve (`hack/scale-from-zero/idle.py`). The objectives are
+  reported, not asserted: from zero they miss, and ADR-0015 breaks the
+  misses down. `slo_check.py --from-zero` subtracts the wait of the
+  requests held before the first token from the client's sums before
+  comparing them with the simulator's, and `hack/scale-out/measure.sh`
+  takes `OUT`, `HPA` and `FROM_ZERO` from the job.
+
 ### Changed
 
 - **Build images come from mirror.gcr.io.** A Docker Hub outage could stop the
@@ -91,8 +113,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   immutable, does not change. A standalone `VllmService` keeps its pod
   template as it was.
 
-- **One KEDA install for both jobs.** The `keda` and `scale-out` jobs
-  install KEDA through the same script, `hack/keda-install.sh`.
+- **One KEDA install for all three jobs.** The `keda`, `scale-out` and
+  `scale-from-zero` jobs install KEDA through the same script,
+  `hack/keda-install.sh`.
 
 ### Upgrading from 0.5.0
 

@@ -11,6 +11,12 @@ The simulator computes, rather than measures, its time to first token and
 time per output token, so those are not compared. It does measure queue,
 prefill and end-to-end time: the client's mean TTFT must match mean queue
 plus prefill, and its mean end-to-end latency the simulator's (ADR-0013).
+
+With --from-zero the fleet starts with no replica (ADR-0015): requests sent
+before the first token waited in the interceptor, unseen by the simulator,
+until a replica was Ready. Their wait, counted up to the first token, is
+subtracted from the client's sums before comparing; it overstates the wait
+by the time those requests spent in the simulator before that token.
 """
 import argparse
 import json
@@ -42,6 +48,7 @@ def main():
     ap.add_argument("--slo", required=True, help="objectives, such as hack/loadgen/slo.json")
     ap.add_argument("--sequence", required=True, help="pinned sequence sha256 for this profile, keep and seed")
     ap.add_argument("--assert-slo", action="store_true", help="fail when an objective is missed")
+    ap.add_argument("--from-zero", action="store_true", help="the run starts with no replica: subtract the wait before the first token")
     a = ap.parse_args()
     slo = json.load(open(a.slo))
     lines = open(a.records).read().splitlines()
@@ -90,8 +97,14 @@ def main():
         fails.append(f"the simulator counted {served:.0f} requests, the client {n}")
     elif not bad:
         qp = delta(b, e, "request_queue_time_seconds_sum") + delta(b, e, "request_prefill_time_seconds_sum")
-        d = {"ttft": (sum(ttft) - 1000 * qp) / n,
-             "e2e": (sum(r["latency_ms"] for r in good) - 1000 * delta(b, e, "e2e_request_latency_seconds_sum")) / n}
+        held = 0.0
+        if a.from_zero:
+            first = min(r["ts_first_token"] for r in good)
+            waits = [first - r["ts_start"] for r in good if r["ts_start"] < first]
+            held = 1000 * sum(waits)
+            print(f"from zero: {len(waits)} requests sent before the first token, {held:.0f} ms of wait subtracted")
+        d = {"ttft": (sum(ttft) - held - 1000 * qp) / n,
+             "e2e": (sum(r["latency_ms"] for r in good) - held - 1000 * delta(b, e, "e2e_request_latency_seconds_sum")) / n}
         print(f"client minus simulator means: ttft {d['ttft']:.1f} ms, e2e {d['e2e']:.1f} ms (tolerance {slo['mean_tolerance_ms']} ms)")
         fails += [f"{k} means disagree by {v:.1f} ms" for k, v in d.items() if abs(v) > slo["mean_tolerance_ms"]]
     for f in fails:

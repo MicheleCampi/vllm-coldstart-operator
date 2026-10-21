@@ -1,0 +1,23 @@
+# Exposes the KEDA HTTP add-on's interceptor proxy on every kind node, as
+# hack/scale-out/sim-fleet.yaml exposes the fleet, so the load generator on
+# the runner sends its requests through the interceptor (ADR-0015). The
+# selector and target port are those of the chart's own
+# keda-add-ons-http-interceptor-proxy Service; only the type differs.
+apiVersion: v1
+kind: Service
+metadata:
+  name: keda-add-ons-http-interceptor-nodeport
+  namespace: keda
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/component: interceptor
+    app.kubernetes.io/name: http-add-on
+    app.kubernetes.io/part-of: keda-add-ons-http
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/instance: keda-add-ons-http
+  ports:
+    - name: proxy
+      port: 8080
+      targetPort: proxy
+      nodePort: 30081

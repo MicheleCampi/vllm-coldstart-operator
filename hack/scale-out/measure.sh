@@ -5,10 +5,14 @@
 # pods serve requests, and every request is served with the profile's
 # tokens (slo_check: correctness asserted, objectives only reported).
 # Needs FLEET_URL, kubectl on the cluster and /tmp/loadgen with aiohttp;
-# writes scale-out.* in the current directory.
+# writes $OUT.* in the current directory. OUT and HPA default to the
+# scale-out job's; the scale-from-zero job sets its own and starts with
+# no fleet pod, so its "before" scrape is empty, and sets FROM_ZERO so
+# that slo_check discounts the wait for the first replica (--from-zero).
 set -euo pipefail
-OUT=scale-out
-HPA=keda-hpa-sim-fleet-scale-out
+shopt -s nullglob
+OUT="${OUT:-scale-out}"
+HPA="${HPA:-keda-hpa-sim-fleet-scale-out}"
 SEQUENCE=b170da22aa6101c6c20fbbaa9c9d2b647006161e2dffc7bf8710ec8135acdf62
 mkdir -p "$OUT.pods"
 
@@ -25,7 +29,7 @@ e2e_count() { # completed requests in one scrape; 0 before the first
 }
 
 pod_metrics before
-fleet_sum "$OUT".pods/*.before > "$OUT.before"
+fleet_sum "$OUT".pods/*.before < /dev/null > "$OUT.before" # no pod yet: awk reads /dev/null
 (
   while :; do
     echo "$(date +%s) $(kubectl get fleetservice sim-fleet -o jsonpath='{.spec.replicas} {.status.readyReplicas}') $(kubectl get hpa "$HPA" -o jsonpath='{.status.desiredReplicas}')"
@@ -41,7 +45,7 @@ pod_metrics after
 kill "$sampler"
 fleet_sum "$OUT".pods/*.after > "$OUT.after"
 python3 hack/loadgen/slo_check.py "$OUT.jsonl" "$OUT.before" "$OUT.after" --slo hack/loadgen/slo.json \
-  --sequence "$SEQUENCE"
+  --sequence "$SEQUENCE" ${FROM_ZERO:+--from-zero}
 
 peak=$(awk '{if ($2 > m) m = $2} END {print m + 0}' "$OUT.replicas")
 echo "peak spec.replicas: $peak (cap 3)"

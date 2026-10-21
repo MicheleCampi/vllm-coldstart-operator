@@ -21,6 +21,15 @@ env:
   KEDA_IMAGE_KEDA: 2.21.0@sha256:81fe6547ce8d1cc29273f887b76507e9b853e5bc1f875ec23fe60061a38ed809
   KEDA_IMAGE_METRICS: 2.21.0@sha256:255375037fe592732eeb554743aae360c2da88cf0b9b1258d0a987ef885f0881
   KEDA_IMAGE_WEBHOOKS: 2.21.0@sha256:e1969628cca6123e32eea13c47c75817091af2657fa68d9d0d58a8620d1b75b1
+  # The KEDA HTTP add-on for the scale-from-zero job, next to KEDA: the
+  # chart by version and SHA-256, and its three images by digest. One
+  # chart tag covers all three images, so hack/keda-http-install.sh sets
+  # each digest after the install.
+  KEDA_HTTP_CHART_URL: https://kedacore.github.io/charts/keda-add-ons-http-0.16.0.tgz
+  KEDA_HTTP_CHART_SHA256: 363f7250851f948661f7301c7e3bcb33c2cf19f4e26e2247f71ae61d339abe82
+  KEDA_HTTP_IMAGE_OPERATOR: 0.16.0@sha256:2ae0076d549fb7d12b3d9ecb1e87d035c7ee73e94a640ff53842e70ab0824da0
+  KEDA_HTTP_IMAGE_INTERCEPTOR: 0.16.0@sha256:3a9a454b949edd5dee711ed14e603cc3b91b7c065905ecc251fe0a56a4c026f1
+  KEDA_HTTP_IMAGE_SCALER: 0.16.0@sha256:db5223b1a37521ec0f099ac04785bfc069f5c3ebf4bacffd04e5127b0876dffb
 
 jobs:
   check:
@@ -1247,6 +1256,189 @@ jobs:
           kubectl get fleetservice,vllmservice -o yaml || true
           kubectl get pods -A -o wide || true
           kubectl logs -n keda deployment/keda-operator --tail=200 || true
+          kubectl logs -n monitoring deployment/prometheus --tail=100 || true
+
+      - name: Stop reporter and operator
+        if: always()
+        run: |
+          bash hack/e2e-reporter.sh stop || true
+          kill "$(cat operator.pid)" 2>/dev/null || true
+
+  scale-from-zero:
+    name: KEDA wakes a fleet from zero through the HTTP add-on on kind
+    # The scale-out job's bench (same simulator, KEDA, Prometheus and load),
+    # repeated rather than shared, with the fleet starting at zero replicas
+    # and the load entering through the add-on's interceptor (ADR-0015).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build operator and reporter
+        run: cargo build --bins
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: scale-from-zero
+
+      - name: Build and load the simulator image
+        run: |
+          docker build -t llmd-sim-rehearsal:v0.8.2 -f hack/rehearsal/Dockerfile.sim hack/rehearsal
+          kind load docker-image llmd-sim-rehearsal:v0.8.2 --name scale-from-zero
+
+      - name: Install Helm
+        run: |
+          curl -fsSL -o /tmp/helm.tgz "$HELM_URL"
+          echo "$HELM_SHA256  /tmp/helm.tgz" | sha256sum -c -
+          tar -xzf /tmp/helm.tgz -C /tmp linux-amd64/helm
+
+      - name: Install KEDA, chart and images pinned
+        run: bash hack/keda-install.sh
+
+      - name: Install the KEDA HTTP add-on, chart and images pinned
+        run: bash hack/keda-http-install.sh
+
+      - name: Install Prometheus, image pinned
+        # The manifest is the one place the image is pinned; the pod must
+        # run exactly that reference.
+        run: |
+          kubectl apply -f hack/scale-out/prometheus.yaml
+          kubectl rollout status deployment/prometheus -n monitoring --timeout=2m
+          want=$(grep -o -E 'mirror\.gcr\.io/prom/prometheus:[^ ]+' hack/scale-out/prometheus.yaml)
+          got=$(kubectl get pods -n monitoring -l app=prometheus -o jsonpath='{.items[*].spec.containers[0].image}')
+          [ "$got" = "$want" ] || { echo "::error::Prometheus runs [$got], want [$want]"; exit 1; }
+          echo "Prometheus runs the pinned image: $got"
+
+      - name: Install CRD
+        run: |
+          kubectl apply -f deploy/crd.yaml
+          kubectl wait --for=condition=Established crd --all --timeout=30s
+
+      - name: Start operator and reporter
+        # Without a NodeState the fleet has no candidate (see the e2e job).
+        run: |
+          ./target/debug/vllm-coldstart-operator > operator.log 2>&1 &
+          echo $! > operator.pid
+          sleep 3
+          echo "operator started (pid $(cat operator.pid))"
+          bash hack/e2e-reporter.sh start
+
+      - name: The fleet serves one replica through the interceptor
+        # A /health that succeeds on port 30081 has crossed the interceptor
+        # and the route to the fleet: the path the load will take.
+        run: |
+          kubectl apply -f hack/scale-out/sim-fleet.yaml
+          ready=""
+          for i in $(seq 1 60); do
+            ready=$(kubectl get fleetservice sim-fleet -o jsonpath='{.status.phase}/{.status.readyReplicas}' 2>/dev/null || true)
+            [ "$ready" = "Ready/1" ] && break
+            sleep 3
+          done
+          [ "$ready" = "Ready/1" ] || { echo "ERROR: sim-fleet is '$ready', want Ready/1"; cat operator.log; exit 1; }
+          kubectl apply -f hack/scale-from-zero/interceptor-nodeport.yaml -f deploy/examples/keda/scale-from-zero.yaml
+          node_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' scale-from-zero-control-plane)
+          for i in $(seq 1 30); do curl -sf "http://$node_ip:30081/health" > /dev/null && break; sleep 1; done
+          curl -sf "http://$node_ip:30081/health" > /dev/null
+          echo "FLEET_URL=http://$node_ip:30081" >> "$GITHUB_ENV"
+          echo "fleet Ready/1, serving through the interceptor at http://$node_ip:30081"
+
+      - name: Prometheus scrapes the fleet's pod
+        run: |
+          up=""
+          for i in $(seq 1 40); do
+            up=$(kubectl get --raw '/api/v1/namespaces/monitoring/services/prometheus:9090/proxy/api/v1/query?query=up' | python3 -c 'import json, sys; print(" ".join(r["metric"].get("fleet", "") + "=" + r["value"][1] for r in json.load(sys.stdin)["data"]["result"]))' || true)
+            [ "$up" = "sim-fleet=1" ] && break
+            sleep 3
+          done
+          [ "$up" = "sim-fleet=1" ] || { echo "ERROR: Prometheus targets are '$up', want sim-fleet=1"; exit 1; }
+          echo "Prometheus scrapes the fleet: $up"
+
+      - name: The HPA accepts the fleet as a scale target
+        run: |
+          active=""
+          for i in $(seq 1 40); do
+            active=$(kubectl get hpa keda-hpa-sim-fleet-scale-from-zero -o jsonpath='{.status.conditions[?(@.type=="ScalingActive")].status}' 2>/dev/null || true)
+            [ "$active" = "True" ] && break
+            sleep 3
+          done
+          [ "$active" = "True" ] || { echo "ERROR: ScalingActive is '$active', want True"; kubectl describe hpa; exit 1; }
+          kubectl get hpa keda-hpa-sim-fleet-scale-from-zero
+
+      - name: The fleet goes to zero replicas
+        # KEDA takes an idle fleet there itself after its cooldown; setting
+        # it here starts the load from zero without waiting for that.
+        run: |
+          kubectl patch fleetservice sim-fleet --type merge -p '{"spec":{"replicas":0}}'
+          state=""
+          for i in $(seq 1 60); do
+            state="$(kubectl get fleetservice sim-fleet -o jsonpath='{.spec.replicas}/{.status.readyReplicas}')/$(kubectl get pods -l inference.michelecampi.dev/fleet=sim-fleet -o name | wc -l)"
+            [ "$state" = "0/0/0" ] && break
+            sleep 2
+          done
+          [ "$state" = "0/0/0" ] || { echo "ERROR: sim-fleet spec/ready/pods is '$state', want 0/0/0"; exit 1; }
+          echo "sim-fleet at zero: spec/ready/pods $state"
+
+      - name: Under load the fleet wakes from zero and scales out
+        # measure.sh asserts the scale-out of ADR-0014, coldstart.py the
+        # wake of ADR-0015; both run, so a failure keeps both reports.
+        env:
+          OUT: scale-from-zero
+          HPA: keda-hpa-sim-fleet-scale-from-zero
+          FROM_ZERO: "1"
+        run: |
+          python3 -m venv /tmp/loadgen && /tmp/loadgen/bin/pip install --quiet aiohttp==3.14.1
+          status=0
+          bash hack/scale-out/measure.sh || status=1
+          python3 hack/scale-from-zero/coldstart.py scale-from-zero.jsonl scale-from-zero.replicas || status=1
+          exit "$status"
+
+      - name: Without load the fleet returns to zero after its cooldown
+        # KEDA takes the fleet to zero cooldownPeriod after the last moment a
+        # trigger was active (ADR-0015); idle.py checks when, and counts the
+        # replica-seconds the fleet stays up with nothing to serve.
+        run: |
+          for i in $(seq 1 120); do
+            s="$(date +%s) $(kubectl get fleetservice sim-fleet -o jsonpath='{.spec.replicas} {.status.readyReplicas}') $(kubectl get pods -l inference.michelecampi.dev/fleet=sim-fleet -o name | wc -l)"
+            echo "$s" >> scale-from-zero.idle
+            set -- $s
+            [ "$2/$4" = "0/0" ] && break
+            sleep 5
+          done
+          python3 hack/scale-from-zero/idle.py scale-from-zero.jsonl scale-from-zero.idle
+
+      - name: Upload load record and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scale-from-zero
+          path: |
+            scale-from-zero.*
+            operator.log
+            reporter.log
+          if-no-files-found: ignore
+
+      - name: Dump state on failure
+        if: failure()
+        run: |
+          kubectl get scaledobject,hpa,interceptorroute -A -o yaml || true
+          kubectl get fleetservice,vllmservice -o yaml || true
+          kubectl get pods -A -o wide || true
+          kubectl logs -n keda deployment/keda-operator --tail=200 || true
+          kubectl logs -n keda -l app.kubernetes.io/component=interceptor,app.kubernetes.io/instance=keda-add-ons-http --prefix --tail=100 || true
+          kubectl logs -n keda -l app.kubernetes.io/component=scaler,app.kubernetes.io/instance=keda-add-ons-http --prefix --tail=100 || true
           kubectl logs -n monitoring deployment/prometheus --tail=100 || true
 
       - name: Stop reporter and operator

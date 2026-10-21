@@ -1,0 +1,82 @@
+# 0 -> N for a FleetService (ADR-0015): requests that arrive while the
+# fleet has no replica wait in the KEDA HTTP add-on's interceptor, which
+# counts them, and that count wakes the fleet; above one replica the
+# Prometheus trigger of ADR-0014 drives it, unchanged. The scale-from-zero
+# CI job applies this file to the fleet in hack/scale-out/sim-fleet.yaml
+# after setting its replicas to 0, with the add-on that
+# hack/keda-http-install.sh installs.
+#
+# The route sends every request to the fleet's Service and holds it until
+# an endpoint is Ready, for at most the readiness timeout; past it the
+# interceptor answers 504, as no fallback is set.
+apiVersion: http.keda.sh/v1beta1
+kind: InterceptorRoute
+metadata:
+  name: sim-fleet
+  namespace: default
+spec:
+  target:
+    service: sim-fleet-nodeport
+    port: 8000
+  rules:
+    # One route in the cluster: every host. Stated rather than left empty.
+    - hosts: ["*"]
+  scalingMetric:
+    # A wake signal, not a control law: 100 requests in flight per replica
+    # is far above what one replica serves (ADR-0013), so this trigger asks
+    # for one replica while any request is held or in flight and leaves
+    # 1 -> N to the Prometheus trigger.
+    concurrency:
+      targetValue: 100
+  timeouts:
+    # A cold start that has not produced a Ready endpoint in 120 s is a
+    # failure to report, not a wait to extend.
+    readiness: 120s
+  coldStart:
+    # Held requests are bounded: 16 per interceptor replica, 48 across the
+    # three, twice the 8 held at once in the uncapped rehearsal even if all
+    # land on one replica (ADR-0015). Past the limit the interceptor answers
+    # 503 at once rather than queueing behind a fleet that may not wake.
+    maxPendingRequests: 16
+    overflow: Reject
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: sim-fleet-scale-from-zero
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: inference.michelecampi.dev/v1alpha1
+    kind: FleetService
+    name: sim-fleet
+  minReplicaCount: 0
+  maxReplicaCount: 3
+  # KEDA's defaults, stated because they set what a wake costs: KEDA polls
+  # the triggers every 30 s and takes the fleet back to zero 300 s after
+  # the last moment one was active, and the Prometheus trigger stays active
+  # for its one-minute average after the last request. The scale-from-zero
+  # job checks when the fleet returns to zero (ADR-0015).
+  pollingInterval: 30
+  cooldownPeriod: 300
+  advanced:
+    horizontalPodAutoscalerConfig:
+      # As in ADR-0014: scale-up immediate, scale-down after five minutes.
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+        scaleDown:
+          stabilizationWindowSeconds: 300
+  triggers:
+    - type: external-push
+      metadata:
+        scalerAddress: keda-add-ons-http-external-scaler.keda:9090
+        interceptorRoute: sim-fleet
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        # ADR-0014's signal and threshold. With no fleet pod the query has
+        # no series; KEDA then reads 0 instead of failing the trigger.
+        query: 'sum(avg_over_time(vllm:num_requests_running{fleet="sim-fleet"}[1m])) + sum(avg_over_time(vllm:num_requests_waiting{fleet="sim-fleet"}[1m]))'
+        threshold: "1.3"
+        ignoreNullValues: "true"
