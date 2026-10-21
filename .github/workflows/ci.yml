@@ -1367,19 +1367,24 @@ jobs:
           echo "Prometheus scrapes the fleet: $up"
 
       - name: The HPA accepts the fleet as a scale target
+        # AbleToScale, not ScalingActive: KEDA may take the idle fleet to
+        # zero as soon as the ScaledObject exists, since one never active
+        # has no initial cooldown (ADR-0015, fact 4), and at zero the HPA
+        # reports ScalingActive=False. The scale-out later in this job
+        # shows that the HPA reads its metrics.
         run: |
           active=""
           for i in $(seq 1 40); do
-            active=$(kubectl get hpa keda-hpa-sim-fleet-scale-from-zero -o jsonpath='{.status.conditions[?(@.type=="ScalingActive")].status}' 2>/dev/null || true)
+            active=$(kubectl get hpa keda-hpa-sim-fleet-scale-from-zero -o jsonpath='{.status.conditions[?(@.type=="AbleToScale")].status}' 2>/dev/null || true)
             [ "$active" = "True" ] && break
             sleep 3
           done
-          [ "$active" = "True" ] || { echo "ERROR: ScalingActive is '$active', want True"; kubectl describe hpa; exit 1; }
+          [ "$active" = "True" ] || { echo "ERROR: AbleToScale is '$active', want True"; kubectl describe hpa; exit 1; }
           kubectl get hpa keda-hpa-sim-fleet-scale-from-zero
 
       - name: The fleet goes to zero replicas
-        # KEDA takes an idle fleet there itself after its cooldown; setting
-        # it here starts the load from zero without waiting for that.
+        # KEDA may already have taken the idle fleet there (see the step
+        # above); setting it here starts the load from zero either way.
         run: |
           kubectl patch fleetservice sim-fleet --type merge -p '{"spec":{"replicas":0}}'
           state=""

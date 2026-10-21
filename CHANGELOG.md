@@ -117,6 +117,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `scale-from-zero` jobs install KEDA through the same script,
   `hack/keda-install.sh`.
 
+### Fixed
+
+- **The scale-from-zero job no longer races KEDA before the
+  replay.** It waited for the HPA's `ScalingActive`, which is `False`
+  once KEDA has taken the idle fleet to zero, and KEDA may do that as
+  soon as the ScaledObject exists (ADR-0015, fact 4). On the push of
+  546fe53 to main it did, in the second the HPA was created, and the
+  job failed after 120 s. The job now waits for `AbleToScale`, which
+  holds at zero.
+
 ### Upgrading from 0.5.0
 
 Apply the CRDs before `helm upgrade`, with the commands given for 0.5.0
