@@ -1,6 +1,6 @@
 # ADR-0015: A fleet woken from zero through the KEDA HTTP add-on
 
-Status: Proposed, rehearsed on kind 2026-10-20 and 2026-10-21
+Status: Accepted, rehearsed on kind and measured in CI 2026-10-21
 Date: 2026-10-21
 
 ## Context
@@ -170,6 +170,8 @@ this section.
 | Date | 2026-10-20 | 2026-10-20 | 2026-10-21 | 2026-10-20 |
 | First token, s after the first request | 7.904 | 7.925 | 8.348 | - |
 | Requests held until then | 8 | 8 | 8 | - |
+| Their first tokens, s after the first request | 7.904 to 12.697 | 7.925 to 12.161 | 8.348 to 13.692 | - |
+| Longest TTFT of a held request, ms | 9918 | 8500 | 8348 | - |
 | TTFT at most 1 s | 91.9% | 89.6% | 90.5% | 98.6% |
 | TTFT misses, error budget consumed | 18, 162% | 23, 207% | 21, 189% | 3, 27% |
 | Requests served by each pod | 79 / 76 / 67 | 95 / 60 / 67 | 98 / 65 / 59 | 99 / 70 / 53 |
@@ -195,6 +197,22 @@ first replica was Ready at 8 s in all three runs (2 s samples). The
 other seven seconds belong to the fleet: the HPA, scheduling, the
 simulator's start and its readiness.
 
+The eight held requests do not get their first token together. In
+each of the four runs (three on kind and the CI run below) five get it
+within 0.5 s of the first token and three later, the last 4.2 to 5.3 s
+after it; each of those three gets it 500 to 509 ms after another
+request ends (`scale-from-zero.jsonl`). The simulator serves at most
+five requests at a time: `max-num-seqs` defaults to 5
+(llm-d-inference-sim at the v0.8.2 tag, `pkg/common/config.go:307`)
+and `hack/rehearsal/Dockerfile.sim:9-15` does not set it. With five
+running, its time to first token is 250 ms times a load factor of 2.0
+(`pkg/llm-d-inference-sim/latencies.go:59-64,123`,
+`Dockerfile.sim:12,14`), the 500 ms measured. So the longest wait from
+zero is the wake plus a queue on the one Ready replica: a held
+request's TTFT reached 8.3 to 10.9 s, against a first token at 7.9 to
+8.3 s. The five slots are the bench's; on vLLM the bound is its own
+`--max-num-seqs`, which this ADR does not read.
+
 The return to zero, in the 2026-10-21 run (`scale-from-zero.idle`, 5 s
 samples):
 
@@ -209,6 +227,40 @@ That is 981 replica-seconds up with no request to serve, and zero
 predicts. The step from three to two at 316 s is consistent with the
 HPA's scale-down window (fact 5); the job does not record the HPA's
 recommendations, so it does not show it.
+
+### In CI, 2026-10-21
+
+The pull request's run (GitHub Actions run 39575073713, commit
+cb94e12) ran the `scale-from-zero` job on a runner of image
+ubuntu-24.04, version 20261018.339.1, with llm-d-inference-sim v0.8.2
+(`sha256:c3ba4350`). It replayed the same 222 requests at keep 0.1,
+seed 42 (sequence `b170da22`), at 0.746 requests per second, from
+zero replicas (first sample: spec.replicas 0, ready 0); every one was
+answered with 200.
+
+| Keep 0.1, seed 42 | From zero, bound 16, CI |
+|---|---|
+| First Ready sample, s after the first request | 9 (2 s samples) |
+| First token, s after the first request | 8.164 |
+| Requests held until then | 8 |
+| Their first tokens, s after the first request | 8.164 to 13.392 |
+| Longest TTFT of a held request, ms | 10866 |
+| TTFT at most 1 s | 90.1% |
+| TTFT misses, error budget consumed | 22, 198% |
+| TTFT p50 / p95 / p99, ms | 314.1 / 4437.3 / 6298.9 |
+| TPOT at most 50 ms | 100% |
+| Most requests in flight | 11 |
+| Client minus simulator, TTFT / e2e, ms | -4.0 / -5.1 |
+| Requests served by each pod | 80 / 71 / 71 |
+| spec.replicas after the last response | 3 at 0 s, 2 at 318 s, 0 at 334 s |
+| Replica-seconds up with no request to serve | 986 |
+
+The first Ready sample at 9 s, after a first token at 8.164 s, is the
+2 s sampling: the replica was Ready before the first token, after the
+previous sample. The HPA wanted two or more replicas 23 s after the
+start of the load and the second was Ready at 29 s; the fleet peaked
+at its cap of three, and no fleet pod was left at 334 s. Each step
+down came 2 s later than in the kind run of 2026-10-21.
 
 ### What a wake costs on the platform's GPU node
 
@@ -285,6 +337,11 @@ average or 9.3% of this replay, against 3 from one replica.
 - **GKE's own scale-down timing.** The 10 minutes are the open-source
   default; GKE's page does not give its value, and neither a node's
   deletion nor its billing while it boots was measured.
+- **The queue behind the first replica on vLLM.** The stagger of the
+  held requests is the simulator's five slots (Measured); on vLLM it
+  depends on its own `--max-num-seqs` and on the prompts, not measured
+  here. That the simulator image's digest was built from the v0.8.2
+  tag read here is not verified.
 - **The Reject path.** At most 8 requests were held, against a bound of
   16 per interceptor; no run reached it.
 - **The interceptor under autoscaling.** It was held at three replicas;

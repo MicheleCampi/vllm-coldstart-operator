@@ -30,9 +30,10 @@ def main(jsonl, replicas):
     print(f"first sample: spec.replicas {samples[0][1]}, ready {samples[0][2]}")
     if ready:
         print(f"first replica Ready at {ready[0] - t0:.0f} s (2 s samples)")
-    print(f"first token at {first_token - t0:.3f} s: the cold start a user sees")
-    print(f"{len(held)} requests sent before it, all waiting together just before it;")
-    print(f"  their TTFT: min {ttft[0]:.0f} ms, max {ttft[-1]:.0f} ms")
+    firsts = sorted(r["ts_first_token"] - t0 for r in held if r.get("ok"))
+    print(f"first token at {first_token - t0:.3f} s: the shortest cold start a user sees")
+    print(f"{len(held)} requests sent before it; their first tokens {firsts[0]:.3f} to {firsts[-1]:.3f} s,")
+    print(f"  their TTFT: min {ttft[0]:.0f} ms, max {ttft[-1]:.0f} ms, the longest cold start")
 
     errors = []
     if not samples[0][1:3] == ["0", "0"]:
