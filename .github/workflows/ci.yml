@@ -983,6 +983,24 @@ jobs:
           python3 hack/loadgen/slo_check.py overload.jsonl overload.before overload.after --slo hack/loadgen/slo.json \
             --sequence b170da22aa6101c6c20fbbaa9c9d2b647006161e2dffc7bf8710ec8135acdf62
 
+      - name: Dump cluster and operator state on failure
+        # On 546fe53 (run 39666087210, first attempt) the Ready wait timed
+        # out and operator.log held one reconcile that never finished: the
+        # client's read timeout is 295 s, longer than the wait. Record what
+        # the API server, the resources and the operator saw. Every call is
+        # bounded, since the API server may be what does not answer.
+        if: failure()
+        timeout-minutes: 3
+        run: |
+          k="kubectl --request-timeout=20s"
+          $k get --raw '/readyz?verbose' || true
+          $k get vllmservice,deployment,service,pods -o wide || true
+          $k describe vllmservice sim-load || true
+          $k describe deployment sim-load || true
+          $k describe pods || true
+          $k get events -A --sort-by=.lastTimestamp || true
+          curl -s --max-time 5 http://127.0.0.1:8080/metrics | grep '^vcso_' || true
+
       - name: Upload load record and logs
         if: always()
         uses: actions/upload-artifact@v4

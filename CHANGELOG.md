@@ -70,6 +70,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   requests held before the first token from the client's sums before
   comparing them with the simulator's, and `hack/scale-out/measure.sh`
   takes `OUT`, `HPA` and `FROM_ZERO` from the job.
+- **The sim-load job records the cluster and the operator when it
+  fails.** On the first attempt of 546fe53 the Ready wait timed out
+  after 180 s, and `operator.log` held one reconcile that never
+  finished; the client's read timeout is 295 s. On failure the job
+  now prints the API server's `/readyz?verbose`, the VllmService,
+  Deployment, Service and pods with their `describe`, the events in
+  time order, and the operator's `vcso_` metrics. Every call is
+  bounded, since the API server may be what does not answer.
 
 ### Changed
 
