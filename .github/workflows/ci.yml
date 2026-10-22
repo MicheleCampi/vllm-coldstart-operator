@@ -873,6 +873,34 @@ jobs:
           fi
           echo "replica moved from $W1 to the Cold survivor $W2; fleet Ready, one child pod, on $W2"
 
+      - name: A cordon and drain moves the replica off its node (ADR-0017)
+        # The notice on W1 is cleared first: with it W1 is no survivor and the
+        # right outcome would be a drain-and-hold. The drain is kubectl's own,
+        # as an operator would run it for node maintenance.
+        run: |
+          kubectl patch nodestate "$W1" --subresource=status --type=merge -p '{"status":{"spot":{"preemptionNoticeDetected":false}}}'
+          kubectl cordon "$W2"
+          kubectl drain "$W2" --ignore-daemonsets --delete-emptydir-data --timeout=120s
+          node=""; phase=""; pods=""
+          for i in $(seq 1 60); do
+            node=$(kubectl get fleetservice pre-fleet -o jsonpath='{.status.placements[0].nodeRef}')
+            phase=$(kubectl get fleetservice pre-fleet -o jsonpath='{.status.phase}')
+            pods=$(kubectl get pods -l app=pre-fleet-0 -o jsonpath='{.items[*].spec.nodeName}')
+            [ "$node" = "$W1" ] && [ "$phase" = "Ready" ] && [ "$pods" = "$W1" ] && break
+            sleep 3
+          done
+          echo "nodeRef=$node phase=$phase pods on [$pods]"
+          [ "$node" = "$W1" ] || { echo "ERROR: slot 0 is on '$node', want $W1 after the cordon of $W2"; exit 1; }
+          pin=$(kubectl get vllmservice pre-fleet-0 -o jsonpath='{.spec.nodeName}')
+          [ "$pin" = "$W1" ] || { echo "ERROR: child pinned to '$pin', want $W1"; exit 1; }
+          [ "$phase" = "Ready" ] || { echo "ERROR: pre-fleet phase is '$phase', want Ready"; exit 1; }
+          [ "$pods" = "$W1" ] || { echo "ERROR: child pods on [$pods], want one on $W1"; exit 1; }
+          grep -q "rescheduling slot 0 to '$W1'" operator.log || { echo "ERROR: no reschedule of slot 0 to $W1 in operator.log"; exit 1; }
+          if grep -q "drain-and-hold" operator.log; then
+            echo "ERROR: the operator logged a drain-and-hold"; exit 1
+          fi
+          echo "cordon and drain of $W2 moved the replica to $W1; fleet Ready, one child pod, on $W1"
+
       - name: Dump state on failure
         if: failure()
         run: |

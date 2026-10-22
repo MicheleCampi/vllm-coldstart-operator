@@ -26,6 +26,9 @@ those nodes falling over under the cramming.
 
 ### 1. Trigger: preemption notice only
 
+> Amended by ADR-0017 (2026-10-22): a cordoned node is a second trigger,
+> under the same cap and drain-and-hold.
+
 A reschedule is triggered *only* by `preemptionNoticeDetected` on a node
 carrying placements. Warmth transitions (Warm→Cold) and node disappearance do
 *not* trigger a reschedule in v1.

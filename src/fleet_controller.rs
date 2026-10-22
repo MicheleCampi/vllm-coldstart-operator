@@ -269,6 +269,21 @@ fn build_owned_vllm_service(
     })
 }
 
+/// Nodes marked unschedulable (`spec.unschedulable`, what `kubectl cordon`
+/// sets). Their placements move as a preempted node's do (ADR-0017).
+fn cordoned_nodes(nodes: &[Node]) -> BTreeSet<String> {
+    nodes
+        .iter()
+        .filter(|n| {
+            n.spec
+                .as_ref()
+                .and_then(|s| s.unschedulable)
+                .unwrap_or(false)
+        })
+        .filter_map(|n| n.metadata.name.clone())
+        .collect()
+}
+
 pub async fn reconcile(
     fleet: Arc<FleetService>,
     ctx: Arc<FleetContext>,
@@ -302,10 +317,12 @@ async fn reconcile_inner(
     let now = Utc::now();
     let gpu_request = fleet.spec.template.gpu;
     let selector = &fleet.spec.node_pool.selector;
-    // Nodes are read once, when either filter needs them: ADR-0008 D3
-    // capacity for a fleet that requests GPUs, or the node pool selector when
-    // one is set. On a read failure each filter applies its own rule below.
-    let nodes: Option<Vec<Node>> = if gpu_request > 0 || !selector.is_empty() {
+    // Nodes are read once per reconcile: for ADR-0008 D3 capacity when the
+    // fleet requests GPUs, for the node pool selector when one is set, and
+    // always for cordons (ADR-0017). On a read failure each filter applies
+    // its own rule below, and no node counts as cordoned: an API hiccup must
+    // not start moves.
+    let nodes: Option<Vec<Node>> = {
         let api: Api<Node> = Api::all(ctx.client.clone());
         match api.list(&Default::default()).await {
             Ok(list) => Some(list.items),
@@ -327,11 +344,14 @@ async fn reconcile_inner(
                         name
                     );
                 }
+                warn!(
+                    "FleetService '{}': could not read node cordons ({e}); \
+                     no node counts as cordoned this reconcile",
+                    name
+                );
                 None
             }
         }
-    } else {
-        None
     };
     // ADR-0008 D3: allocatable GPUs per node, read once. A node that cannot run
     // the pod is not a candidate — placing there yields a Pending pod and no
@@ -362,16 +382,21 @@ async fn reconcile_inner(
     // admits, minus those marked unschedulable; with none, the NodeStates that
     // have a status, as before. If the Nodes could not be read the selector
     // admits none, since matches_node_pool never admits a node it cannot see.
+    let cordoned = cordoned_nodes(nodes.as_deref().unwrap_or_default());
     let by_node = candidates_by_node(&states.items, now);
     let candidates: Vec<NodeCandidate> = if selector.is_empty() {
-        by_node.into_values().collect()
+        by_node
+            .into_values()
+            .filter(|c| !cordoned.contains(c.name.as_str()))
+            .collect()
     } else {
         selector_candidates(nodes.as_deref().unwrap_or_default(), selector, by_node)
     };
 
-    // Nodes that signalled a spot preemption notice. This is the only trigger
-    // for a reschedule in v1 (ADR-0005 dec.1): warmth changes and node
-    // disappearance deliberately do not move placements.
+    // Nodes that signalled a spot preemption notice. With the cordoned nodes
+    // they make up `displaced`, the only trigger for a reschedule (ADR-0005
+    // dec.1, amended by ADR-0017): warmth changes and node disappearance
+    // deliberately do not move placements.
     let preempted: BTreeSet<String> = states
         .iter()
         .filter(|ns| {
@@ -382,6 +407,9 @@ async fn reconcile_inner(
         })
         .map(|ns| ns.name_any())
         .collect();
+    // ADR-0017: a cordon is deliberate and one-way like a preemption notice,
+    // so it displaces placements under the same cap and drain-and-hold.
+    let displaced: BTreeSet<String> = preempted.union(&cordoned).cloned().collect();
 
     if candidates.is_empty() {
         let reason = if selector.is_empty() {
@@ -577,7 +605,7 @@ async fn reconcile_inner(
                 .iter()
                 .filter(|p| {
                     matches!(p.phase.as_str(), "Draining" | "Rescheduling")
-                        && !preempted.contains(p.node_ref.as_str())
+                        && !displaced.contains(p.node_ref.as_str())
                 })
                 .count()
         })
@@ -598,7 +626,7 @@ async fn reconcile_inner(
 
     let healthy_candidates: Vec<NodeCandidate> = candidates
         .iter()
-        .filter(|c| !preempted.contains(c.name.as_str()))
+        .filter(|c| !displaced.contains(c.name.as_str()))
         .filter(|c| has_capacity_for(allocatable.get(&c.name).copied().flatten(), gpu_request))
         .cloned()
         .collect();
@@ -606,11 +634,11 @@ async fn reconcile_inner(
     let mut preempted_slots: BTreeSet<usize> = BTreeSet::new();
     let mut moved: BTreeMap<usize, String> = BTreeMap::new();
     for (i, node) in &current {
-        if preempted.contains(node.as_str()) {
+        if displaced.contains(node.as_str()) {
             preempted_slots.insert(*i);
             if budget == 0 {
                 info!(
-                    "FleetService '{}': preemption notice on '{}' — cap exhausted, slot {} drains and holds",
+                    "FleetService '{}': '{}' preempted or cordoned — cap exhausted, slot {} drains and holds",
                     name, node, i
                 );
                 continue;
@@ -623,7 +651,7 @@ async fn reconcile_inner(
             ) {
                 Some(target) => {
                     info!(
-                        "FleetService '{}': preemption notice on '{}' — rescheduling slot {} to '{}'",
+                        "FleetService '{}': '{}' preempted or cordoned — rescheduling slot {} to '{}'",
                         name, node, i, target
                     );
                     moved.insert(*i, target);
@@ -631,7 +659,7 @@ async fn reconcile_inner(
                 }
                 None => {
                     info!(
-                        "FleetService '{}': preemption notice on '{}' — no healthy replacement for slot {}, drain-and-hold",
+                        "FleetService '{}': '{}' preempted or cordoned — no healthy replacement for slot {}, drain-and-hold",
                         name, node, i
                     );
                 }
@@ -796,7 +824,7 @@ async fn reconcile_inner(
         .iter()
         .filter(|p| {
             matches!(p.phase.as_str(), "Draining" | "Rescheduling")
-                && !preempted.contains(p.node_ref.as_str())
+                && !displaced.contains(p.node_ref.as_str())
         })
         .count() as i32;
     // Honest status: ready counts placements whose lifecycle phase is Ready
@@ -817,7 +845,7 @@ async fn reconcile_inner(
         .count() as i32;
     let drain_and_hold = placements
         .iter()
-        .any(|p| p.phase == "Draining" && preempted.contains(p.node_ref.as_str()));
+        .any(|p| p.phase == "Draining" && displaced.contains(p.node_ref.as_str()));
     let fleet_phase = fleet_phase_for(fleet.spec.replicas, ready_replicas, drain_and_hold);
     let status_patch = json!({
         "status": FleetServiceStatus {
@@ -1047,6 +1075,23 @@ mod tests {
             None
         )
         .is_none());
+    }
+
+    #[test]
+    fn cordoned_nodes_are_those_marked_unschedulable() {
+        let n = |name: &str, unschedulable: Option<bool>| Node {
+            metadata: k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta {
+                name: Some(name.to_string()),
+                ..Default::default()
+            },
+            spec: Some(k8s_openapi::api::core::v1::NodeSpec {
+                unschedulable,
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let got = cordoned_nodes(&[n("a", Some(true)), n("b", Some(false)), n("c", None)]);
+        assert_eq!(got, BTreeSet::from(["a".to_string()]));
     }
 
     #[test]

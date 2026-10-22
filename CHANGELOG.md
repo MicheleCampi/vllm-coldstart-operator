@@ -127,6 +127,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A drained node no longer strands its replicas.** A cordon now
+  moves a fleet's placements off the node as a preemption notice does,
+  under the same cap and drain-and-hold; the Nodes are read on every
+  reconcile, and a cordoned node is never a candidate. Before, after a
+  `kubectl drain` the child pod stayed Pending, pinned to the cordoned
+  node. The `preemption` job now cordons and drains a worker
+  (ADR-0017, amending ADR-0005 decision 1).
 - **A reconcile no longer stalls for the client's read timeout.**
   Every reconcile of both controllers now fails after 30 s, is
   counted under `timeout` in `vcso_reconcile_failures_total` and
