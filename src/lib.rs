@@ -2,6 +2,7 @@ pub mod fleet_placement;
 pub mod fleet_planning;
 pub mod fleet_types;
 pub mod metrics;
+pub mod reconcile_timeout;
 
 use kube::CustomResource;
 use schemars::JsonSchema;

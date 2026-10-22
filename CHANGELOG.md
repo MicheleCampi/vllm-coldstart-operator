@@ -127,6 +127,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A reconcile no longer stalls for the client's read timeout.**
+  Every reconcile of both controllers now fails after 30 s, is
+  counted under `timeout` in `vcso_reconcile_failures_total` and
+  is requeued. On the first attempt of 546fe53 one reconcile
+  waited on the API server past the job's 180 s, while kube-client
+  2.0.1 would have given up only at 295 s. In CI the slowest
+  reconcile took 204 ms (ADR-0016).
 - **The scale-from-zero job no longer races KEDA before the
   replay.** It waited for the HPA's `ScalingActive`, which is `False`
   once KEDA has taken the idle fleet to zero, and KEDA may do that as

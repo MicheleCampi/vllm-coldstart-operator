@@ -27,6 +27,7 @@ use thiserror::Error;
 use tracing::{info, warn};
 
 use vllm_coldstart_operator::fleet_types::FLEET_LABEL;
+use vllm_coldstart_operator::reconcile_timeout::{bounded, RECONCILE_TIMEOUT};
 use vllm_coldstart_operator::{
     metrics::Metrics, phase_for, VllmService, VllmServiceStatus, WarmupStrategy,
 };
@@ -41,6 +42,8 @@ enum Error {
     Kube(#[from] kube::Error),
     #[error("VllmService is missing its namespace")]
     MissingNamespace,
+    #[error("reconcile did not finish within {0:?}")]
+    Timeout(Duration),
 }
 
 impl Error {
@@ -49,6 +52,7 @@ impl Error {
         match self {
             Error::Kube(_) => "kube",
             Error::MissingNamespace => "missing_namespace",
+            Error::Timeout(_) => "timeout",
         }
     }
 }
@@ -339,6 +343,15 @@ fn build_service(svc: &VllmService) -> Result<Service, Error> {
 }
 
 async fn reconcile(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Action, Error> {
+    // An API call the server never answers would hold this reconcile for
+    // the client's read timeout; bound it, so that it fails and is
+    // requeued by error_policy (ADR-0016).
+    bounded(reconcile_inner(svc, ctx), RECONCILE_TIMEOUT)
+        .await
+        .unwrap_or(Err(Error::Timeout(RECONCILE_TIMEOUT)))
+}
+
+async fn reconcile_inner(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Action, Error> {
     let name = svc.name_any();
     let _measurer = ctx.metrics.count_and_measure();
     let ns = svc.namespace().ok_or(Error::MissingNamespace)?;

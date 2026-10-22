@@ -47,6 +47,7 @@ use vllm_coldstart_operator::fleet_types::{
     FLEET_LABEL,
 };
 use vllm_coldstart_operator::metrics::Metrics;
+use vllm_coldstart_operator::reconcile_timeout::{bounded, RECONCILE_TIMEOUT};
 use vllm_coldstart_operator::{VllmService, VllmServiceSpec};
 
 /// Field manager for server-side apply of owned VllmService objects. Distinct
@@ -65,6 +66,8 @@ pub enum FleetError {
     Kube(#[from] kube::Error),
     #[error("FleetService is missing its namespace")]
     MissingNamespace,
+    #[error("reconcile did not finish within {0:?}")]
+    Timeout(Duration),
 }
 
 impl FleetError {
@@ -72,6 +75,7 @@ impl FleetError {
         match self {
             FleetError::Kube(_) => "kube",
             FleetError::MissingNamespace => "missing_namespace",
+            FleetError::Timeout(_) => "timeout",
         }
     }
 }
@@ -266,6 +270,18 @@ fn build_owned_vllm_service(
 }
 
 pub async fn reconcile(
+    fleet: Arc<FleetService>,
+    ctx: Arc<FleetContext>,
+) -> Result<Action, FleetError> {
+    // An API call the server never answers would hold this reconcile for
+    // the client's read timeout; bound it, so that it fails and is
+    // requeued by error_policy (ADR-0016).
+    bounded(reconcile_inner(fleet, ctx), RECONCILE_TIMEOUT)
+        .await
+        .unwrap_or(Err(FleetError::Timeout(RECONCILE_TIMEOUT)))
+}
+
+async fn reconcile_inner(
     fleet: Arc<FleetService>,
     ctx: Arc<FleetContext>,
 ) -> Result<Action, FleetError> {
