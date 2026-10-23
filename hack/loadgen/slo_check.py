@@ -43,13 +43,19 @@ def q(values, p):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("records", help="loadgen JSON lines")
-    ap.add_argument("metrics_before", help="the simulator's /metrics scraped before the run")
-    ap.add_argument("metrics_after", help="the simulator's /metrics scraped after the run")
+    ap.add_argument("metrics_before", nargs="?", help="the simulator's /metrics scraped before the run")
+    ap.add_argument("metrics_after", nargs="?", help="the simulator's /metrics scraped after the run")
     ap.add_argument("--slo", required=True, help="objectives, such as hack/loadgen/slo.json")
     ap.add_argument("--sequence", required=True, help="pinned sequence sha256 for this profile, keep and seed")
     ap.add_argument("--assert-slo", action="store_true", help="fail when an objective is missed")
+    ap.add_argument("--client-only", action="store_true",
+                    help="skip the cross-check against the simulator's metrics: under a fault the "
+                         "replicas behind one Service are scraped one at a time and an evicted pod "
+                         "takes its counters with it; the objectives are still those the client measured")
     ap.add_argument("--from-zero", action="store_true", help="the run starts with no replica: subtract the wait before the first token")
     a = ap.parse_args()
+    if not a.client_only and (a.metrics_before is None or a.metrics_after is None):
+        ap.error("metrics_before and metrics_after are required without --client-only")
     slo = json.load(open(a.slo))
     lines = open(a.records).read().splitlines()
     head, recs = json.loads(lines[0]), [json.loads(l) for l in lines[1:]]
@@ -91,22 +97,25 @@ def main():
         cur += step
         top = max(top, cur)
     print(f"recorded: ttft ms p50/p95/p99 {q(ttft, 0.5)}/{q(ttft, 0.95)}/{q(ttft, 0.99)}, tpot ms p50/p95 {q(tpot, 0.5)}/{q(tpot, 0.95)}, max in flight {top}")
-    b, e = scrape(a.metrics_before), scrape(a.metrics_after)
-    served = delta(b, e, "e2e_request_latency_seconds_count")
-    if served != n:
-        fails.append(f"the simulator counted {served:.0f} requests, the client {n}")
-    elif not bad:
-        qp = delta(b, e, "request_queue_time_seconds_sum") + delta(b, e, "request_prefill_time_seconds_sum")
-        held = 0.0
-        if a.from_zero:
-            first = min(r["ts_first_token"] for r in good)
-            waits = [first - r["ts_start"] for r in good if r["ts_start"] < first]
-            held = 1000 * sum(waits)
-            print(f"from zero: {len(waits)} requests sent before the first token, {held:.0f} ms of wait subtracted")
-        d = {"ttft": (sum(ttft) - held - 1000 * qp) / n,
-             "e2e": (sum(r["latency_ms"] for r in good) - held - 1000 * delta(b, e, "e2e_request_latency_seconds_sum")) / n}
-        print(f"client minus simulator means: ttft {d['ttft']:.1f} ms, e2e {d['e2e']:.1f} ms (tolerance {slo['mean_tolerance_ms']} ms)")
-        fails += [f"{k} means disagree by {v:.1f} ms" for k, v in d.items() if abs(v) > slo["mean_tolerance_ms"]]
+    if a.client_only:
+        print("client only: the simulator's metrics are not cross-checked")
+    else:
+        b, e = scrape(a.metrics_before), scrape(a.metrics_after)
+        served = delta(b, e, "e2e_request_latency_seconds_count")
+        if served != n:
+            fails.append(f"the simulator counted {served:.0f} requests, the client {n}")
+        elif not bad:
+            qp = delta(b, e, "request_queue_time_seconds_sum") + delta(b, e, "request_prefill_time_seconds_sum")
+            held = 0.0
+            if a.from_zero:
+                first = min(r["ts_first_token"] for r in good)
+                waits = [first - r["ts_start"] for r in good if r["ts_start"] < first]
+                held = 1000 * sum(waits)
+                print(f"from zero: {len(waits)} requests sent before the first token, {held:.0f} ms of wait subtracted")
+            d = {"ttft": (sum(ttft) - held - 1000 * qp) / n,
+                 "e2e": (sum(r["latency_ms"] for r in good) - held - 1000 * delta(b, e, "e2e_request_latency_seconds_sum")) / n}
+            print(f"client minus simulator means: ttft {d['ttft']:.1f} ms, e2e {d['e2e']:.1f} ms (tolerance {slo['mean_tolerance_ms']} ms)")
+            fails += [f"{k} means disagree by {v:.1f} ms" for k, v in d.items() if abs(v) > slo["mean_tolerance_ms"]]
     for f in fails:
         print(f)
     sys.exit(1 if fails else 0)

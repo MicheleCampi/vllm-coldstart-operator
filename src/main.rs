@@ -8,8 +8,8 @@ use k8s_openapi::api::apps::v1::{
 };
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EmptyDirVolumeSource, EnvVar, HTTPGetAction, HostPathVolumeSource,
-    PodSpec, PodTemplateSpec, Probe, ResourceRequirements, Service, ServicePort, ServiceSpec,
-    Volume, VolumeMount,
+    Lifecycle, LifecycleHandler, PodSpec, PodTemplateSpec, Probe, ResourceRequirements, Service,
+    ServicePort, ServiceSpec, SleepAction, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
@@ -69,6 +69,14 @@ struct Context {
 /// Deliberately a constant, not a spec field: the drain window is operator
 /// policy in v1 (same YAGNI stance as ADR-0005's deferred hysteresis).
 const TERMINATION_GRACE_SECONDS: i64 = 120;
+/// ADR-0019: before SIGTERM every child pod sleeps this long while its
+/// endpoint leaves the Service, so a stream in flight can finish even when
+/// the serving process exits on SIGTERM, as the llm-d simulator does within
+/// 0.3 s. About twice the longest response measured on the CI load profile
+/// (14.4 s); not a bound for generations on a GPU.
+const PRE_STOP_SLEEP_SECONDS: i64 = 30;
+/// Grace for a pod with no GPU: the pre-stop sleep, then 10 s for the process.
+const CPU_TERMINATION_GRACE_SECONDS: i64 = PRE_STOP_SLEEP_SECONDS + 10;
 
 fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     let name = svc.name_any();
@@ -228,6 +236,15 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         resources,
         readiness_probe,
         volume_mounts,
+        lifecycle: Some(Lifecycle {
+            pre_stop: Some(LifecycleHandler {
+                sleep: Some(SleepAction {
+                    seconds: PRE_STOP_SLEEP_SECONDS,
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
         ..Default::default()
     };
 
@@ -257,7 +274,11 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
             runtime_class_name: svc.spec.runtime_class_name.clone(),
             node_selector,
             volumes,
-            termination_grace_period_seconds: serving.then_some(TERMINATION_GRACE_SECONDS),
+            termination_grace_period_seconds: Some(if serving {
+                TERMINATION_GRACE_SECONDS
+            } else {
+                CPU_TERMINATION_GRACE_SECONDS
+            }),
             ..Default::default()
         }),
     };
@@ -550,6 +571,32 @@ mod tests {
         assert_eq!(pod.get(FLEET_LABEL).map(String::as_str), Some("f"));
         for (k, v) in child.selector.match_labels.expect("match labels") {
             assert_eq!(pod.get(&k), Some(&v));
+        }
+    }
+
+    #[test]
+    fn every_pod_sleeps_before_sigterm_within_its_grace() {
+        // ADR-0019: the window for streams in flight is the pre-stop sleep,
+        // with or without a GPU, and the kubelet must not kill it early.
+        for gpu in [0, 1] {
+            let mut svc = sample();
+            svc.spec.gpu = gpu;
+            let pod = build_deployment(&svc)
+                .expect("deployment")
+                .spec
+                .expect("spec")
+                .template
+                .spec
+                .expect("pod spec");
+            let sleep = pod.containers[0]
+                .lifecycle
+                .as_ref()
+                .and_then(|l| l.pre_stop.as_ref())
+                .and_then(|h| h.sleep.as_ref())
+                .map(|s| s.seconds);
+            assert_eq!(sleep, Some(PRE_STOP_SLEEP_SECONDS), "gpu {gpu}");
+            let grace = pod.termination_grace_period_seconds.expect("grace");
+            assert!(grace > PRE_STOP_SLEEP_SECONDS, "gpu {gpu}: grace {grace}");
         }
     }
 

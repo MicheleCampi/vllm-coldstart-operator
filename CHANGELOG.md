@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Faults under load run in CI (ADR-0019).** A `faults-under-load` job
+  serves the within-capacity replay through one NodePort over a fleet of
+  two replicas on two workers, with a probe of four long streams across
+  each fault, and runs a cordon and drain and a preemption notice on the
+  node of one replica. It fails if a probe stream fails, if none is open
+  at the fault, or if the replay is not the pinned one.
+  `hack/loadgen/slo_check.py` gains `--client-only`, and its first tests.
+
 - **The preemption path runs in CI.** A `preemption` job creates a kind
   cluster with two workers (`.github/kind/two-workers.yaml`), places a
   replica on the worker whose NodeState is Warm, signals a preemption
@@ -139,6 +147,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A fault no longer cuts the responses in flight (ADR-0019).** A drain
+  or a move sent SIGTERM to a pod still serving streams, and the
+  simulator stops within 0.3 s. Every child pod now sleeps 30 s in a
+  preStop hook first, out of the Service, and its grace is 120 s with a
+  GPU and 40 s without one. Measured on kind: 3 and 2 cut streams before,
+  0 after.
+
 - **A drained node no longer strands its replicas.** A cordon now
   moves a fleet's placements off the node as a preemption notice does,
   under the same cap and drain-and-hold; the Nodes are read on every
@@ -185,6 +200,11 @@ Set them to `WarmthFirst`, which is what they got, or `EfficiencyAware`.
 One left behind is not managed until it is changed, and recovers when
 it is (ADR-0018, rehearsed on kind). Replicas already sharing a node
 stay there: the new ordering applies to the next placement.
+
+Every child rolls out once more, because its pod template gains the
+preStop sleep and the grace (ADR-0019). From then on a pod that leaves,
+for a drain, a move, a scale-in or a scale to zero, takes 30 s longer to
+go; a fleet scaled to zero frees its node 30 s later.
 
 ## [0.5.0] — 2026-10-10
 

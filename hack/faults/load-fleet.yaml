@@ -1,0 +1,33 @@
+# The fleet the faults-under-load CI job serves load from: two replicas of
+# the llm-d simulator, one per worker (ADR-0018), Ready only when the
+# simulator answers /health.
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: FleetService
+metadata:
+  name: load-fleet
+  namespace: default
+spec:
+  model: facebook/opt-125m
+  replicas: 2
+  template:
+    gpu: 0
+    healthPath: /health
+    image: llmd-sim-rehearsal:v0.8.2
+---
+# One entry point over every replica, by the label the fleet puts on its
+# pods, as in hack/scale-out/sim-fleet.yaml: the test owns it, routing
+# belongs to the router layer (ADR-0007 D5, ADR-0008 D1). kube-proxy
+# balances per connection, so the load generator runs with --force-close.
+apiVersion: v1
+kind: Service
+metadata:
+  name: load-fleet-nodeport
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    inference.michelecampi.dev/fleet: load-fleet
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30080

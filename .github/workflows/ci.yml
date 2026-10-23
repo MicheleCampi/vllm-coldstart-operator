@@ -938,6 +938,112 @@ jobs:
         if: always()
         run: kill "$(cat operator.pid)" 2>/dev/null || true
 
+  faults-under-load:
+    name: faults under load on multi-node kind
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.95
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-faults-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build operator
+        run: cargo build --bin vllm-coldstart-operator
+
+      - name: Test slo_check
+        run: python3 -m unittest discover -s hack/loadgen -p 'test_*.py' -v
+
+      - name: Create kind cluster with two workers
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: faults
+          config: .github/kind/two-workers.yaml
+
+      - name: Wait for every node and install the CRDs
+        run: |
+          kubectl wait --for=condition=Ready nodes --all --timeout=180s
+          kubectl apply -f deploy/crd.yaml
+          for crd in vllmservices fleetservices nodestates; do
+            kubectl wait --for=condition=Established "crd/$crd.inference.michelecampi.dev" --timeout=30s
+          done
+
+      - name: Build and load the simulator image
+        run: |
+          docker build -t llmd-sim-rehearsal:v0.8.2 -f hack/rehearsal/Dockerfile.sim hack/rehearsal
+          kind load docker-image llmd-sim-rehearsal:v0.8.2 --name faults
+
+      - name: Start operator in background
+        run: |
+          ./target/debug/vllm-coldstart-operator > operator.log 2>&1 &
+          echo $! > operator.pid
+          sleep 3
+          echo "operator started (pid $(cat operator.pid))"
+
+      - name: Two replicas on two nodes behind one NodePort (ADR-0018)
+        run: |
+          read -r W1 W2 <<< "$(kubectl get nodes -l '!node-role.kubernetes.io/control-plane' -o jsonpath='{.items[*].metadata.name}')"
+          [ -n "$W1" ] && [ -n "$W2" ] || { echo "ERROR: want two workers, got '$W1' '$W2'"; exit 1; }
+          for n in "$W1:Warm" "$W2:Cold"; do
+            kubectl create -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: NodeState
+          metadata:
+            name: ${n%%:*}
+          spec: {}
+          EOF
+            kubectl patch nodestate "${n%%:*}" --subresource=status --type=merge -p "{\"status\":{\"warmth\":\"${n##*:}\"}}"
+          done
+          bash hack/faults/fleet-up.sh
+          python3 -m venv /tmp/loadgen && /tmp/loadgen/bin/pip install --quiet aiohttp==3.14.1
+          node_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' faults-control-plane)
+          for i in $(seq 1 30); do curl -sf "http://$node_ip:30080/health" > /dev/null && break; sleep 1; done
+          curl -sf "http://$node_ip:30080/health" > /dev/null
+          echo "FLEET=load-fleet" >> "$GITHUB_ENV"
+          echo "FLEET_URL=http://$node_ip:30080" >> "$GITHUB_ENV"
+
+      - name: A cordon and drain under load (ADR-0017)
+        run: bash hack/faults/fault-run.sh drain drain
+
+      - name: The fleet again on two nodes
+        # Pins are kept (ADR-0017), so after the drain both replicas share a
+        # node; the fleet is recreated so the next fault starts as this one did.
+        run: |
+          for n in $(kubectl get nodes -o jsonpath='{.items[*].metadata.name}'); do kubectl uncordon "$n"; done
+          kubectl delete fleetservice load-fleet --wait=true
+          kubectl wait --for=delete vllmservice -l inference.michelecampi.dev/fleet=load-fleet --timeout=120s || true
+          bash hack/faults/fleet-up.sh
+
+      - name: A preemption notice under load (ADR-0005)
+        run: bash hack/faults/fault-run.sh notice notice
+
+      - name: Dump state on failure
+        if: failure()
+        run: |
+          kubectl get fleetservice,vllmservice,nodestate,pods,nodes -o wide || true
+          kubectl get events --sort-by=.lastTimestamp | tail -n 40 || true
+          tail -n 80 operator.log || true
+
+      - name: Upload load records and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: faults-under-load
+          path: |
+            drain.*
+            notice.*
+            operator.log
+
+      - name: Stop operator
+        if: always()
+        run: kill "$(cat operator.pid)" 2>/dev/null || true
+
   sim-load:
     name: load through the llm-d simulator on kind
     runs-on: ubuntu-latest
