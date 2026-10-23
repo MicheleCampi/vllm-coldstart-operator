@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-10-23
+
+The release in which the operator runs under a realistic load and through
+faults. A fleet scales from one replica to N through the HPA and KEDA and
+wakes from zero through the KEDA HTTP add-on (ADR-0014, ADR-0015); every
+reconcile has a 30 s limit (ADR-0016); a cordoned node moves its replicas
+like a preemption notice (ADR-0017); a fleet spreads across nodes before
+warmth, and the Spread and BinPack strategies are removed (ADR-0018); a pod
+leaves the Service 30 s before it stops serving, so a drain or a notice no
+longer cuts a response in flight (ADR-0019). The load profile, the SLOs and
+the faults that measure this run in CI on kind with the llm-d simulator
+(ADR-0012, ADR-0013); none of it has run on a GPU.
+
 ### Added
 
 - **Faults under load run in CI (ADR-0019).** A `faults-under-load` job
@@ -201,10 +214,25 @@ One left behind is not managed until it is changed, and recovers when
 it is (ADR-0018, rehearsed on kind). Replicas already sharing a node
 stay there: the new ordering applies to the next placement.
 
-Every child rolls out once more, because its pod template gains the
-preStop sleep and the grace (ADR-0019). From then on a pod that leaves,
+The same rollout gives every child pod the preStop sleep and the grace
+(ADR-0019): from 0.5.0 both changes reach the pod template together. From then on a pod that leaves,
 for a drain, a move, a scale-in or a scale to zero, takes 30 s longer to
 go; a fleet scaled to zero frees its node 30 s later.
+
+Rehearsed on kind, 2026-10-23: a v0.5.0 install made with that tag's
+chart and its public 0.5.0 image, running `ci-placeholder` and the
+`ci-fleet` example given a `nodePool.selector` on the kind node's
+hostname (with the chart's defaults no reporter runs, so a fleet needs a
+selector, ADR-0011); then this release's CRDs applied and `helm upgrade`
+with its chart and the 0.6.0 image built locally and loaded into kind.
+The operator pod ran that image (imageID equal to its config digest).
+Both pods came back Ready with the 30 s preStop sleep and a 40 s grace,
+the child's pod with the fleet label it lacked under 0.5.0; the fleet's
+scale subresource returned the selector
+`inference.michelecampi.dev/fleet=ci-fleet`; the operator logged no
+ERROR line and no failed reconcile. The HPA refusing a fleet under the
+0.5.0 CRDs is what ADR-0014 observed, not part of this rehearsal; the
+0.5.0 CRD's scale subresource has no `labelSelectorPath`.
 
 ## [0.5.0] — 2026-10-10
 
