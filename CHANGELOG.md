@@ -81,6 +81,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A fleet spreads across nodes before warmth (ADR-0018).** Every
+  placement ordering now ranks first the replicas of the same fleet
+  already on a node, fewer first, so a fleet shares a node only when no
+  other eligible node is left. Before, warmth came first, and with one
+  Warm node every replica landed there. The second replica can start on
+  a colder node.
+
+- **`Spread` and `BinPack` are removed from `placement.strategy`.** They
+  were accepted and ordered like `WarmthFirst`. The CRD now refuses them.
+  A fleet stored with either is not placed or moved, keeps its replicas
+  running, and says why in `status.message`; the other fleets reconcile.
+
 - **Build images come from mirror.gcr.io.** A Docker Hub outage could stop the
   release build before the Dockerfile ran: the BuildKit builder, the
   Dockerfile frontend and the Rust base image all came from Docker Hub. They
@@ -162,6 +174,17 @@ fleet label. The rollout surges first (`maxSurge: 1`,
 on a node with no spare GPU the new pod stays Pending while the old one
 keeps serving, and the rollout completes only once a GPU is free there.
 This follows from the strategy and the pin; no GPU node has run it.
+
+Before the upgrade, list the fleets that set a removed strategy:
+
+```
+kubectl get fleetservice -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name} {.spec.placement.strategy}{"\n"}{end}' | grep -E ' (Spread|BinPack)$'
+```
+
+Set them to `WarmthFirst`, which is what they got, or `EfficiencyAware`.
+One left behind is not managed until it is changed, and recovers when
+it is (ADR-0018, rehearsed on kind). Replicas already sharing a node
+stay there: the new ordering applies to the next placement.
 
 ## [0.5.0] — 2026-10-10
 

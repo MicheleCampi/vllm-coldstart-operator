@@ -64,6 +64,7 @@ fn arb_candidate(idx: usize) -> impl Strategy<Value = NodeCandidate> {
         .prop_map(
             move |(warmth, util, count, hit, tpj, hit_age, tpj_age)| NodeCandidate {
                 name: format!("node-{idx}"),
+                own_replicas: 0,
                 warmth,
                 gpu_utilization: util,
                 active_service_count: count,

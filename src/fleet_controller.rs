@@ -136,6 +136,7 @@ fn node_state_to_candidate(ns: &NodeState, now: DateTime<Utc>) -> Option<NodeCan
     let status = ns.status.as_ref()?;
     Some(NodeCandidate {
         name: ns.name_any(),
+        own_replicas: 0,
         warmth: status.warmth.clone(),
         gpu_utilization: status.gpu_utilization,
         active_service_count: status.active_service_count,
@@ -171,6 +172,7 @@ fn candidates_by_node(states: &[NodeState], now: DateTime<Utc>) -> BTreeMap<Stri
 fn bare_candidate(name: String) -> NodeCandidate {
     NodeCandidate {
         name,
+        own_replicas: 0,
         warmth: Default::default(),
         gpu_utilization: None,
         active_service_count: None,
@@ -307,6 +309,36 @@ async fn reconcile_inner(
         "reconciling FleetService '{}' in '{}': model={} replicas={}",
         name, ns, fleet.spec.model, fleet.spec.replicas
     );
+
+    // ADR-0018: a strategy this version does not implement is not degraded
+    // to another one. Nothing is planned or moved, the children already
+    // placed keep running, and the status says why, written like the
+    // ADR-0011 D4 message below; the other fleets reconcile as usual.
+    if !fleet.spec.placement.strategy.is_supported() {
+        warn!(
+            "FleetService '{}': placement.strategy is not supported by this \
+             version, nothing is placed or moved",
+            name
+        );
+        let mut status = json!({
+            "message": "placement.strategy is not supported: Spread and BinPack were \
+                        removed (ADR-0018); set WarmthFirst or EfficiencyAware",
+            "selector": fleet_selector(&name),
+        });
+        if fleet.status.as_ref().is_none_or(|s| s.phase.is_empty()) {
+            status["phase"] = json!(fleet_phase_for(fleet.spec.replicas, 0, false));
+            status["desiredReplicas"] = json!(fleet.spec.replicas);
+        }
+        let fleets: Api<FleetService> = Api::namespaced(ctx.client.clone(), &ns);
+        fleets
+            .patch_status(
+                &name,
+                &PatchParams::default(),
+                &Patch::Merge(&json!({ "status": status })),
+            )
+            .await?;
+        return Ok(Action::requeue(REQUEUE));
+    }
 
     // 1. Snapshot the fleet-visible node states and convert to pure candidates.
     let node_states: Api<NodeState> = Api::all(ctx.client.clone());
@@ -573,6 +605,7 @@ async fn reconcile_inner(
             // own load promotes, because it is knowledge the controller has
             // regardless of the reporter.
             let own = own_counts.get(c.name.as_str()).copied().unwrap_or(0);
+            c.own_replicas = own;
             if own > 0 {
                 c.active_service_count = Some(c.active_service_count.unwrap_or(0) + own);
             }
@@ -1021,6 +1054,7 @@ mod tests {
     fn cand(name: &str, tpj: Option<f32>, age: Option<i64>) -> NodeCandidate {
         NodeCandidate {
             name: name.to_string(),
+            own_replicas: 0,
             warmth: vllm_coldstart_operator::fleet_types::Warmth::Warm,
             gpu_utilization: Some(42.0),
             active_service_count: Some(1),

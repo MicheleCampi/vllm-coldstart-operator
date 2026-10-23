@@ -45,9 +45,9 @@ pub struct FleetServiceSpec {
     /// reserved and not read.
     #[serde(default)]
     pub node_pool: NodePoolSpec,
-    /// Placement strategy. WarmthFirst (default) and EfficiencyAware
-    /// (ADR-0007) are implemented; Spread/BinPack are reserved variants
-    /// that currently degrade to warmth-first (see ADR).
+    /// Placement strategy: WarmthFirst (default) or EfficiencyAware
+    /// (ADR-0007). Both rank first the node with fewer of the fleet's own
+    /// replicas (ADR-0018), which removed the reserved Spread and BinPack.
     #[serde(default)]
     pub placement: PlacementSpec,
     /// Anti-oscillation controls for the reconcile loop.
@@ -111,8 +111,6 @@ pub struct SpotPolicySpec {
 pub enum PlacementStrategy {
     #[default]
     WarmthFirst,
-    Spread,
-    BinPack,
     /// ADR-0007: strict lexicographic ordering
     /// warmth > tokensPerJoule > kvCacheHitRate > gpuUtilization > activeServiceCount
     /// (ADR-0008 D4 reordered the two efficiency signals; ADR-0007 D3 had cache first).
@@ -121,6 +119,40 @@ pub enum PlacementStrategy {
     /// candidate the order is warmth, gpuUtilization, activeServiceCount:
     /// not WarmthFirst, whose tail puts activeServiceCount first.
     EfficiencyAware,
+    /// ADR-0018: any value this version does not implement, such as the
+    /// Spread or BinPack an older CRD admitted. It is not in the schema, so
+    /// the API server refuses it on a new write; it exists so that one
+    /// stored object does not fail the whole FleetService list, which
+    /// would stop every fleet. The controller places nothing for it.
+    #[serde(other)]
+    #[schemars(skip)]
+    Unsupported,
+}
+
+impl PlacementStrategy {
+    /// ADR-0018: false for a value read into `Unsupported`.
+    pub fn is_supported(&self) -> bool {
+        *self != PlacementStrategy::Unsupported
+    }
+}
+
+#[cfg(test)]
+mod unsupported_strategy_tests {
+    use super::*;
+
+    #[test]
+    fn a_stored_removed_strategy_reads_as_unsupported() {
+        // ADR-0018: an object stored under the older CRD must still
+        // deserialize, or the initial list fails for every fleet.
+        for v in ["Spread", "BinPack"] {
+            let s: PlacementStrategy = serde_json::from_value(serde_json::json!(v)).unwrap();
+            assert_eq!(s, PlacementStrategy::Unsupported);
+            assert!(!s.is_supported());
+        }
+        let s: PlacementStrategy =
+            serde_json::from_value(serde_json::json!("WarmthFirst")).unwrap();
+        assert!(s.is_supported());
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]

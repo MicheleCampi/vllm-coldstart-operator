@@ -901,6 +901,31 @@ jobs:
           fi
           echo "cordon and drain of $W2 moved the replica to $W1; fleet Ready, one child pod, on $W1"
 
+      - name: A second replica goes to the other node, even a Cold one (ADR-0018)
+        # W1 is Warm and holds slot 0. Before ADR-0018 warmth ranked first, so
+        # slot 1 joined slot 0 on W1 and one node failure took the whole fleet.
+        run: |
+          kubectl uncordon "$W2"
+          kubectl patch nodestate "$W1" --subresource=status --type=merge -p '{"status":{"warmth":"Warm"}}'
+          kubectl patch nodestate "$W2" --subresource=status --type=merge -p '{"status":{"warmth":"Cold"}}'
+          kubectl patch fleetservice pre-fleet --type=merge -p '{"spec":{"replicas":2}}'
+          node=""; phase=""; p0=""; p1=""
+          for i in $(seq 1 60); do
+            node=$(kubectl get fleetservice pre-fleet -o jsonpath='{.status.placements[1].nodeRef}')
+            phase=$(kubectl get fleetservice pre-fleet -o jsonpath='{.status.phase}')
+            p0=$(kubectl get pods -l app=pre-fleet-0 -o jsonpath='{.items[*].spec.nodeName}')
+            p1=$(kubectl get pods -l app=pre-fleet-1 -o jsonpath='{.items[*].spec.nodeName}')
+            [ "$node" = "$W2" ] && [ "$phase" = "Ready" ] && [ "$p0" = "$W1" ] && [ "$p1" = "$W2" ] && break
+            sleep 3
+          done
+          echo "slot 1 nodeRef=$node phase=$phase pods slot 0 on [$p0], slot 1 on [$p1]"
+          [ "$node" = "$W2" ] || { echo "ERROR: slot 1 is on '$node', want $W2 (Cold, no replica of the fleet)"; exit 1; }
+          pin=$(kubectl get vllmservice pre-fleet-1 -o jsonpath='{.spec.nodeName}')
+          [ "$pin" = "$W2" ] || { echo "ERROR: slot 1 child pinned to '$pin', want $W2"; exit 1; }
+          [ "$phase" = "Ready" ] || { echo "ERROR: pre-fleet phase is '$phase', want Ready"; exit 1; }
+          [ "$p0" = "$W1" ] && [ "$p1" = "$W2" ] || { echo "ERROR: pods on [$p0] and [$p1], want one on $W1 and one on $W2"; exit 1; }
+          echo "two replicas on two nodes: slot 0 on $W1 (Warm), slot 1 on $W2 (Cold)"
+
       - name: Dump state on failure
         if: failure()
         run: |

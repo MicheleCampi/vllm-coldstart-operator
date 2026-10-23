@@ -16,6 +16,12 @@ use std::cmp::Ordering;
 #[derive(Debug, Clone, PartialEq)]
 pub struct NodeCandidate {
     pub name: String,
+    /// ADR-0018: replicas of the fleet being placed that are already pinned
+    /// to this node. The controller's own bookkeeping, so always known. It
+    /// ranks first in every strategy, lower wins: a fleet spreads across
+    /// nodes before warmth or load is read, and shares a node only when no
+    /// other eligible node is left.
+    pub own_replicas: i32,
     pub warmth: Warmth,
     /// Raw observed GPU utilization; lower is better. None = signal not
     /// available (fail-open): ranks below any observed value, so an
@@ -177,8 +183,9 @@ pub fn derive_warmth<'a>(
 /// what that means (no eligible node this reconcile, requeue and retry).
 pub fn select_node_for_placement(candidates: &[NodeCandidate]) -> Option<&NodeCandidate> {
     candidates.iter().max_by(|a, b| {
-        warmth_rank(&a.warmth)
-            .cmp(&warmth_rank(&b.warmth))
+        b.own_replicas
+            .cmp(&a.own_replicas)
+            .then_with(|| warmth_rank(&a.warmth).cmp(&warmth_rank(&b.warmth)))
             .then_with(|| cmp_count_lower(a.active_service_count, b.active_service_count))
             .then_with(|| {
                 cmp_signal_lower(
@@ -279,8 +286,9 @@ pub fn select_node_efficiency_aware(
     horizon_secs: Option<i64>,
 ) -> Option<&NodeCandidate> {
     candidates.iter().max_by(|a, b| {
-        warmth_rank(&a.warmth)
-            .cmp(&warmth_rank(&b.warmth))
+        b.own_replicas
+            .cmp(&a.own_replicas)
+            .then_with(|| warmth_rank(&a.warmth).cmp(&warmth_rank(&b.warmth)))
             // ADR-0008 D4: energy ranks above cache. A newly placed replica
             // starts with a cold prefix cache on any node — the cache lives in
             // the vLLM process's memory, and modelCacheHostPath shares weights
@@ -311,8 +319,8 @@ pub fn select_node_efficiency_aware(
 }
 
 /// Strategy dispatch (ADR-0007): EfficiencyAware activates the comparator
-/// above; WarmthFirst keeps today's behaviour. Spread and BinPack are still
-/// unimplemented and fall back to warmth-first, unchanged from before.
+/// above; WarmthFirst keeps today's behaviour. Both rank on own_replicas
+/// first (ADR-0018), which also removed Spread and BinPack from the API.
 pub fn select_node_with_strategy<'a>(
     candidates: &'a [NodeCandidate],
     strategy: &PlacementStrategy,
@@ -326,9 +334,9 @@ pub fn select_node_with_strategy<'a>(
         PlacementStrategy::EfficiencyAware => {
             select_node_efficiency_aware(candidates, horizon_secs)
         }
-        PlacementStrategy::WarmthFirst | PlacementStrategy::Spread | PlacementStrategy::BinPack => {
-            select_node_for_placement(candidates)
-        }
+        PlacementStrategy::WarmthFirst => select_node_for_placement(candidates),
+        // ADR-0018: the controller stops before planning; no node either way.
+        PlacementStrategy::Unsupported => None,
     }
 }
 
@@ -366,6 +374,7 @@ mod tests {
     fn candidate(name: &str, warmth: Warmth, util: f32, count: i32) -> NodeCandidate {
         NodeCandidate {
             name: name.to_string(),
+            own_replicas: 0,
             warmth,
             gpu_utilization: Some(util),
             active_service_count: Some(count),
@@ -505,6 +514,7 @@ mod tests {
     ) -> NodeCandidate {
         NodeCandidate {
             name: name.to_string(),
+            own_replicas: 0,
             warmth,
             gpu_utilization: Some(util),
             active_service_count: Some(count),
@@ -527,6 +537,7 @@ mod tests {
     ) -> NodeCandidate {
         NodeCandidate {
             name: name.to_string(),
+            own_replicas: 0,
             warmth,
             gpu_utilization: Some(50.0),
             active_service_count: Some(1),

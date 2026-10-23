@@ -39,6 +39,7 @@ pub fn plan_initial_placements(
             // otherwise a batch would co-locate every slot on the same
             // unmeasured node (same failure class as the item-4 finding).
             c.active_service_count = Some(c.active_service_count.unwrap_or(0) + 1);
+            c.own_replicas += 1;
         }
     }
 
@@ -50,9 +51,32 @@ mod tests {
     use super::*;
     use crate::fleet_types::Warmth;
 
+    #[test]
+    fn a_fleet_spreads_across_nodes_before_warmth() {
+        // ADR-0018: without own_replicas ranking first, both slots land on
+        // the warm node and one node failure takes the whole fleet down.
+        let candidates = vec![
+            candidate("warm", Warmth::Warm, 10.0, 0),
+            candidate("cold", Warmth::Cold, 10.0, 0),
+        ];
+        for s in [
+            PlacementStrategy::WarmthFirst,
+            PlacementStrategy::EfficiencyAware,
+        ] {
+            assert_eq!(
+                plan_initial_placements(2, &candidates, &s, None),
+                vec!["warm", "cold"]
+            );
+        }
+        // More slots than nodes: nodes are shared, no slot is refused.
+        let plan = plan_initial_placements(3, &candidates, &PlacementStrategy::WarmthFirst, None);
+        assert_eq!(plan, vec!["warm", "cold", "warm"]);
+    }
+
     fn candidate(name: &str, warmth: Warmth, util: f32, count: i32) -> NodeCandidate {
         NodeCandidate {
             name: name.to_string(),
+            own_replicas: 0,
             warmth,
             gpu_utilization: Some(util),
             active_service_count: Some(count),

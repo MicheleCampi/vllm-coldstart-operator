@@ -271,9 +271,9 @@ spec:
                 default:
                   strategy: WarmthFirst
                 description: |-
-                  Placement strategy. WarmthFirst (default) and EfficiencyAware
-                  (ADR-0007) are implemented; Spread/BinPack are reserved variants
-                  that currently degrade to warmth-first (see ADR).
+                  Placement strategy: WarmthFirst (default) or EfficiencyAware
+                  (ADR-0007). Both rank first the node with fewer of the fleet's own
+                  replicas (ADR-0018), which removed the reserved Spread and BinPack.
                 properties:
                   signalMaxAgeSeconds:
                     description: |-
@@ -299,8 +299,6 @@ spec:
                     default: WarmthFirst
                     enum:
                     - WarmthFirst
-                    - Spread
-                    - BinPack
                     - EfficiencyAware
                     type: string
                 type: object
