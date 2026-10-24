@@ -35,9 +35,19 @@ The Workload Identity binding, ArgoCD, the deploy key: README "Run it",
 unchanged. Then:
 
     date -u +%FT%TZ > "$E/t0-root-app"; kubectl apply -f argocd/root-app.yaml
+    # ArgoCD creates the VllmService minutes later; kubectl wait fails at
+    # once on an object that does not exist yet.
+    for i in $(seq 1 90); do
+      kubectl get vllmservice qwen-7b -n vllm-system >/dev/null 2>&1 && break
+      sleep 10
+    done
+    date -u +%FT%TZ > "$E/t-vllmservice-created"
     kubectl wait vllmservice/qwen-7b -n vllm-system \
       --for=jsonpath='{.status.phase}'=Ready --timeout=45m
     date -u +%FT%TZ > "$E/t1-ready"
+    for k in events pods nodes; do
+      kubectl get $k -A -o json > "$E/coldstart1-$k.json"
+    done
 
 Second cold start, image already on the node:
 
@@ -45,9 +55,21 @@ Second cold start, image already on the node:
     kubectl wait vllmservice/qwen-7b -n vllm-system \
       --for=jsonpath='{.status.phase}'=Ready --timeout=30m
     date -u +%FT%TZ > "$E/t1-repod"
+    for k in events pods nodes; do
+      kubectl get $k -A -o json > "$E/coldstart2-$k.json"
+    done
 
 Both intervals are split afterwards from the events and pod conditions
-copied in Phase 4; event timestamps have a 1 s resolution.
+copied at each Ready: events expire after 1 h, so Phase 4 is too late
+for them. Event timestamps have a 1 s resolution.
+
+Stop rule, capacity: if the pod is still Pending 10 min after the
+VllmService appears and the events show FailedScaleUp, copy events,
+pods, nodes and VllmServices to "$E/stockout-*.json" and go to Phase 5;
+a stockout has no end time. Read the cluster from a second terminal with
+its own kubeconfig (gcloud container clusters get-credentials into a
+separate KUBECONFIG file) and E exported again. Seen on 2026-10-24 in
+europe-west4-a, before the GPU pool spanned three zones.
 
 ## Phase 3: measured runs (target: T0 + 3 h 15 min)
 
