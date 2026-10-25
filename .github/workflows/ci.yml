@@ -11,6 +11,10 @@ env:
   RUSTFLAGS: "-D warnings"
   # Helm for the chart checks: the same release and SHA-256 as the
   # tools.lock of gke-llm-inference-platform.
+  # kind and its node image, pinned: the action default moved kind v0.31 to v0.33
+  # and Kubernetes 1.35 to 1.37 without a commit here (PR #55).
+  KIND_VERSION: v0.31.0
+  KIND_NODE_IMAGE: kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f
   HELM_URL: https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz
   HELM_SHA256: 0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36
   # KEDA for the keda job: the chart by version and SHA-256, and its three
@@ -152,6 +156,8 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: e2e
 
       - name: CRDs committed match the generator
@@ -687,6 +693,8 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: chart
 
       - name: Load the image into the node
@@ -784,6 +792,8 @@ jobs:
       - name: Create kind cluster with two workers
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: preemption
           config: .github/kind/two-workers.yaml
 
@@ -971,6 +981,8 @@ jobs:
       - name: Create kind cluster with two workers
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: faults
           config: .github/kind/two-workers.yaml
 
@@ -1077,6 +1089,8 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: sim-load
 
       - name: Build and load the simulator image
@@ -1220,6 +1234,8 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: keda
 
       - name: Install Helm
@@ -1332,6 +1348,8 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: scale-out
 
       - name: Build and load the simulator image
@@ -1477,6 +1495,8 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: scale-from-zero
 
       - name: Build and load the simulator image
