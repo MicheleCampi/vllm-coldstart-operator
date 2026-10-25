@@ -13,7 +13,7 @@ set -euo pipefail
 shopt -s nullglob
 OUT="${OUT:-scale-out}"
 HPA="${HPA:-keda-hpa-sim-fleet-scale-out}"
-SEQUENCE=b170da22aa6101c6c20fbbaa9c9d2b647006161e2dffc7bf8710ec8135acdf62
+SEQUENCE=b5b7fff2f0fe78c3197a8df5ecad3640d4fba440f6031420e89d1ad57fb92280
 mkdir -p "$OUT.pods"
 
 pod_metrics() { # $1 = before or after: each fleet pod's /metrics, via the API server
