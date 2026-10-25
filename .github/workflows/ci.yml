@@ -11,10 +11,11 @@ env:
   RUSTFLAGS: "-D warnings"
   # Helm for the chart checks: the same release and SHA-256 as the
   # tools.lock of gke-llm-inference-platform.
-  # kind and its node image, pinned: the action default moved kind v0.31 to v0.33
-  # and Kubernetes 1.35 to 1.37 without a commit here (PR #55).
-  KIND_VERSION: v0.31.0
-  KIND_NODE_IMAGE: kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f
+  # kind and its node image, pinned (PR #55). The node runs the Kubernetes
+  # patch the GKE REGULAR channel, the one capstone-iac sets, defaulted to in
+  # us-central1 on 2026-10-25: 1.36.4 (gcloud container get-server-config).
+  KIND_VERSION: v0.33.0
+  KIND_NODE_IMAGE: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
   HELM_URL: https://get.helm.sh/helm-v3.21.0-linux-amd64.tar.gz
   HELM_SHA256: 0093eb572e3d2380f094df162ddb525e219249de88957afe24cfbb19632acd36
   # KEDA for the keda job: the chart by version and SHA-256, and its three
@@ -723,13 +724,16 @@ jobs:
       - name: The operator runs the image built here
         # Ready alone proves nothing about this commit: if the load above did
         # not take, the node pulls the published image with the same tag and
-        # the example still reaches Ready. The pod's imageID must be the
-        # config digest of the image built in this job.
+        # the example still reaches Ready. The pod's imageID must lead, on the
+        # node, to the config digest of the image built in this job: containerd
+        # 2 (kind v0.33) reports the repo digest it made on import, not the
+        # config digest (hack/ci/pod-image-config.sh).
         run: |
           cfg=$(docker save "$IMG" | tar -xO manifest.json | python3 -c 'import sys,json; print(json.load(sys.stdin)[0]["Config"])')
           cfg=${cfg##*/}; want="sha256:${cfg%.json}"
           got=$(kubectl get pods -n vllm-system -l app.kubernetes.io/name=vllm-coldstart-operator -o jsonpath='{.items[0].status.containerStatuses[0].imageID}')
-          [ "$got" = "$want" ] || { echo "::error::operator runs $got, not the image built here ($want)"; exit 1; }
+          cid=$(hack/ci/pod-image-config.sh chart-control-plane "$got")
+          [ "$cid" = "$want" ] || { echo "::error::operator runs $got (config $cid), not the image built here ($want)"; exit 1; }
           echo "operator runs the image built here: $want"
           echo "IMAGE_ID=$want" >> "$GITHUB_ENV"
 
@@ -758,7 +762,8 @@ jobs:
           u=$(kubectl get nodestate "$NODE" -n vllm-system -o jsonpath='{.status.gpuUtilization}')
           [ "$u" = "0.25" ] || { echo "::error::gpuUtilization is '$u', reporter.extraEnv set 0.25"; exit 1; }
           got=$(kubectl get pods -n vllm-system -l app.kubernetes.io/component=reporter -o jsonpath='{.items[0].status.containerStatuses[0].imageID}')
-          [ "$got" = "$IMAGE_ID" ] || { echo "::error::reporter runs $got, not the image built here ($IMAGE_ID)"; exit 1; }
+          cid=$(hack/ci/pod-image-config.sh chart-control-plane "$got")
+          [ "$cid" = "$IMAGE_ID" ] || { echo "::error::reporter runs $got (config $cid), not the image built here ($IMAGE_ID)"; exit 1; }
           echo "reporter DaemonSet reported on $NODE at $t (gpuUtilization $u), image $got"
 
       - name: Dump cluster state on failure
