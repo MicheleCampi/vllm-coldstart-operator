@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The time per output token is an objective per GPU class (ADR-0020).**
+  For one L4 running Qwen2.5-7B-Instruct in bf16 on vLLM v0.11.0 it is at
+  most 100 ms, in `hack/loadgen/slo-l4-qwen7b-bf16.json`: under the 137 ms a
+  token of a reader at 320 words a minute, the requirement of ADR-0013,
+  whose 50 ms no load meets on that GPU (floor about 64 ms).
+  `test_slo_files.py` keeps every other objective equal to `slo.json`.
+
+### Changed
+
+- **Profile prompts are `context_tokens` long in real model tokens.** The
+  NATO vocabulary was 1.72 Qwen2.5 tokens a word, so a GPU served prompts
+  1.5 to 2.1 times the profile; 46 English words are one token each for
+  Qwen2.5 and for the simulator, checked by `test_loadgen_tokens.py`
+  against a pinned tokenizer. The pinned sequences change: keep 0.025
+  seed 42 is `6c10349917a6`, keep 0.1 seed 42 `b5b7fff2f0fe`.
+
 ## [0.6.0] — 2026-10-23
 
 The release in which the operator runs under a realistic load and through

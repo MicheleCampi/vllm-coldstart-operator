@@ -79,6 +79,11 @@ against them, and they are written as shares rather than percentiles,
 so a run's error budget is a count, (1 - share) x requests, and each
 run reports how much of it was consumed.
 
+> Amended by ADR-0020 (2026-10-25): for one L4 running
+> Qwen2.5-7B-Instruct in bf16 on vLLM v0.11.0 the time per output token is
+> at most 100 ms (`hack/loadgen/slo-l4-qwen7b-bf16.json`); the requirement,
+> faster than people read, and every other objective stay.
+
 **D2. The client is the source of the indicators; the simulator checks
 it where it measures.** The load generator's mean TTFT must equal the
 simulator's mean queue time plus mean prefill, and its mean end-to-end

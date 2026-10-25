@@ -44,7 +44,8 @@ the comparison with D3 meaningless.
    image already on the node.
 2. The fixed replay, three times: keep 0.025, seed 42, 68 requests,
    sequence 6c10349917a6. Checked with
-   `slo_check.py --client-only`: its client-minus-simulator check
+   `slo_check.py --client-only --slo hack/loadgen/slo-l4-qwen7b-bf16.json`
+   (ADR-0020): its client-minus-simulator check
    compares against times the simulator computes (slo_check.py:10-13).
 3. The D3 ladder, one run per row of ADR-0013's table: keep 0.05 at
    seeds 42, 1 and 2, then 0.075 and 0.1 at seed 42.
