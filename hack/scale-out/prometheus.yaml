@@ -51,6 +51,10 @@ data:
   prometheus.yml: |
     global:
       scrape_interval: 5s
+      evaluation_interval: 15s
+    # The SLO rules of deploy/monitoring/slo-rules.yaml, when the job loads them
+    # (ConfigMap prometheus-rules, optional); 15 s evaluation for a CI run.
+    rule_files: ["/etc/prometheus-rules/*.yaml"]
     scrape_configs:
       - job_name: fleet-pods
         kubernetes_sd_configs:
@@ -67,6 +71,10 @@ data:
             target_label: fleet
           - source_labels: [__meta_kubernetes_pod_name]
             target_label: pod
+          # service from the pod label app, as Alloy labels the vLLM pods in gke,
+          # so the SLO rules read the same labels in both.
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            target_label: service
           # The engine serves /metrics on 8000, the port its Service targets.
           - source_labels: [__meta_kubernetes_pod_ip]
             target_label: __address__
@@ -98,10 +106,13 @@ spec:
             httpGet: {path: /-/ready, port: 9090}
           volumeMounts:
             - {name: config, mountPath: /etc/prometheus}
+            - {name: rules, mountPath: /etc/prometheus-rules}
             - {name: data, mountPath: /prometheus}
       volumes:
         - name: config
           configMap: {name: prometheus}
+        - name: rules
+          configMap: {name: prometheus-rules, optional: true}
         - name: data
           emptyDir: {}
 ---

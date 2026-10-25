@@ -1,0 +1,43 @@
+# Burn-rate alerts on the time to first token objective of ADR-0013: 95% of
+# requests with a first token within 1 s, so an error budget of 5%. Rules in
+# the Prometheus format, the same file for promtool, the CI Prometheus and the
+# Grafana Cloud ruler (ADR-0021). The 1 s edge is a bucket of
+# vllm:time_to_first_token_seconds in vLLM v0.11.0 and in the simulator
+# v0.8.2; Go writes le="1", Python le="1.0". Windows and factors are the
+# multiwindow, multi-burn-rate alerts of the Google SRE Workbook.
+groups:
+  - name: vllm-ttft-slo
+    rules:
+      - record: slo:ttft_over_1s:ratio_rate5m
+        expr: 1 - sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_bucket{le=~"1|1\\.0"}[5m])) / sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_count[5m]))
+      - record: slo:ttft_over_1s:ratio_rate30m
+        expr: 1 - sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_bucket{le=~"1|1\\.0"}[30m])) / sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_count[30m]))
+      - record: slo:ttft_over_1s:ratio_rate1h
+        expr: 1 - sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_bucket{le=~"1|1\\.0"}[1h])) / sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_count[1h]))
+      - record: slo:ttft_over_1s:ratio_rate6h
+        expr: 1 - sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_bucket{le=~"1|1\\.0"}[6h])) / sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_count[6h]))
+      - alert: VllmTtftBudgetBurnFast
+        # 14.4 times the budget: 2% of a 30-day budget in one hour.
+        expr: slo:ttft_over_1s:ratio_rate1h > 14.4 * 0.05 and slo:ttft_over_1s:ratio_rate5m > 14.4 * 0.05
+        labels:
+          severity: page
+        annotations:
+          runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md
+      - alert: VllmTtftBudgetBurnSlow
+        # 6 times the budget: 5% of a 30-day budget in six hours.
+        expr: slo:ttft_over_1s:ratio_rate6h > 6 * 0.05 and slo:ttft_over_1s:ratio_rate30m > 6 * 0.05
+        labels:
+          severity: ticket
+        annotations:
+          runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md
+  - name: vllm-targets
+    rules:
+      - alert: VllmTargetDown
+        # A replica whose /metrics stops answering also stops counting
+        # against the budget; this says so.
+        expr: up{service!=""} == 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md

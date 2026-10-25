@@ -61,6 +61,27 @@ jobs:
           [ "$bad" = 0 ] && echo "toolchain pins agree on $ch"
           exit $bad
 
+      - name: SLO alert rules pass their tests
+        # promtool from the Prometheus image pinned in
+        # hack/scale-out/prometheus.yaml. The tests must also fail on a rule
+        # with the wrong bucket edge, or they prove nothing (ADR-0021).
+        run: |
+          img=$(grep -o -E 'mirror\.gcr\.io/prom/prometheus:[^ ]+' hack/scale-out/prometheus.yaml)
+          P=(docker run --rm --entrypoint promtool -v "$PWD/deploy/monitoring:/r:ro" -w /r "$img")
+          "${P[@]}" check rules slo-rules.yaml
+          "${P[@]}" test rules slo-rules.test.yaml
+          n=$(mktemp -d)
+          sed 's/le=~"1|1\\\\.0"/le="2.5"/' deploy/monitoring/slo-rules.yaml > "$n/slo-rules.yaml"
+          [ "$(grep -c 'le="2.5"' "$n/slo-rules.yaml")" = 4 ] || { echo "::error::the negative case did not change the four bucket edges"; exit 1; }
+          cp deploy/monitoring/slo-rules.test.yaml "$n/"
+          # promtool runs as nobody: the copies must be readable, and it must
+          # fail on a test, not on reading its files.
+          chmod 755 "$n" && chmod 644 "$n"/*
+          if docker run --rm --entrypoint promtool -v "$n:/r:ro" -w /r "$img" test rules slo-rules.test.yaml > "$n/out" 2>&1; then cat "$n/out"; echo "::error::the tests pass on a rule with the wrong bucket edge"; exit 1; fi
+          cat "$n/out"
+          grep -q FAILED "$n/out" && ! grep -qi 'permission denied' "$n/out" || { echo "::error::promtool failed for another reason than a test"; exit 1; }
+          echo "promtool tests pass, and fail on the wrong bucket edge"
+
       - name: Build images avoid Docker Hub
         # A Docker Hub outage could stop the release build before any
         # Dockerfile line ran: the BuildKit builder, the Dockerfile frontend and
@@ -1375,6 +1396,8 @@ jobs:
         # The manifest is the one place the image is pinned; the pod must
         # run exactly that reference.
         run: |
+          kubectl create namespace monitoring
+          kubectl create configmap prometheus-rules -n monitoring --from-file=deploy/monitoring/slo-rules.yaml
           kubectl apply -f hack/scale-out/prometheus.yaml
           kubectl rollout status deployment/prometheus -n monitoring --timeout=2m
           want=$(grep -o -E 'mirror\.gcr\.io/prom/prometheus:[^ ]+' hack/scale-out/prometheus.yaml)
@@ -1445,6 +1468,24 @@ jobs:
         run: |
           python3 -m venv /tmp/loadgen && /tmp/loadgen/bin/pip install --quiet aiohttp==3.14.1
           bash hack/scale-out/measure.sh
+
+      - name: The TTFT SLO rules evaluate on the fleet's series
+        # deploy/monitoring/slo-rules.yaml, loaded by this Prometheus: after
+        # the load, the share of first tokens over 1 s in the last 5 minutes
+        # must be a number in [0, 1] for each replica (ADR-0021). The alert
+        # logic is tested by promtool in the build job.
+        run: |
+          q='/api/v1/namespaces/monitoring/services/prometheus:9090/proxy/api/v1'
+          kubectl get --raw "$q/rules" | python3 -c 'import json, sys; g = {x["name"] for x in json.load(sys.stdin)["data"]["groups"]}; print("rule groups", sorted(g)); assert {"vllm-ttft-slo", "vllm-targets"} <= g, g'
+          v=""
+          for i in $(seq 1 12); do
+            v=$(kubectl get --raw "$q/query?query=slo:ttft_over_1s:ratio_rate5m" | python3 -c 'import json, sys; print(" ".join(r["metric"].get("service", "") + "=" + r["value"][1] for r in json.load(sys.stdin)["data"]["result"]))' || true)
+            [ -n "$v" ] && break
+            sleep 5
+          done
+          [ -n "$v" ] || { echo "::error::slo:ttft_over_1s:ratio_rate5m has no series after the load"; exit 1; }
+          python3 -c 'import sys; v = [float(p.split("=")[1]) for p in sys.argv[1].split()]; assert all(0 <= x <= 1 for x in v), v' "$v"
+          echo "share of first tokens over 1 s, last 5 minutes, per replica: $v"
 
       - name: Upload load record and logs
         if: always()

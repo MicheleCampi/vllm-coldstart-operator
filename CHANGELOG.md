@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- SLO burn-rate alerts on the time to first token (ADR-0021): `deploy/monitoring/slo-rules.yaml`, recording the share of first tokens over 1 s on 5 m, 30 m, 1 h and 6 h, and alerting on 14.4 times the 5% budget over 1 h and 5 m and on 6 times over 6 h and 30 m, with a target-down alert and `docs/runbooks/ttft-burn-rate.md`. promtool tests the logic in CI, and must fail on a wrong bucket edge; the scale-out job loads the rules and requires a ratio on the simulator's series after its load.
 - **The time per output token is an objective per GPU class (ADR-0020).**
   For one L4 running Qwen2.5-7B-Instruct in bf16 on vLLM v0.11.0 it is at
   most 100 ms, in `hack/loadgen/slo-l4-qwen7b-bf16.json`: under the 137 ms a

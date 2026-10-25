@@ -1,0 +1,68 @@
+# promtool test rules deploy/monitoring/slo-rules.test.yaml
+rule_files: [slo-rules.yaml]
+evaluation_interval: 1m
+tests:
+  # 90% of requests over 1 s in every window: both alerts fire.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="vllm-system",service="qwen-7b",le="1.0"}'
+        values: '0+10x70'
+      - series: 'vllm:time_to_first_token_seconds_count{namespace="vllm-system",service="qwen-7b"}'
+        values: '0+100x70'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: VllmTtftBudgetBurnFast
+        exp_alerts:
+          - exp_labels: {severity: page, namespace: vllm-system, service: qwen-7b}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md}
+      - eval_time: 10m
+        alertname: VllmTtftBudgetBurnSlow
+        exp_alerts:
+          - exp_labels: {severity: ticket, namespace: vllm-system, service: qwen-7b}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md}
+  # 2% over 1 s, inside the 5% budget: nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="vllm-system",service="qwen-7b",le="1.0"}'
+        values: '0+98x70'
+      - series: 'vllm:time_to_first_token_seconds_count{namespace="vllm-system",service="qwen-7b"}'
+        values: '0+100x70'
+    alert_rule_test:
+      - {eval_time: 70m, alertname: VllmTtftBudgetBurnFast}
+      - {eval_time: 70m, alertname: VllmTtftBudgetBurnSlow}
+  # An hour at 2%, then ten minutes at 90%: only the short windows are high
+  # (5m 0.9, 30m 0.31, 1h 0.17, 6h 0.15), so neither alert fires.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="vllm-system",service="qwen-7b",le="1.0"}'
+        values: '0+98x60 5890+10x9'
+      - series: 'vllm:time_to_first_token_seconds_count{namespace="vllm-system",service="qwen-7b"}'
+        values: '0+100x70'
+    alert_rule_test:
+      - {eval_time: 70m, alertname: VllmTtftBudgetBurnFast}
+      - {eval_time: 70m, alertname: VllmTtftBudgetBurnSlow}
+  # The simulator's Go client writes le="1": the same rule counts it.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="default",service="sim-fleet-a",le="1"}'
+        values: '0+10x70'
+      - series: 'vllm:time_to_first_token_seconds_count{namespace="default",service="sim-fleet-a"}'
+        values: '0+100x70'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: VllmTtftBudgetBurnFast
+        exp_alerts:
+          - exp_labels: {severity: page, namespace: default, service: sim-fleet-a}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md}
+  # A replica down for six minutes.
+  - interval: 1m
+    input_series:
+      - series: 'up{namespace="vllm-system",service="qwen-7b"}'
+        values: '1 1 0x10'
+    alert_rule_test:
+      - {eval_time: 5m, alertname: VllmTargetDown}
+      - eval_time: 8m
+        alertname: VllmTargetDown
+        exp_alerts:
+          - exp_labels: {severity: ticket, namespace: vllm-system, service: qwen-7b}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md}
