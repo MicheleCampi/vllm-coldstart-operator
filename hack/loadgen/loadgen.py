@@ -21,7 +21,8 @@ Open-loop with --profile: requests follow the arrival schedule of a
 trace-derived profile (hack/loadgen/profiles, built by build_profile.py)
 instead of a fixed concurrency. Each profile row is kept with probability
 --keep from an RNG seeded per (seed, trace line), and that RNG also draws a
-prompt of exactly context_tokens vocabulary words; ignore_eos forces the
+prompt of exactly context_tokens vocabulary words, one token each for
+Qwen2.5 and for the simulator; ignore_eos forces the
 response to generated_tokens. Each record carries its scheduled time and
 send delay, so a late send shows up instead of hiding queueing (coordinated
 omission), and the token usage the server reports. The run config carries
@@ -39,10 +40,13 @@ import time
 
 import aiohttp
 
+# One token each for Qwen2.5, first or after a space, and one \w+ match for
+# the simulator's SimpleTokenizer: profile prompts are context_tokens long on
+# both (test_loadgen_tokens.py).
 VOCAB = (
-    "alpha bravo charlie delta echo foxtrot golf hotel india juliett kilo "
-    "lima mike november oscar papa quebec romeo sierra tango uniform victor "
-    "whiskey xray yankee zulu"
+    "the and for are but not you all any can had her was one our out day "
+    "get has him his how man new now old see two way who boy did its let "
+    "put say she too use top red big end run sun sky"
 ).split()
 
 

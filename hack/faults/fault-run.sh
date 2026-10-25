@@ -51,7 +51,7 @@ kill "$watcher"
 # A failed request makes slo_check exit 1: here that is the measurement, not
 # an error. Only a run that is not the pinned one is.
 python3 hack/loadgen/slo_check.py "$out.jsonl" --client-only --slo hack/loadgen/slo.json \
-  --sequence 398f3b6c143c24de879de3c9d95f6d5c2f32005661956b6986fc61df9812abfc > "$out.slo" || true
+  --sequence 6c10349917a6877be7e1a94ade7a936dcb70337be864a275a13e6b5a56c9a3cc > "$out.slo" || true
 cat "$out.slo"
 if grep -q -E 'is not the pinned|scheduled requests|generator fell behind' "$out.slo"; then
   echo "ERROR: the run is not the pinned replay, its numbers do not count"

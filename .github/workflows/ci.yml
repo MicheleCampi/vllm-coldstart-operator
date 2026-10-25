@@ -957,8 +957,16 @@ jobs:
       - name: Build operator
         run: cargo build --bin vllm-coldstart-operator
 
-      - name: Test slo_check
-        run: python3 -m unittest discover -s hack/loadgen -p 'test_*.py' -v
+      - name: Test slo_check and loadgen prompt sizes
+        # Qwen2.5's tokenizer at a pinned revision: profile prompts must be
+        # context_tokens long in the tokens a real model counts.
+        env:
+          QWEN_TOKENIZER: /tmp/qwen-tokenizer.json
+        run: |
+          curl -sfL -o "$QWEN_TOKENIZER" https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/resolve/a09a35458c702b33eeacc393d103063234e8bc28/tokenizer.json
+          echo "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539  $QWEN_TOKENIZER" | sha256sum -c -
+          python3 -m venv /tmp/loadgen-test && /tmp/loadgen-test/bin/pip install --quiet aiohttp==3.14.1 tokenizers==0.22.2
+          /tmp/loadgen-test/bin/python -m unittest discover -s hack/loadgen -p 'test_*.py' -v
 
       - name: Create kind cluster with two workers
         uses: helm/kind-action@v1
@@ -1128,7 +1136,7 @@ jobs:
             --out within.jsonl
           curl -sf http://127.0.0.1:8001/metrics > within.after
           python3 hack/loadgen/slo_check.py within.jsonl within.before within.after --slo hack/loadgen/slo.json \
-            --sequence 398f3b6c143c24de879de3c9d95f6d5c2f32005661956b6986fc61df9812abfc --assert-slo
+            --sequence 6c10349917a6877be7e1a94ade7a936dcb70337be864a275a13e6b5a56c9a3cc --assert-slo
 
       - name: Overloaded, every request is still served
         # keep 0.1 has up to 13 requests in flight for 5 slots: the
@@ -1140,7 +1148,7 @@ jobs:
             --out overload.jsonl
           curl -sf http://127.0.0.1:8001/metrics > overload.after
           python3 hack/loadgen/slo_check.py overload.jsonl overload.before overload.after --slo hack/loadgen/slo.json \
-            --sequence b170da22aa6101c6c20fbbaa9c9d2b647006161e2dffc7bf8710ec8135acdf62
+            --sequence b5b7fff2f0fe78c3197a8df5ecad3640d4fba440f6031420e89d1ad57fb92280
 
       - name: Dump cluster and operator state on failure
         # On 546fe53 (run 39666087210, first attempt) the Ready wait timed
