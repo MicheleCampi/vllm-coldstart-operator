@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CI runs on ubuntu-24.04 instead of ubuntu-latest, and every action is pinned by commit sha with its release in a comment (checkout v7.0.1 as in capstone-iac, cache v6.1.0, upload-artifact v7.0.2, kind-action v1.15.1, the Docker actions at their latest majors), all on the node24 runtime. The toolchain pin check now asks for one rust-toolchain sha commented with the channel.
 - **Profile prompts are `context_tokens` long in real model tokens.** The
   NATO vocabulary was 1.72 Qwen2.5 tokens a word, so a GPU served prompts
   1.5 to 2.1 times the profile; 46 English words are one token each for

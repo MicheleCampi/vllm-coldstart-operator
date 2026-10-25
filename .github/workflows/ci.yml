@@ -34,9 +34,9 @@ env:
 jobs:
   check:
     name: fmt + clippy + test + build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Toolchain pins agree
         # rust-toolchain.toml is the one declaration of the Rust version. The
@@ -48,8 +48,8 @@ jobs:
           [ -n "$ch" ] || { echo "::error::no channel in rust-toolchain.toml"; exit 1; }
           re=${ch//./\\.}
           bad=0
-          refs=$(grep -hoE '^[[:space:]-]*uses: dtolnay/rust-toolchain@[^[:space:]]+' .github/workflows/*.yml | sed 's/^[[:space:]-]*uses: //' | sort -u | paste -sd' ' -)
-          [ "$refs" = "dtolnay/rust-toolchain@$ch" ] || { echo "::error::workflow toolchain refs [$refs] differ from channel $ch"; bad=1; }
+          refs=$(grep -hoE '^[[:space:]-]*uses: dtolnay/rust-toolchain@.*' .github/workflows/*.yml | sed 's/^[[:space:]-]*uses: //' | sort -u | paste -sd'|' -)
+          echo "$refs" | grep -qxE "dtolnay/rust-toolchain@[0-9a-f]{40} # ${re}" || { echo "::error::workflow toolchain refs [$refs] are not one commit sha commented # $ch"; bad=1; }
           grep -q "^FROM mirror\.gcr\.io/library/rust:${re}-" Dockerfile || { echo "::error::Dockerfile builder is not mirror.gcr.io/library/rust:${ch}-*"; bad=1; }
           rv=$(sed -n 's/^rust-version = "\(.*\)"$/\1/p' Cargo.toml)
           [ "$rv" = "$ch" ] || { echo "::error::Cargo.toml rust-version $rv differs from channel $ch"; bad=1; }
@@ -103,12 +103,12 @@ jobs:
           echo "operator and reporter both render $want"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95
+        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
         with:
           components: rustfmt, clippy
 
       - name: Cache cargo registry and target
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -130,15 +130,15 @@ jobs:
 
   e2e:
     name: end-to-end on kind
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95
+        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
 
       - name: Cache cargo registry and target
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -150,7 +150,7 @@ jobs:
         run: cargo build --bins
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
           cluster_name: e2e
 
@@ -670,9 +670,9 @@ jobs:
 
   chart-install:
     name: chart install on kind
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Build the operator image
         # Tagged repository:appVersion, the reference the chart's defaults
@@ -685,7 +685,7 @@ jobs:
           echo "IMG=$img" >> "$GITHUB_ENV"
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
           cluster_name: chart
 
@@ -764,13 +764,13 @@ jobs:
 
   preemption:
     name: preemption on multi-node kind
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: dtolnay/rust-toolchain@1.95
+      - uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -782,7 +782,7 @@ jobs:
         run: cargo build --bin vllm-coldstart-operator
 
       - name: Create kind cluster with two workers
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
           cluster_name: preemption
           config: .github/kind/two-workers.yaml
@@ -940,13 +940,13 @@ jobs:
 
   faults-under-load:
     name: faults under load on multi-node kind
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: dtolnay/rust-toolchain@1.95
+      - uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -969,7 +969,7 @@ jobs:
           /tmp/loadgen-test/bin/python -m unittest discover -s hack/loadgen -p 'test_*.py' -v
 
       - name: Create kind cluster with two workers
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
           cluster_name: faults
           config: .github/kind/two-workers.yaml
@@ -1040,7 +1040,7 @@ jobs:
 
       - name: Upload load records and logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: faults-under-load
           path: |
@@ -1054,16 +1054,16 @@ jobs:
 
   sim-load:
     name: load through the llm-d simulator on kind
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95
+        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
 
       - name: Cache cargo registry and target
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -1075,7 +1075,7 @@ jobs:
         run: cargo build --bins
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
           cluster_name: sim-load
 
@@ -1170,7 +1170,7 @@ jobs:
 
       - name: Upload load record and logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sim-load
           path: |
@@ -1188,25 +1188,25 @@ jobs:
 
   manifests:
     name: examples and README against the CRDs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate the manifests with kubeconform
         run: bash hack/validate-manifests.sh
 
   keda:
     name: KEDA scales a fleet to zero and back on kind
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95
+        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
 
       - name: Cache cargo registry and target
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -1218,7 +1218,7 @@ jobs:
         run: cargo build --bins
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
           cluster_name: keda
 
@@ -1309,16 +1309,16 @@ jobs:
 
   scale-out:
     name: KEDA scales a fleet 1 to N under load on kind
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95
+        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
 
       - name: Cache cargo registry and target
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -1330,7 +1330,7 @@ jobs:
         run: cargo build --bins
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
           cluster_name: scale-out
 
@@ -1425,7 +1425,7 @@ jobs:
 
       - name: Upload load record and logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scale-out
           path: |
@@ -1454,16 +1454,16 @@ jobs:
     # The scale-out job's bench (same simulator, KEDA, Prometheus and load),
     # repeated rather than shared, with the fleet starting at zero replicas
     # and the load entering through the add-on's interceptor (ADR-0015).
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95
+        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
 
       - name: Cache cargo registry and target
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -1475,7 +1475,7 @@ jobs:
         run: cargo build --bins
 
       - name: Create kind cluster
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
         with:
           cluster_name: scale-from-zero
 
@@ -1611,7 +1611,7 @@ jobs:
 
       - name: Upload load record and logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scale-from-zero
           path: |
