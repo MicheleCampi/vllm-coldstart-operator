@@ -1,6 +1,6 @@
 # ADR-0021: Burn-rate alerts on the time to first token
 
-Status: Accepted, rules tested; not yet loaded into Grafana Cloud
+Status: Accepted, rules tested; loaded into Grafana Cloud on 2026-10-26, no live series evaluated yet
 Date: 2026-10-25
 Extends: ADR-0013 (D2, where the indicators come from)
 
@@ -60,11 +60,35 @@ simulator's series after its load.
 - A request queueing behind a cold start counts against the budget, as the
   client counts it.
 
+## Loading into Grafana Cloud
+
+On 2026-10-26 both groups were loaded into the ruler of the platform's
+Grafana Cloud stack (US East, Ohio), namespace `vllm-coldstart-operator`,
+with mimirtool 3.2.3 pinned by digest. mimirtool takes the namespace from
+a `namespace:` key that promtool rejects, so what is loaded is this file
+with that one line prepended, checked byte for byte:
+
+```
+I=grafana/mimirtool@sha256:469de1cf58fdaf8e81ddafe1395c17da3c733e8a4e79ac544d4fccf11eb4f3b8
+D=$(mktemp -d) && chmod 755 "$D"
+{ echo 'namespace: vllm-coldstart-operator'; cat deploy/monitoring/slo-rules.yaml; } > "$D/rules.yaml"
+chmod 644 "$D/rules.yaml"
+tail -n +2 "$D/rules.yaml" | cmp - deploy/monitoring/slo-rules.yaml
+# MIMIR_ADDRESS (the stack's Prometheus URL), MIMIR_TENANT_ID and
+# MIMIR_API_KEY (a token with rules read and write on that stack only)
+docker run --rm -e MIMIR_ADDRESS -e MIMIR_TENANT_ID -e MIMIR_API_KEY \
+  -v "$D:/r:ro" "$I" rules load /r/rules.yaml
+```
+
+`rules list` and `rules print` read back what the ruler holds; rollback is
+`rules delete-namespace vllm-coldstart-operator` with the same environment.
+
 ## What this ADR does not prove
 
-- That the alerts fire in production: the rules are not yet loaded into
-  Grafana Cloud, a step that needs the account's credentials, and no gke
-  session has run since the vLLM pods are scraped.
+- That the alerts fire in production: the rules are in the ruler, but no
+  gke session has run since, so they have evaluated no vLLM series yet.
+- That anyone is notified: the stack has no contact point yet, so a firing
+  alert is visible only in Grafana.
 - Alerts on the time per output token and on success: they need a
   per-request histogram in the simulator and a component that sees every
   request (a gateway), each work of its own.
