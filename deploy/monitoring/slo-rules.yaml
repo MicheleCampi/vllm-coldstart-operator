@@ -1,7 +1,7 @@
 # Burn-rate alerts on the time to first token objective of ADR-0013: 95% of
 # requests with a first token within 1 s, so an error budget of 5%. Rules in
 # the Prometheus format, the same file for promtool, the CI Prometheus and the
-# Grafana Cloud ruler (ADR-0021). The 1 s edge is a bucket of
+# Grafana-managed rules of Grafana Cloud (ADR-0021). The 1 s edge is a bucket of
 # vllm:time_to_first_token_seconds in vLLM v0.11.0 and in the simulator
 # v0.8.2; Go writes le="1", Python le="1.0". Windows and factors are the
 # multiwindow, multi-burn-rate alerts of the Google SRE Workbook.

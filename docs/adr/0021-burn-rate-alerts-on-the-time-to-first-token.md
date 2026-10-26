@@ -1,6 +1,6 @@
 # ADR-0021: Burn-rate alerts on the time to first token
 
-Status: Accepted, rules tested; loaded into Grafana Cloud on 2026-10-26, no live series evaluated yet
+Status: Accepted, rules tested; imported into Grafana Cloud as Grafana-managed rules on 2026-10-26, no live series evaluated yet
 Date: 2026-10-25
 Extends: ADR-0013 (D2, where the indicators come from)
 
@@ -44,8 +44,8 @@ the 6 h and 30 m ratios exceed 6 x 5%. A target-down alert for a replica
 whose `/metrics` stops answering, since its requests then stop counting.
 
 **D3. One file, three readers.** `deploy/monitoring/slo-rules.yaml` is what
-promtool tests, what the CI Prometheus loads and what the Grafana Cloud
-ruler is given; the CI Prometheus labels `service` from the pod label
+promtool tests, what the CI Prometheus loads and what Grafana Cloud
+imports; the CI Prometheus labels `service` from the pod label
 `app`, as Alloy does.
 
 **D4. Two proofs.** promtool tests the logic on synthetic series (burnt
@@ -62,11 +62,15 @@ simulator's series after its load.
 
 ## Loading into Grafana Cloud
 
-On 2026-10-26 both groups were loaded into the ruler of the platform's
-Grafana Cloud stack (US East, Ohio), namespace `vllm-coldstart-operator`,
-with mimirtool 3.2.3 pinned by digest. mimirtool takes the namespace from
-a `namespace:` key that promtool rejects, so what is loaded is this file
-with that one line prepended, checked byte for byte:
+The stack's Prometheus data source is provisioned with ruler management
+off, and the stack has no Mimir Alertmanager data source, so rules in the
+Mimir ruler would notify nobody. The groups are imported instead as
+Grafana-managed rules through Grafana's conversion API, with mimirtool
+3.2.3 pinned by digest: Grafana evaluates them against the Prometheus data
+source and routes them through its built-in Alertmanager, whose default
+contact point sends email. The file stays the only source; mimirtool takes
+the namespace from a `namespace:` key that promtool rejects, so what is
+synced is this file with that one line prepended, checked byte for byte:
 
 ```
 I=grafana/mimirtool@sha256:469de1cf58fdaf8e81ddafe1395c17da3c733e8a4e79ac544d4fccf11eb4f3b8
@@ -74,21 +78,28 @@ D=$(mktemp -d) && chmod 755 "$D"
 { echo 'namespace: vllm-coldstart-operator'; cat deploy/monitoring/slo-rules.yaml; } > "$D/rules.yaml"
 chmod 644 "$D/rules.yaml"
 tail -n +2 "$D/rules.yaml" | cmp - deploy/monitoring/slo-rules.yaml
-# MIMIR_ADDRESS (the stack's Prometheus URL), MIMIR_TENANT_ID and
-# MIMIR_API_KEY (a token with rules read and write on that stack only)
-docker run --rm -e MIMIR_ADDRESS -e MIMIR_TENANT_ID -e MIMIR_API_KEY \
-  -v "$D:/r:ro" "$I" rules load /r/rules.yaml
+# MIMIR_ADDRESS=https://<stack>.grafana.net/api/convert/ and MIMIR_TENANT_ID=1;
+# MIMIR_AUTH_TOKEN is a service account token with no basic role and the
+# fixed roles Alerting Rules Reader, Rules Writer and Set provisioning
+# status, Data sources Reader, Folders Creator, Reader and Writer
+docker run --rm -e MIMIR_ADDRESS -e MIMIR_TENANT_ID -e MIMIR_AUTH_TOKEN \
+  -v "$D:/r:ro" "$I" rules sync /r/rules.yaml --concurrency 1 \
+  --extra-headers X-Grafana-Alerting-Datasource-UID=<prometheus data source uid> \
+  --extra-headers X-Grafana-Alerting-Folder-UID=vllm-coldstart-operator
 ```
 
-`rules list` and `rules print` read back what the ruler holds; rollback is
-`rules delete-namespace vllm-coldstart-operator` with the same environment.
+On 2026-10-26 the sync created both groups in the folder
+`vllm-coldstart-operator`: the alerting UI lists 7 rules (4 records, 3
+alerts). `rules list` on the same API returned no groups, which is not
+explained. The rules were removed from the Mimir ruler after the import, so
+the records are evaluated once. Rollback: delete the rules of the folder.
 
 ## What this ADR does not prove
 
-- That the alerts fire in production: the rules are in the ruler, but no
-  gke session has run since, so they have evaluated no vLLM series yet.
-- That anyone is notified: the stack has no contact point yet, so a firing
-  alert is visible only in Grafana.
+- That the alerts fire in production: the rules are in Grafana, but no gke
+  session has run since, so they have evaluated no vLLM series yet.
+- That a firing alert reaches someone in time: only a test email was sent,
+  and it landed in a junk folder.
 - Alerts on the time per output token and on success: they need a
   per-request histogram in the simulator and a component that sees every
   request (a gateway), each work of its own.
