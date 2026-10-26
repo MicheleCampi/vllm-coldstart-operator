@@ -2,14 +2,15 @@
 
 The commands of PLAN.md, in order. Every command runs on optim-dev from
 /root/capstone-iac unless it says otherwise. T0 is the start of
-`terraform apply`; the hard stop is T0 + 4 h (BUDGET B-001).
+`terraform apply`; the hard stop is T0 + 4 h (BUDGET B-005).
 
-## Phase 0: before spending (0 EUR, done 2026-10-24)
+## Phase 0: before spending (0 EUR, done again at every session)
 
 - PLAN.md merged before the run (#49); run-load.sh rehearsed on kind (#50).
 - gcloud project and account active; secret `grafana-cloud-remote-write`
   present, readable by `eso-grafana-reader`; deploy key on optim-dev equal
-  to the read-only key on GitHub; gke main at bc368ad (operator v0.6.0).
+  to the read-only key on GitHub; gke main at 6ebb148 (operator v0.6.0,
+  Alloy writing to the Grafana Cloud stack michelecampiinference).
 
 ## Phase 1: cluster (target: T0 + 20 min)
 
@@ -18,15 +19,15 @@ The commands of PLAN.md, in order. Every command runs on optim-dev from
     date -u +%FT%TZ > "$E/t0-apply"
     terraform -chdir=terraform init && terraform -chdir=terraform apply
     gcloud container clusters get-credentials capstone-inference \
-      --region europe-west4 --project rosy-precinct-477218-u8
+      --region us-central1 --project rosy-precinct-477218-u8
 
 Gate A, before anything can ask for a GPU:
 
-    gcloud container clusters describe capstone-inference --region europe-west4 \
+    gcloud container clusters describe capstone-inference --region us-central1 \
       --format='value(releaseChannel.channel,currentMasterVersion)' | tee "$E/cluster-version"
     kubectl get nodes -L cloud.google.com/gke-nodepool -o wide | tee "$E/nodes-gate-a"
 
-Pass: channel REGULAR (not EXTENDED, which B-001 prices at 0.44 EUR/h
+Pass: channel REGULAR (not EXTENDED, which B-005 prices at 0.44 EUR/h
 more), every node Ready, no node in gpu-pool. Fail: Phase 5 now.
 
 ## Phase 2: platform and cold start (target: T0 + 60 min)
@@ -71,6 +72,9 @@ its own kubeconfig (gcloud container clusters get-credentials into a
 separate KUBECONFIG file) and E exported again. Seen on 2026-10-24 in
 europe-west4-a, before the GPU pool spanned three zones.
 
+Stop rule, time: no GPU node Ready 90 min after t0-root-app means Phase
+4 and then Phase 5, whatever the events say (BUDGET B-005).
+
 ## Phase 3: measured runs (target: T0 + 3 h 15 min)
 
 From /root/vllm-coldstart-operator. Only the records are collected here;
@@ -86,6 +90,29 @@ slo_check and the analysis run after the destroy, at 0 EUR.
 
 At T0 + 3 h 15 min the remaining rows are skipped, and the skip is
 written down.
+
+## Phase 3b: alerts on live series (ADR-0021, D-0055)
+
+After replay-1, in the Grafana of the stack michelecampiinference: Explore,
+data source grafanacloud-prom, query
+`sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_count[5m]))`.
+Pass: one series, namespace vllm-system, service qwen-7b. Screenshot to "$E".
+
+After the ladder: Alerting, Alert rules, folder vllm-coldstart-operator.
+Pass: seven rules evaluated, none in NoData or Error. Screenshot.
+
+Then a deliberate overload, after the ladder so it cannot skew it:
+
+    date -u +%FT%TZ > "$E/t0-overload"
+    bash $G overload-025-s42 0.25 42 $M "$E"
+    date -u +%FT%TZ > "$E/t1-overload"
+
+Expected: VllmTtftBudgetBurnFast Firing and an email from the contact
+point platform-oncall-email with severity page; screenshot both, with
+their times. If it does not fire, copy the four slo:ttft_over_1s
+recording rules at t1-overload from Explore: they tell an overload too
+small from a broken notification path. The Job's 1500 s deadline bounds
+the run.
 
 ## Phase 4: evidence (target: 10 min)
 
@@ -104,5 +131,5 @@ written down.
     date -u +%FT%TZ > "$E/t-destroyed"
 
 Pass: both lists empty. The hours between t0-apply and t-destroyed go
-into BUDGET B-001 as spent, at the estimate, until billing shows the
+into BUDGET B-005 as spent, at the estimate, until billing shows the
 real figure.

@@ -1,7 +1,10 @@
 # GPU calibration on one L4 on GKE: plan, written before the run
 
-Status: plan. Budget: BUDGET B-001 in the private notes (one L4 on demand,
-cap 5 EUR, destroy within 4 h of apply); decision D-0041.
+Status: plan, run again with the loadgen of 64bd2c6 (exact Qwen tokens) and
+the alert check of ADR-0021. Budget: BUDGET B-005 in the private notes (one
+L4 flex-start, cap 3.50 EUR, destroy within 4 h of apply); decisions D-0041,
+D-0049, D-0055. B-001 to B-003 ended in stockouts; B-004 ran on 2026-10-25
+with a loadgen that sent words, not tokens.
 
 ## Why
 
@@ -18,11 +21,11 @@ numbers and D3 can be replaced or bounded by measured ones.
 
 ## The system measured
 
-The deployment of gke-llm-inference-platform at main bc368ad: operator
+The deployment of gke-llm-inference-platform at main 6ebb148: operator
 v0.6.0 through ArgoCD, one VllmService `qwen-7b`, Qwen/Qwen2.5-7B-Instruct
 on vllm/vllm-openai:v0.11.0 with `--max-model-len 8192` and
 `--gpu-memory-utilization 0.90`, one g2-standard-4 node with one L4 in
-europe-west4. Nothing in that deployment is changed for the run; the load
+us-central1 (zones a, b, c, flex-start). Nothing in that deployment is changed for the run; the load
 client Job is measurement infrastructure, labelled as such.
 
 ## Where the load comes from
@@ -64,11 +67,13 @@ meeting every objective on every seed tried, the rule of D3.
 
 ## Stop rules
 
-- Destroy within 4 h of apply. At B-001's estimate, about 0.85 EUR/h,
-  4 h is 3.41 EUR, under the 5 EUR cap. The limit is time, set from
+- Destroy within 4 h of apply. At B-005's estimate, 0.793 EUR/h with the GPU
+  node and 0.159 EUR/h without, 4 h is 3.25 EUR, under the 3.50 EUR cap. The limit is time, set from
   that estimate.
+- No GPU node Ready 90 min after root-app: copy events, pods and
+  nodes off, then destroy.
 - Before apply, check that the cluster version is not in extended
-  support, which B-001 prices at 0.44 EUR/h more.
+  support, which B-005 prices at 0.44 EUR/h more.
 - A step that fails is not debugged on the paid cluster: evidence is
   copied off, the cluster is destroyed, the failure is analysed on
   optim-dev.
