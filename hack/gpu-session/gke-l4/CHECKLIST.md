@@ -101,18 +101,28 @@ Pass: one series, namespace vllm-system, service qwen-7b. Screenshot to "$E".
 After the ladder: Alerting, Alert rules, folder vllm-coldstart-operator.
 Pass: seven rules evaluated, none in NoData or Error. Screenshot.
 
-Then a deliberate overload, after the ladder so it cannot skew it:
+Then a deliberate overload, after the ladder so it cannot skew it. One
+run of keep 0.25 lasts about 6.5 min and cannot carry the 1 h window of
+the fast burn past 0.72 after an hour of good load: on 2026-10-27 that
+ratio rose from 0.22 to 0.72 in about 28 min of overload and crossed it
+at 10:01Z, after the destroy had started (ADR-0022). So the overload
+repeats, one run at a time, up to 8:
 
     date -u +%FT%TZ > "$E/t0-overload"
-    bash $G overload-025-s42 0.25 42 $M "$E"
+    bash $G overload-025-s42-1 0.25 42 $M "$E"    # then -2, -3 ... up to -8
     date -u +%FT%TZ > "$E/t1-overload"
 
 Expected: VllmTtftBudgetBurnFast Firing and an email from the contact
-point platform-oncall-email with severity page; screenshot both, with
-their times. If it does not fire, copy the four slo:ttft_over_1s
-recording rules at t1-overload from Explore: they tell an overload too
-small from a broken notification path. The Job's 1500 s deadline bounds
-the run.
+point platform-oncall-email with severity page. After each run check the
+inbox, spam included; when the email has come, write its time to
+"$E/fast-email", screenshot the rule and the email with their times, and
+run no more overload. The rules evaluate once a minute: start the destroy
+no sooner than 10 min after the last run, or the email can come after the
+cluster is gone. When the pod is gone the alert resolves with NoData, not
+because the service recovered. If it has not fired after 8 runs, copy the
+four slo:ttft_over_1s recording rules at t1-overload from Explore, with
+the time zone set to UTC: they tell an overload too small from a broken
+notification path. The Job's 1500 s deadline bounds each run.
 
 ## Phase 4: evidence (target: 10 min)
 
