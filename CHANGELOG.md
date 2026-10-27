@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   token of a reader at 320 words a minute, the requirement of ADR-0013,
   whose 50 ms no load meets on that GPU (floor about 64 ms).
   `test_slo_files.py` keeps every other objective equal to `slo.json`.
+- **The time to first token of a prompt over 2048 tokens is at most 2000 ms
+  on one L4 (ADR-0022).** A prompt of about 4080 tokens takes 1136 to
+  1174 ms alone on that GPU, so 1 s held no load there. `slo_check.py`
+  reads `ttft_long_above_tokens` and `ttft_long_ms` per request, one 95%
+  share over all; `slo.json` has neither and is judged as before. One
+  replica meets the L4 objectives at 0.229 req/s of the profile and misses
+  the TPOT at 0.408.
 
 ### Changed
 

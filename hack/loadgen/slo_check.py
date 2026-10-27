@@ -40,6 +40,14 @@ def q(values, p):
     return s[min(len(s) - 1, int(p * len(s)))] if s else None
 
 
+def ttft_limit(slo, r):
+    # ADR-0022: a prompt over ttft_long_above_tokens may wait ttft_long_ms for
+    # its first token; without those keys every request has ttft_ms.
+    if "ttft_long_ms" in slo and r["context_tokens"] > slo["ttft_long_above_tokens"]:
+        return slo["ttft_long_ms"]
+    return slo["ttft_ms"]
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("records", help="loadgen JSON lines")
@@ -80,7 +88,7 @@ def main():
     tpot = [round((r["last_token_ms"] - r["ttft_ms"]) / (r["completion_tokens"] - 1), 1) for r in good if r["completion_tokens"] > 1]
     met = {
         "success": (len(good), slo["success_share"]),
-        "ttft": (sum(1 for t in ttft if t <= slo["ttft_ms"]), slo["latency_share"]),
+        "ttft": (sum(1 for r in good if r["ttft_ms"] <= ttft_limit(slo, r)), slo["latency_share"]),
         "tpot": (len(good) - sum(1 for t in tpot if t > slo["tpot_ms"]), slo["latency_share"]),
     }
     ts = [r["ts_scheduled"] for r in recs]

@@ -1,8 +1,9 @@
 # ADR-0020: The time per output token is an objective per GPU class
 
-Status: Accepted, not yet measured under load
+Status: Accepted; D4 measured by ADR-0022
 Date: 2026-10-25
 Amends: ADR-0013 (D1, the time per output token of one GPU class)
+Amended by: ADR-0022 (D3, the time to first token of a prompt over 2048 tokens)
 
 ## Context
 

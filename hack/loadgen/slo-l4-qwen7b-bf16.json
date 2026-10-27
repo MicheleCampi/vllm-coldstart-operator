@@ -1,6 +1,8 @@
 {
-  "doc": "ADR-0020",
+  "doc": "ADR-0020, ADR-0022",
   "ttft_ms": 1000,
+  "ttft_long_above_tokens": 2048,
+  "ttft_long_ms": 2000,
   "tpot_ms": 100,
   "latency_share": 0.95,
   "success_share": 0.995,
