@@ -1,6 +1,6 @@
 # ADR-0023: A replica the operator asks for and no target answers for
 
-Status: Accepted, rules and metrics tested; not yet synced to Grafana Cloud, no live series evaluated yet
+Status: Accepted, rules and metrics tested; synced to Grafana Cloud on 2026-10-28, no live series evaluated yet
 Date: 2026-10-28
 Extends: ADR-0021 (VllmTargetDown)
 
@@ -77,8 +77,9 @@ for.
 - Not evaluated on live series, since the CI Prometheus does not scrape
   the operator: the next GPU session checks it
   (hack/gpu-session/gke-l4/CHECKLIST.md).
-- Grafana Cloud evaluates the rule only after the sync of ADR-0021 runs
-  again.
+- Synced to Grafana Cloud on 2026-10-28 at 20:50Z with the command of
+  ADR-0021 (0 groups created, 2 updated): the folder lists 8 rules, the
+  four alerts Normal with no cluster running.
 
 ## Rollback
 
