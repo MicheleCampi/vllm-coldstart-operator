@@ -41,3 +41,21 @@ groups:
           severity: ticket
         annotations:
           runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md
+      - alert: VllmServiceReplicasMissing
+        # The operator asks for replicas and no /metrics target answers for
+        # them: a pod that vanished, whose up series VllmTargetDown cannot see
+        # because it is gone. The operator's series carry the object's
+        # namespace as exported_namespace, since the scrape writes its own
+        # pod's namespace (Grafana Cloud stack, read 2026-10-28). A service
+        # scaled to zero asks for 0 and stays silent (ADR-0023).
+        # 30 m: longer than the 20 min 40 s cold start of one L4 (B-005), so
+        # a replica still waiting for its node is not yet missing.
+        expr: |
+          max by (exported_namespace, name) (vcso_vllmservice_desired_replicas) > 0
+          unless on (exported_namespace, name)
+          label_replace(label_replace(max by (namespace, service) (up{service!=""}), "exported_namespace", "$1", "namespace", "(.*)"), "name", "$1", "service", "(.*)")
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md

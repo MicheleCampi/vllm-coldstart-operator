@@ -1,6 +1,10 @@
+use crate::VllmService;
+use kube::runtime::reflector::Store;
+use kube::ResourceExt;
 use prometheus_client::{
-    encoding::{text::encode, EncodeLabelSet},
-    metrics::{counter::Counter, family::Family, gauge::Gauge, histogram::Histogram},
+    collector::Collector,
+    encoding::{text::encode, DescriptorEncoder, EncodeLabelSet, EncodeMetric},
+    metrics::{counter::Counter, family::Family, gauge::ConstGauge, histogram::Histogram},
     registry::{Registry, Unit},
 };
 use std::sync::Arc;
@@ -19,21 +23,92 @@ pub struct PhaseLabels {
     pub phase: String,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+pub struct ServiceLabels {
+    pub name: String,
+    pub namespace: String,
+}
+
+/// The phases a VllmService reports, one series each of vllmservice_phase.
+pub const PHASES: [&str; 3] = ["Pending", "Warming", "Ready"];
+
 #[derive(Clone)]
 pub struct Metrics {
     pub reconcile_runs: Counter,
     pub reconcile_failures: Family<ErrorLabels, Counter>,
     pub reconcile_duration: Histogram,
-    pub phase: Family<PhaseLabels, Gauge>,
     pub registry: Arc<Registry>,
 }
 
 impl Default for Metrics {
     fn default() -> Self {
+        Self::build(None)
+    }
+}
+
+/// The per-VllmService series, read from the controller's cache on each
+/// scrape (ADR-0023). A deleted VllmService leaves the cache and its series
+/// leave the scrape with it; a gauge set in the reconcile would stay until
+/// the operator restarts.
+#[derive(Debug)]
+struct ServiceCollector {
+    services: Store<VllmService>,
+}
+
+impl Collector for ServiceCollector {
+    fn encode(&self, mut encoder: DescriptorEncoder) -> Result<(), std::fmt::Error> {
+        let services = self.services.state();
+        {
+            let mut family = encoder.encode_descriptor(
+                "vllmservice_phase",
+                "Current phase of each VllmService (1 = active)",
+                None,
+                ConstGauge::new(0i64).metric_type(),
+            )?;
+            for svc in &services {
+                // No status yet: the first reconcile has not written a phase.
+                let Some(current) = svc.status.as_ref().map(|s| s.phase.as_str()) else {
+                    continue;
+                };
+                for p in PHASES {
+                    let labels = PhaseLabels {
+                        name: svc.name_any(),
+                        namespace: svc.namespace().unwrap_or_default(),
+                        phase: p.to_string(),
+                    };
+                    ConstGauge::new(i64::from(p == current))
+                        .encode(family.encode_family(&labels)?)?;
+                }
+            }
+        }
+        let mut family = encoder.encode_descriptor(
+            "vllmservice_desired_replicas",
+            "Replicas each VllmService asks for (spec.replicas)",
+            None,
+            ConstGauge::new(0i64).metric_type(),
+        )?;
+        for svc in &services {
+            let labels = ServiceLabels {
+                name: svc.name_any(),
+                namespace: svc.namespace().unwrap_or_default(),
+            };
+            ConstGauge::new(i64::from(svc.spec.replicas)).encode(family.encode_family(&labels)?)?;
+        }
+        Ok(())
+    }
+}
+
+impl Metrics {
+    /// Metrics whose per-VllmService series come from the controller's cache
+    /// (ADR-0023).
+    pub fn with_services(services: Store<VllmService>) -> Self {
+        Self::build(Some(services))
+    }
+
+    fn build(services: Option<Store<VllmService>>) -> Self {
         let reconcile_runs = Counter::default();
         let reconcile_failures = Family::<ErrorLabels, Counter>::default();
         let reconcile_duration = Histogram::new([0.01, 0.1, 0.25, 0.5, 1.0, 5.0, 15.0, 60.0]);
-        let phase = Family::<PhaseLabels, Gauge>::default();
 
         let mut registry = Registry::with_prefix("vcso");
         registry.register(
@@ -52,23 +127,18 @@ impl Default for Metrics {
             Unit::Seconds,
             reconcile_duration.clone(),
         );
-        registry.register(
-            "vllmservice_phase",
-            "Current phase of each VllmService (1 = active)",
-            phase.clone(),
-        );
+        if let Some(services) = services {
+            registry.register_collector(Box::new(ServiceCollector { services }));
+        }
 
         Self {
             reconcile_runs,
             reconcile_failures,
             reconcile_duration,
-            phase,
             registry: Arc::new(registry),
         }
     }
-}
 
-impl Metrics {
     /// Encode the registry in OpenMetrics text format.
     pub fn encode(&self) -> String {
         let mut buffer = String::new();
@@ -84,20 +154,6 @@ impl Metrics {
                 error: error.to_string(),
             })
             .inc();
-    }
-
-    /// Set the current phase to 1 and all other known phases to 0 for an object.
-    pub fn set_phase(&self, name: &str, namespace: &str, current: &str, all: &[&str]) {
-        for p in all {
-            let value = if *p == current { 1 } else { 0 };
-            self.phase
-                .get_or_create(&PhaseLabels {
-                    name: name.to_string(),
-                    namespace: namespace.to_string(),
-                    phase: (*p).to_string(),
-                })
-                .set(value);
-        }
     }
 
     /// Increment the reconcile counter and return a measurer that records
@@ -126,6 +182,18 @@ impl Drop for ReconcileMeasurer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kube::runtime::{reflector::store, watcher};
+
+    fn service(name: &str, replicas: i32, phase: &str) -> VllmService {
+        serde_json::from_value(serde_json::json!({
+            "apiVersion": "inference.michelecampi.dev/v1alpha1",
+            "kind": "VllmService",
+            "metadata": {"name": name, "namespace": "vllm-system"},
+            "spec": {"model": "m", "replicas": replicas},
+            "status": {"phase": phase, "message": ""}
+        }))
+        .unwrap()
+    }
 
     #[test]
     fn encodes_expected_series() {
@@ -134,13 +202,60 @@ mod tests {
             let _measurer = m.count_and_measure();
         }
         m.set_failure("svc-a", "ApplyError");
-        m.set_phase("svc-a", "default", "Ready", &["Pending", "Ready", "Failed"]);
 
         let out = m.encode();
         assert!(out.contains("vcso_reconcile_runs_total"));
         assert!(out.contains("vcso_reconcile_failures_total"));
         assert!(out.contains("vcso_reconcile_duration_seconds"));
-        assert!(out.contains("vcso_vllmservice_phase"));
-        assert!(out.contains("phase=\"Ready\""));
+        assert!(
+            !out.contains("vllmservice_"),
+            "no cache, no per-object series"
+        );
+    }
+
+    #[test]
+    fn per_service_series_follow_the_cache() {
+        let (reader, mut writer) = store::<VllmService>();
+        let m = Metrics::with_services(reader);
+        writer.apply_watcher_event(&watcher::Event::Apply(service("a", 1, "Ready")));
+        writer.apply_watcher_event(&watcher::Event::Apply(service("z", 0, "Pending")));
+
+        let out = m.encode();
+        assert!(!out.contains("vcso_vcso"), "{out}");
+        assert!(
+            out.contains(
+                "vcso_vllmservice_desired_replicas{name=\"a\",namespace=\"vllm-system\"} 1"
+            ),
+            "{out}"
+        );
+        assert!(
+            out.contains(
+                "vcso_vllmservice_desired_replicas{name=\"z\",namespace=\"vllm-system\"} 0"
+            ),
+            "{out}"
+        );
+        assert!(
+            out.contains(
+                "vcso_vllmservice_phase{name=\"a\",namespace=\"vllm-system\",phase=\"Ready\"} 1"
+            ),
+            "{out}"
+        );
+        assert!(
+            out.contains(
+                "vcso_vllmservice_phase{name=\"a\",namespace=\"vllm-system\",phase=\"Pending\"} 0"
+            ),
+            "{out}"
+        );
+
+        // A deleted VllmService leaves no series behind.
+        writer.apply_watcher_event(&watcher::Event::Delete(service("a", 1, "Ready")));
+        let out = m.encode();
+        assert!(!out.contains("name=\"a\""), "{out}");
+        assert!(
+            out.contains(
+                "vcso_vllmservice_desired_replicas{name=\"z\",namespace=\"vllm-system\"} 0"
+            ),
+            "{out}"
+        );
     }
 }

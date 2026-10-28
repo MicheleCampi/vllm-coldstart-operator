@@ -35,6 +35,15 @@ checks; usually a sustained load above capacity rather than an incident.
 requests also stop counting against the budget. Check the pod and its node
 first; a missing series is not a met objective.
 
+## VllmServiceReplicasMissing (severity ticket)
+
+The operator asks for replicas of a VllmService
+(`vcso_vllmservice_desired_replicas` above 0) and no `/metrics` target
+exists for it for 30 minutes (ADR-0023). Labels `exported_namespace` and
+`name` name the VllmService. Check whether its pod exists
+(`kubectl get pods -n <namespace> -l app=<name>`) and whether it waits for
+a node: a cold start longer than 30 minutes is itself the fault.
+
 ## What the alerts do not see
 
 Requests lost before the replica (connection refused, no endpoint) and the

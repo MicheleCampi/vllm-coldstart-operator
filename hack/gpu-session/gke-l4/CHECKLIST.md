@@ -99,7 +99,7 @@ data source grafanacloud-prom, query
 Pass: one series, namespace vllm-system, service qwen-7b. Screenshot to "$E".
 
 After the ladder: Alerting, Alert rules, folder vllm-coldstart-operator.
-Pass: seven rules evaluated, none in NoData or Error. Screenshot.
+Pass: eight rules evaluated, none in NoData or Error. Screenshot.
 
 Then a deliberate overload, after the ladder so it cannot skew it. One
 run of keep 0.25 lasts about 6.5 min and cannot carry the 1 h window of
@@ -124,7 +124,17 @@ four slo:ttft_over_1s recording rules at t1-overload from Explore, with
 the time zone set to UTC: they tell an overload too small from a broken
 notification path. The Job's 1500 s deadline bounds each run.
 
+VllmServiceReplicasMissing (ADR-0023): once the pod is Ready, open the
+rule's state history. Pending during the cold start is allowed, since a
+pod waiting for its node has no target; Firing is not, the cold start
+being shorter than the rule's 30 min. Screenshot the history.
+
 ## Phase 4: evidence (target: 10 min)
+
+Alloy's log first: it is the only record of a remote-write error, such
+as the 429s of 2026-10-27, which were seen live and not saved.
+
+    for p in $(kubectl get pods -n monitoring -o name | grep alloy); do kubectl logs -n monitoring "$p" --all-containers; done > "$E/alloy.log"
 
     for k in events pods vllmservices nodes; do kubectl get $k -A -o json > "$E/$k.json"; done
     kubectl logs -n vllm-system -l app.kubernetes.io/name=vllm-coldstart-operator --tail=-1 > "$E/operator.log"

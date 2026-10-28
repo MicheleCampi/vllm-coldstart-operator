@@ -66,3 +66,34 @@ tests:
         exp_alerts:
           - exp_labels: {severity: ticket, namespace: vllm-system, service: qwen-7b}
             exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md}
+  # The operator asks for one replica of qwen-7b and its pod is gone from
+  # minute 2: no up series at all, so only this alert can see it.
+  - interval: 1m
+    input_series:
+      - series: 'vcso_vllmservice_desired_replicas{exported_namespace="vllm-system",namespace="vllm-system",name="qwen-7b"}'
+        values: '1x45'
+      - series: 'up{namespace="vllm-system",service="qwen-7b"}'
+        values: '1 1'
+    alert_rule_test:
+      - {eval_time: 25m, alertname: VllmServiceReplicasMissing}
+      - eval_time: 40m
+        alertname: VllmServiceReplicasMissing
+        exp_alerts:
+          - exp_labels: {severity: ticket, exported_namespace: vllm-system, name: qwen-7b}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md}
+  # Scaled to zero on purpose: it asks for 0 and has no pod. Nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'vcso_vllmservice_desired_replicas{exported_namespace="vllm-system",namespace="vllm-system",name="qwen-7b"}'
+        values: '0x45'
+    alert_rule_test:
+      - {eval_time: 40m, alertname: VllmServiceReplicasMissing}
+  # One replica asked for and its pod answers. Nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'vcso_vllmservice_desired_replicas{exported_namespace="vllm-system",namespace="vllm-system",name="qwen-7b"}'
+        values: '1x45'
+      - series: 'up{namespace="vllm-system",service="qwen-7b"}'
+        values: '1x45'
+    alert_rule_test:
+      - {eval_time: 40m, alertname: VllmServiceReplicasMissing}

@@ -1,6 +1,6 @@
 # ADR-0021: Burn-rate alerts on the time to first token
 
-Status: Accepted, rules tested; imported into Grafana Cloud as Grafana-managed rules on 2026-10-26, no live series evaluated yet
+Status: Accepted, rules tested; imported into Grafana Cloud as Grafana-managed rules on 2026-10-26, no live series evaluated yet. Extended by ADR-0023
 Date: 2026-10-25
 Extends: ADR-0013 (D2, where the indicators come from)
 

@@ -406,8 +406,6 @@ async fn reconcile_inner(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Act
         .and_then(|s| s.ready_replicas)
         .unwrap_or(0);
     let (phase, message) = phase_for(desired_replicas, ready_replicas);
-    ctx.metrics
-        .set_phase(&name, &ns, phase, &["Pending", "Warming", "Ready"]);
 
     // 3. Write status on the /status subresource (does not retrigger the
     //    spec watcher, so no reconcile loop).
@@ -493,7 +491,10 @@ async fn main() -> anyhow::Result<()> {
     let client = Client::try_default().await?;
     let services: Api<VllmService> = Api::all(client.clone());
     let deployments: Api<Deployment> = Api::all(client.clone());
-    let metrics = Metrics::default();
+    let controller = Controller::new(services, watcher::Config::default())
+        .owns(deployments, watcher::Config::default());
+    // ADR-0023: the per-VllmService series are read from this cache.
+    let metrics = Metrics::with_services(controller.store());
     let fleet_metrics = metrics.clone();
     let fleet_client = client.clone();
     let context = Arc::new(Context {
@@ -508,8 +509,7 @@ async fn main() -> anyhow::Result<()> {
     });
     info!("starting vllm-coldstart-operator controller");
 
-    let vllm_fut = Controller::new(services, watcher::Config::default())
-        .owns(deployments, watcher::Config::default())
+    let vllm_fut = controller
         .run(reconcile, error_policy, context)
         .for_each(|res| async move {
             match res {
