@@ -143,6 +143,15 @@ as the 429s of 2026-10-27, which were seen live and not saved.
       'nvidia-smi || /usr/local/nvidia/bin/nvidia-smi' > "$E/nvidia-smi.txt" || true
     kubectl get applications -n argocd -o json > "$E/argocd-apps.json"
 
+GKE's managed collection for Prometheus is declared off in the cluster
+(gke-llm-inference-platform PR #11): on 2026-10-27 it ran a collector on
+each node. Check that it no longer does:
+
+    kubectl get pods -n gmp-system -o name 2>&1 | tee "$E/gmp-system-pods.txt"
+
+Pass: no pod named collector-. A gmp-operator pod, or no namespace at all,
+is allowed.
+
 ## Phase 5: destroy (by T0 + 4 h)
 
     terraform -chdir=terraform destroy
@@ -153,3 +162,5 @@ as the 429s of 2026-10-27, which were seen live and not saved.
 Pass: both lists empty. The hours between t0-apply and t-destroyed go
 into BUDGET B-005 as spent, at the estimate, until billing shows the
 real figure.
+When it does, it must have no line for Prometheus Samples Ingested:
+B-005 paid 0.067520 EUR for it, before managed collection was declared off.
