@@ -1167,27 +1167,29 @@ jobs:
           curl -sf http://127.0.0.1:8001/health > /dev/null
 
       - name: Within capacity, the objectives hold
-        # keep 0.025 is the load at which every objective was met with no
-        # error budget consumed; capacity, seeds and limits in ADR-0013.
+        # keep 0.025 is the load of ADR-0013 at which every objective is
+        # asserted; since ADR-0024 against the L4's objectives, on the
+        # simulator calibrated to one L4.
         run: |
           curl -sf http://127.0.0.1:8001/metrics > within.before
           /tmp/loadgen/bin/python hack/loadgen/loadgen.py --target sim=http://127.0.0.1:8001 \
             --model facebook/opt-125m --profile hack/loadgen/profiles/azure-conv-2023-peak.csv --keep 0.025 --seed 42 \
             --out within.jsonl
           curl -sf http://127.0.0.1:8001/metrics > within.after
-          python3 hack/loadgen/slo_check.py within.jsonl within.before within.after --slo hack/loadgen/slo.json \
+          python3 hack/loadgen/slo_check.py within.jsonl within.before within.after --slo hack/loadgen/slo-l4-qwen7b-bf16.json \
             --sequence 6c10349917a6877be7e1a94ade7a936dcb70337be864a275a13e6b5a56c9a3cc --assert-slo
 
       - name: Overloaded, every request is still served
-        # keep 0.1 has up to 13 requests in flight for 5 slots: the
-        # objectives are reported, and missed; correctness is still asserted.
+        # keep 0.1 is the overload of ADR-0013. The calibrated simulator
+        # holds the L4's objectives there and one L4 does not (ADR-0024),
+        # so they are reported, not asserted; correctness is asserted.
         run: |
           curl -sf http://127.0.0.1:8001/metrics > overload.before
           /tmp/loadgen/bin/python hack/loadgen/loadgen.py --target sim=http://127.0.0.1:8001 \
             --model facebook/opt-125m --profile hack/loadgen/profiles/azure-conv-2023-peak.csv --keep 0.1 --seed 42 \
             --out overload.jsonl
           curl -sf http://127.0.0.1:8001/metrics > overload.after
-          python3 hack/loadgen/slo_check.py overload.jsonl overload.before overload.after --slo hack/loadgen/slo.json \
+          python3 hack/loadgen/slo_check.py overload.jsonl overload.before overload.after --slo hack/loadgen/slo-l4-qwen7b-bf16.json \
             --sequence b5b7fff2f0fe78c3197a8df5ecad3640d4fba440f6031420e89d1ad57fb92280
 
       - name: Dump cluster and operator state on failure

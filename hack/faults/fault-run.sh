@@ -22,7 +22,7 @@ watcher=$!
  case $fault in
    drain)
      kubectl cordon "$node"
-     kubectl drain "$node" --ignore-daemonsets --delete-emptydir-data --timeout=120s ;;
+     kubectl drain "$node" --ignore-daemonsets --delete-emptydir-data --timeout=240s ;;
    notice)
      kubectl patch nodestate "$node" --subresource=status --type=merge \
        -p '{"status":{"spot":{"preemptionNoticeDetected":true}}}' ;;
@@ -36,7 +36,7 @@ injector=$!
 # replay, whose objectives it does not enter.
 (sleep $((at - 5))
  /tmp/loadgen/bin/python hack/loadgen/loadgen.py --target probe="$FLEET_URL" \
-   --model facebook/opt-125m --concurrency 4 --duration 20 --max-tokens 512 \
+   --model facebook/opt-125m --concurrency 4 --duration 20 --max-tokens 589 \
    --out "$out.probe.jsonl") > "$out.probe.log" 2>&1 &
 prober=$!
 
@@ -50,7 +50,7 @@ kill "$watcher"
 
 # A failed request makes slo_check exit 1: here that is the measurement, not
 # an error. Only a run that is not the pinned one is.
-python3 hack/loadgen/slo_check.py "$out.jsonl" --client-only --slo hack/loadgen/slo.json \
+python3 hack/loadgen/slo_check.py "$out.jsonl" --client-only --slo hack/loadgen/slo-l4-qwen7b-bf16.json \
   --sequence 6c10349917a6877be7e1a94ade7a936dcb70337be864a275a13e6b5a56c9a3cc > "$out.slo" || true
 cat "$out.slo"
 if grep -q -E 'is not the pinned|scheduled requests|generator fell behind' "$out.slo"; then

@@ -72,9 +72,10 @@ const TERMINATION_GRACE_SECONDS: i64 = 120;
 /// ADR-0019: before SIGTERM every child pod sleeps this long while its
 /// endpoint leaves the Service, so a stream in flight can finish even when
 /// the serving process exits on SIGTERM, as the llm-d simulator does within
-/// 0.3 s. About twice the longest response measured on the CI load profile
-/// (14.4 s); not a bound for generations on a GPU.
-const PRE_STOP_SLEEP_SECONDS: i64 = 30;
+/// 0.3 s. About twice the longest response measured on one L4 on the CI
+/// load profile (53.7 s, 589 tokens, B-005); ADR-0024 raised it from 30 s,
+/// which cut such streams once the simulator ran at the L4's speed.
+const PRE_STOP_SLEEP_SECONDS: i64 = 110;
 /// Grace for a pod with no GPU: the pre-stop sleep, then 10 s for the process.
 const CPU_TERMINATION_GRACE_SECONDS: i64 = PRE_STOP_SLEEP_SECONDS + 10;
 

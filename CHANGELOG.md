@@ -32,6 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The CI simulator runs at the speed of one L4, and the pre-stop sleep is
+  110 s (ADR-0024).** `hack/rehearsal/Dockerfile.sim` takes its prefill,
+  inter-token latency, load factor and 256 slots from B-005. At that speed
+  the 30 s sleep of ADR-0019 cut 3 of 4 probe streams in a drain on kind;
+  110 s, about twice the longest response measured on the L4 (53.7 s), cut
+  none. The fault probe asks 589 tokens, the drain waits 240 s, and
+  `sim-load` and `fault-run.sh` judge against `slo-l4-qwen7b-bf16.json`.
+  The simulator reproduces the L4's medians, not its tails: it is not a
+  capacity model of the L4.
+
 - The gke-l4 CHECKLIST checks that GKE's managed collection for Prometheus stays off (gke-llm-inference-platform PR #11): phase 4 saves the pods of gmp-system and passes only with no collector pod, and phase 5 requires the real bill to have no line for Prometheus Samples Ingested, for which B-005 paid 0.067520 EUR.
 - The gke-l4 CHECKLIST repeats the deliberate overload of phase 3b, one run at a time, up to 8, until the fast-burn email has come, and starts the destroy no sooner than 10 min after the last run: on 2026-10-27 four runs carried the 1 h window past 0.72 only after the destroy had started.
 - CI runs kind v0.33.0 with kindest/node:v1.36.4, the Kubernetes patch the GKE REGULAR channel defaulted to on 2026-10-25. The image checks of the chart job resolve the pod's imageID on the node to its config digest (hack/ci/pod-image-config.sh): containerd 2 reports the repo digest it made on import.
