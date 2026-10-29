@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The cost of a run per million generated tokens (ADR-0025).**
+  `hack/loadgen/cost.py` prices one loadgen run at a declared hourly rate,
+  printed with every figure, by the rules of inferscope ADR-015: the run's
+  window, idle time paid and shown apart, generated tokens of served
+  requests only, no figure for none. On B-005 at 0.793 EUR/h, one L4
+  within its objectives costs 4.38 to 8.07 EUR per million generated
+  tokens; the overload costs 1.16 and misses them.
+
 - **A replica the operator asks for and cannot see alerts (ADR-0023).**
   `vcso_vllmservice_phase` and the new `vcso_vllmservice_desired_replicas`
   are read from the controller's cache on each scrape, so a deleted
