@@ -15,6 +15,11 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  # SLSA Build L2: actions/attest-build-provenance signs the provenance with a
+  # short-lived Sigstore certificate (OIDC) and records it in the repository's
+  # attestations; verify with gh attestation verify on the image digest.
+  id-token: write
+  attestations: write
 
 jobs:
   image:
@@ -68,6 +73,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -77,3 +83,17 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # OCI names must be lowercase; github.repository keeps the owner's case.
+      - name: Image name
+        id: image
+        if: github.event_name != 'pull_request'
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance (SLSA Build L2)
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

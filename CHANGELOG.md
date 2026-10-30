@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Release image: signed SLSA build provenance (actions/attest-build-provenance, Sigstore via OIDC), pushed to GHCR next to the image and verifiable with `gh attestation verify`. The unsigned BuildKit provenance is kept.
+
 ### Added
 
 - **The cost of a run per million generated tokens (ADR-0025).**
