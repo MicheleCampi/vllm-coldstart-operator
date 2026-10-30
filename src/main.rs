@@ -11,6 +11,10 @@ use k8s_openapi::api::core::v1::{
     Lifecycle, LifecycleHandler, PodSpec, PodTemplateSpec, Probe, ResourceRequirements, Service,
     ServicePort, ServiceSpec, SleepAction, Volume, VolumeMount,
 };
+use k8s_openapi::api::networking::v1::{
+    NetworkPolicy, NetworkPolicyIngressRule, NetworkPolicyPeer, NetworkPolicyPort,
+    NetworkPolicySpec,
+};
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
@@ -35,6 +39,12 @@ use vllm_coldstart_operator::{
 mod fleet_controller;
 
 const MANAGER: &str = "vllm-coldstart-operator";
+
+/// Pods carrying `CLIENT_LABEL=<VllmService name>` in the same namespace
+/// may call the vLLM port; everything else is denied (threat model I2).
+const CLIENT_LABEL: &str = "inference.michelecampi.dev/client";
+/// Namespace allowed to scrape vLLM metrics on port 8000 (Alloy on gke).
+const DEFAULT_METRICS_NAMESPACE: &str = "monitoring";
 
 #[derive(Debug, Error)]
 enum Error {
@@ -364,6 +374,64 @@ fn build_service(svc: &VllmService) -> Result<Service, Error> {
     })
 }
 
+/// Default-deny ingress for a VllmService's pods: only TCP 8000, only from
+/// labelled clients in the same namespace or from the metrics namespace.
+/// Closes threat-model row I2 (lateral access) for every model the
+/// operator creates, without breaking the vLLM metrics scrape.
+fn build_network_policy(svc: &VllmService, metrics_ns: &str) -> Result<NetworkPolicy, Error> {
+    let name = svc.name_any();
+    let ns = svc.namespace().ok_or(Error::MissingNamespace)?;
+    let mut selector = BTreeMap::new();
+    selector.insert("app".to_string(), name.clone());
+    let mut labels = selector.clone();
+    labels.insert(
+        "app.kubernetes.io/managed-by".to_string(),
+        MANAGER.to_string(),
+    );
+    let clients = NetworkPolicyPeer {
+        pod_selector: Some(LabelSelector {
+            match_labels: Some(BTreeMap::from([(CLIENT_LABEL.to_string(), name.clone())])),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let metrics = NetworkPolicyPeer {
+        namespace_selector: Some(LabelSelector {
+            match_labels: Some(BTreeMap::from([(
+                "kubernetes.io/metadata.name".to_string(),
+                metrics_ns.to_string(),
+            )])),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    Ok(NetworkPolicy {
+        metadata: ObjectMeta {
+            name: Some(name),
+            namespace: Some(ns),
+            labels: Some(labels),
+            owner_references: Some(vec![svc.controller_owner_ref(&()).unwrap()]),
+            ..Default::default()
+        },
+        spec: Some(NetworkPolicySpec {
+            pod_selector: Some(LabelSelector {
+                match_labels: Some(selector),
+                ..Default::default()
+            }),
+            policy_types: Some(vec!["Ingress".to_string()]),
+            ingress: Some(vec![NetworkPolicyIngressRule {
+                from: Some(vec![clients, metrics]),
+                ports: Some(vec![NetworkPolicyPort {
+                    protocol: Some("TCP".to_string()),
+                    port: Some(IntOrString::Int(8000)),
+                    ..Default::default()
+                }]),
+            }]),
+            ..Default::default()
+        }),
+    })
+}
+
 async fn reconcile(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Action, Error> {
     // An API call the server never answers would hold this reconcile for
     // the client's read timeout; bound it, so that it fails and is
@@ -397,6 +465,16 @@ async fn reconcile_inner(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Act
     let desired_service = build_service(&svc)?;
     k8s_services
         .patch(&name, &pp, &Patch::Apply(&desired_service))
+        .await?;
+
+    // 1c. Apply the owned NetworkPolicy (default-deny ingress except
+    //     labelled clients and the metrics namespace on 8000).
+    let metrics_ns = std::env::var("METRICS_NAMESPACE")
+        .unwrap_or_else(|_| DEFAULT_METRICS_NAMESPACE.to_string());
+    let policies: Api<NetworkPolicy> = Api::namespaced(ctx.client.clone(), &ns);
+    let desired_policy = build_network_policy(&svc, &metrics_ns)?;
+    policies
+        .patch(&name, &pp, &Patch::Apply(&desired_policy))
         .await?;
 
     // 2. Derive the lifecycle phase from the Deployment's ready replicas.
@@ -636,6 +714,53 @@ mod tests {
         let ports = spec.ports.expect("ports");
         assert_eq!(ports.len(), 1);
         assert_eq!(ports[0].port, 8000);
+    }
+    #[test]
+    fn network_policy_admits_only_clients_and_metrics_on_8000() {
+        let svc = sample();
+        let deploy = build_deployment(&svc).expect("deployment");
+        let pod_labels = deploy
+            .spec
+            .and_then(|s| s.template.metadata)
+            .and_then(|m| m.labels)
+            .expect("pod labels");
+        let np = build_network_policy(&svc, "monitoring").expect("policy");
+        let spec = np.spec.expect("policy spec");
+        // Selects exactly the Deployment's pods.
+        let sel = spec
+            .pod_selector
+            .and_then(|s| s.match_labels)
+            .expect("selector");
+        for (k, v) in sel.iter() {
+            assert_eq!(pod_labels.get(k), Some(v));
+        }
+        assert_eq!(spec.policy_types, Some(vec!["Ingress".to_string()]));
+        let rules = spec.ingress.expect("ingress");
+        assert_eq!(rules.len(), 1);
+        let ports = rules[0].ports.clone().expect("ports");
+        assert_eq!(ports.len(), 1);
+        assert_eq!(ports[0].port, Some(IntOrString::Int(8000)));
+        let from = rules[0].from.clone().expect("from");
+        assert_eq!(from.len(), 2);
+        let client = from[0]
+            .pod_selector
+            .clone()
+            .and_then(|s| s.match_labels)
+            .expect("client");
+        assert_eq!(client.get(CLIENT_LABEL), Some(&svc.name_any()));
+        assert!(
+            from[0].namespace_selector.is_none(),
+            "clients must be same-namespace only"
+        );
+        let mns = from[1]
+            .namespace_selector
+            .clone()
+            .and_then(|s| s.match_labels)
+            .expect("ns");
+        assert_eq!(
+            mns.get("kubernetes.io/metadata.name"),
+            Some(&"monitoring".to_string())
+        );
     }
     #[test]
     fn model_cache_host_path_mounts_hf_cache() {

@@ -28,6 +28,9 @@ rules:
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["get", "list", "watch", "create", "patch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["networkpolicies"]
+  verbs: ["get", "list", "watch", "create", "patch"]
 # Fleet controller: watches FleetService across namespaces (Api::all) and
 # writes phase/placements back on /status.
 - apiGroups: ["inference.michelecampi.dev"]

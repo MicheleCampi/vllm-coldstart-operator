@@ -36,6 +36,8 @@ spec:
         env:
         - name: RUST_LOG
           value: {{ .Values.logLevel | quote }}
+        - name: METRICS_NAMESPACE
+          value: {{ .Values.networkPolicy.metricsNamespace | quote }}
         ports:
         - name: metrics
           containerPort: 8080
