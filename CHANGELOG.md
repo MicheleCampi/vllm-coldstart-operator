@@ -61,6 +61,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   against a pinned tokenizer. The pinned sequences change: keep 0.025
   seed 42 is `6c10349917a6`, keep 0.1 seed 42 `b5b7fff2f0fe`.
 
+### Fixed
+
+- README: the unit test count read 84 (61 lib, 10 operator binary); cargo test
+  passes 94 (67 lib, 8 reporter, 14 operator binary, 5 property tests).
+- chart/values.yaml: the image comments said ArgoCD Image Updater manages the
+  image; it does only where argocd/imageupdater.yaml is deployed, which the
+  GKE platform does not do (it pins a chart tag).
+- README, Testing & CI: the sim-load job was described against `slo.json`
+  (TPOT 50 ms); since ADR-0024 both runs are judged against
+  `slo-l4-qwen7b-bf16.json`, asserted at keep 0.025 and reported at keep 0.1.
+
 ## [0.6.0] — 2026-10-23
 
 The release in which the operator runs under a realistic load and through

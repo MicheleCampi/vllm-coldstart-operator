@@ -1,7 +1,8 @@
 # -- Operator container image (public on GHCR, anonymous pull). repository/tag
-#    are the human-edited fallback; ArgoCD Image Updater writes the resolved
-#    reference into `spec` via git write-back (semver strategy over release
-#    tags). When spec is set, the image helper uses it verbatim.
+#    are the human-edited fallback. When spec is set, the image helper uses
+#    it verbatim. ArgoCD Image Updater writes it via git write-back (semver
+#    over release tags) only where argocd/imageupdater.yaml is deployed; the
+#    GKE platform pins a chart tag and does not run it.
 image:
   repository: ghcr.io/michelecampi/vllm-coldstart-operator
   # -- Empty means the chart's appVersion, so a chart and the image built
@@ -9,7 +10,8 @@ image:
   #    image on purpose.
   tag: ""
   pullPolicy: IfNotPresent
-  # -- Managed by ArgoCD Image Updater. Full image reference, takes precedence.
+  # -- Full image reference, takes precedence. Written by ArgoCD Image Updater
+  #    only where argocd/imageupdater.yaml is deployed.
   spec: ""
 # -- Replicas for the operator Deployment itself (leader election not
 #    implemented, so keep at 1).
