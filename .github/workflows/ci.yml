@@ -977,6 +977,9 @@ jobs:
   faults-under-load:
     name: faults under load on multi-node kind
     runs-on: ubuntu-24.04
+    env:
+      # Same NodePort reason as scale-out; see there.
+      NETWORK_POLICY_ENABLED: "false"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -1354,6 +1357,11 @@ jobs:
   scale-out:
     name: KEDA scales a fleet 1 to N under load on kind
     runs-on: ubuntu-24.04
+    env:
+      # Load enters through a NodePort: the source is the node IP after
+      # kube-proxy SNAT, which no pod/namespace peer matches. Policy off here;
+      # it is exercised end-to-end by scale-from-zero.
+      NETWORK_POLICY_ENABLED: "false"
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1521,6 +1529,10 @@ jobs:
     # repeated rather than shared, with the fleet starting at zero replicas
     # and the load entering through the add-on's interceptor (ADR-0015).
     runs-on: ubuntu-24.04
+    env:
+      # The HTTP add-on's interceptor (namespace keda) proxies to vLLM;
+      # admit it explicitly in the operator's NetworkPolicy.
+      EXTRA_INGRESS_NAMESPACES: keda
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1603,8 +1615,8 @@ jobs:
           [ "$ready" = "Ready/1" ] || { echo "ERROR: sim-fleet is '$ready', want Ready/1"; cat operator.log; exit 1; }
           kubectl apply -f hack/scale-from-zero/interceptor-nodeport.yaml -f deploy/examples/keda/scale-from-zero.yaml
           node_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' scale-from-zero-control-plane)
-          for i in $(seq 1 30); do curl -sf "http://$node_ip:30081/health" > /dev/null && break; sleep 1; done
-          curl -sf "http://$node_ip:30081/health" > /dev/null
+          for i in $(seq 1 30); do curl -sf --max-time 10 "http://$node_ip:30081/health" > /dev/null && break; sleep 1; done
+          curl -sf --max-time 10 "http://$node_ip:30081/health" > /dev/null
           echo "FLEET_URL=http://$node_ip:30081" >> "$GITHUB_ENV"
           echo "fleet Ready/1, serving through the interceptor at http://$node_ip:30081"
 
