@@ -85,6 +85,22 @@ pub struct VllmServiceSpec {
     /// production.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_cache_host_path: Option<String>,
+    /// Secret key holding the API key for vLLM, injected as the
+    /// VLLM_API_KEY env var (never as a command-line arg, which `get pod`
+    /// would show). The reference is not optional: a missing Secret keeps
+    /// the pod from starting rather than starting it open. Unset (the
+    /// default): no key, any client the NetworkPolicy admits can call it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_secret_ref: Option<ApiKeySecretRef>,
+}
+
+/// Reference to one key of a Secret in the VllmService's namespace.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]
+pub struct ApiKeySecretRef {
+    /// Secret name.
+    pub name: String,
+    /// Key within the Secret whose value is the API key.
+    pub key: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default, PartialEq)]

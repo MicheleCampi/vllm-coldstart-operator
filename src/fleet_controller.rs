@@ -248,6 +248,7 @@ fn build_owned_vllm_service(
         runtime_class_name: t.runtime_class_name.clone(),
         extra_args: t.extra_args.clone(),
         model_cache_host_path: t.model_cache_host_path.clone(),
+        api_key_secret_ref: t.api_key_secret_ref.clone(),
         node_name: Some(node_name.to_string()),
     };
 

@@ -76,6 +76,10 @@ pub struct FleetServiceTemplate {
     /// owned VllmService. See VllmServiceSpec.modelCacheHostPath.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_cache_host_path: Option<String>,
+    /// Secret key with the vLLM API key, copied to every replica's
+    /// VllmService (see VllmServiceSpec::api_key_secret_ref). Unset: no key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_secret_ref: Option<crate::ApiKeySecretRef>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]

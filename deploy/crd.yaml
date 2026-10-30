@@ -41,6 +41,25 @@ spec:
               treats time-to-first-token as a first-class concern, configuring the
               pod for the cold-start/decode-speed trade-off the spec asks for.
             properties:
+              apiKeySecretRef:
+                description: |-
+                  Secret key holding the API key for vLLM, injected as the
+                  VLLM_API_KEY env var (never as a command-line arg, which `get pod`
+                  would show). The reference is not optional: a missing Secret keeps
+                  the pod from starting rather than starting it open. Unset (the
+                  default): no key, any client the NetworkPolicy admits can call it.
+                nullable: true
+                properties:
+                  key:
+                    description: Key within the Secret whose value is the API key.
+                    type: string
+                  name:
+                    description: Secret name.
+                    type: string
+                required:
+                - key
+                - name
+                type: object
               extraArgs:
                 default: []
                 description: |-
@@ -311,6 +330,22 @@ spec:
                   VllmService template applied to every placement. Same shape as
                   VllmServiceSpec minus `model`/`replicas`, which the fleet controls.
                 properties:
+                  apiKeySecretRef:
+                    description: |-
+                      Secret key with the vLLM API key, copied to every replica's
+                      VllmService (see VllmServiceSpec::api_key_secret_ref). Unset: no key.
+                    nullable: true
+                    properties:
+                      key:
+                        description: Key within the Secret whose value is the API key.
+                        type: string
+                      name:
+                        description: Secret name.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
                   extraArgs:
                     default: []
                     items:

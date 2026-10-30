@@ -11,6 +11,7 @@ use k8s_openapi::api::core::v1::{
     Lifecycle, LifecycleHandler, PodSpec, PodTemplateSpec, Probe, ResourceRequirements, Service,
     ServicePort, ServiceSpec, SleepAction, Volume, VolumeMount,
 };
+use k8s_openapi::api::core::v1::{EnvVarSource, SecretKeySelector};
 use k8s_openapi::api::networking::v1::{
     NetworkPolicy, NetworkPolicyIngressRule, NetworkPolicyPeer, NetworkPolicyPort,
     NetworkPolicySpec,
@@ -226,11 +227,27 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     // "UnspecifiedPlatform" and fails to infer the device. Point the loader at
     // the managed-cluster driver mount. Only meaningful on real GPU pods.
     let env = if serving {
-        Some(vec![EnvVar {
+        let mut e = vec![EnvVar {
             name: "LD_LIBRARY_PATH".to_string(),
             value: Some("/usr/local/nvidia/lib64".to_string()),
             ..Default::default()
-        }])
+        }];
+        // threat model S1: the API key comes from a Secret, never from args.
+        if let Some(r) = &svc.spec.api_key_secret_ref {
+            e.push(EnvVar {
+                name: "VLLM_API_KEY".to_string(),
+                value_from: Some(EnvVarSource {
+                    secret_key_ref: Some(SecretKeySelector {
+                        name: r.name.clone(),
+                        key: r.key.clone(),
+                        optional: Some(false),
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+        }
+        Some(e)
     } else {
         None
     };
@@ -648,6 +665,35 @@ async fn main() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn gpu_svc(key: bool) -> VllmService {
+        let mut spec = json!({"model": "facebook/opt-125m", "gpu": 1});
+        if key { spec["apiKeySecretRef"] = json!({"name": "k", "key": "api-key"}); }
+        serde_json::from_value(json!({"metadata": {"name": "svc-a", "namespace": "default", "uid": "00000000-0000-0000-0000-000000000001"}, "spec": spec})).unwrap()
+    }
+
+    fn container(svc: &VllmService) -> k8s_openapi::api::core::v1::Container {
+        build_deployment(svc).unwrap().spec.unwrap().template.spec.unwrap().containers[0].clone()
+    }
+
+    #[test]
+    fn api_key_comes_from_secret_and_never_from_args() {
+        let c = container(&gpu_svc(true));
+        let env = c.env.clone().unwrap();
+        let e = env.iter().find(|e| e.name == "VLLM_API_KEY").expect("VLLM_API_KEY missing");
+        assert!(e.value.is_none());
+        let r = e.value_from.as_ref().unwrap().secret_key_ref.as_ref().unwrap();
+        assert_eq!(r.name, "k");
+        assert_eq!(r.key, "api-key");
+        assert_eq!(r.optional, Some(false));
+        assert!(c.args.unwrap_or_default().iter().all(|a| !a.contains("api-key")));
+    }
+
+    #[test]
+    fn no_api_key_env_when_unset() {
+        let c = container(&gpu_svc(false));
+        assert!(c.env.unwrap_or_default().iter().all(|e| e.name != "VLLM_API_KEY"));
+    }
 
     fn sample() -> VllmService {
         serde_json::from_value(json!({
