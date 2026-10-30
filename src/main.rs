@@ -17,6 +17,7 @@ use k8s_openapi::api::networking::v1::{
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement;
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::{
     api::{Api, ObjectMeta, Patch, PatchParams},
@@ -378,7 +379,18 @@ fn build_service(svc: &VllmService) -> Result<Service, Error> {
 /// labelled clients in the same namespace or from the metrics namespace.
 /// Closes threat-model row I2 (lateral access) for every model the
 /// operator creates, without breaking the vLLM metrics scrape.
+#[cfg(test)]
 fn build_network_policy(svc: &VllmService, metrics_ns: &str) -> Result<NetworkPolicy, Error> {
+    build_network_policy_with(svc, metrics_ns, &[])
+}
+
+/// Like build_network_policy, plus namespaces whose pods may also reach
+/// port 8000 (a gateway, or the KEDA HTTP interceptor). Empty means none.
+fn build_network_policy_with(
+    svc: &VllmService,
+    metrics_ns: &str,
+    extra_ns: &[String],
+) -> Result<NetworkPolicy, Error> {
     let name = svc.name_any();
     let ns = svc.namespace().ok_or(Error::MissingNamespace)?;
     let mut selector = BTreeMap::new();
@@ -405,6 +417,20 @@ fn build_network_policy(svc: &VllmService, metrics_ns: &str) -> Result<NetworkPo
         }),
         ..Default::default()
     };
+    let mut from = vec![clients, metrics];
+    if !extra_ns.is_empty() {
+        from.push(NetworkPolicyPeer {
+            namespace_selector: Some(LabelSelector {
+                match_expressions: Some(vec![LabelSelectorRequirement {
+                    key: "kubernetes.io/metadata.name".to_string(),
+                    operator: "In".to_string(),
+                    values: Some(extra_ns.to_vec()),
+                }]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+    }
     Ok(NetworkPolicy {
         metadata: ObjectMeta {
             name: Some(name),
@@ -420,7 +446,7 @@ fn build_network_policy(svc: &VllmService, metrics_ns: &str) -> Result<NetworkPo
             }),
             policy_types: Some(vec!["Ingress".to_string()]),
             ingress: Some(vec![NetworkPolicyIngressRule {
-                from: Some(vec![clients, metrics]),
+                from: Some(from),
                 ports: Some(vec![NetworkPolicyPort {
                     protocol: Some("TCP".to_string()),
                     port: Some(IntOrString::Int(8000)),
@@ -471,11 +497,23 @@ async fn reconcile_inner(svc: Arc<VllmService>, ctx: Arc<Context>) -> Result<Act
     //     labelled clients and the metrics namespace on 8000).
     let metrics_ns = std::env::var("METRICS_NAMESPACE")
         .unwrap_or_else(|_| DEFAULT_METRICS_NAMESPACE.to_string());
+    // NETWORK_POLICY_ENABLED=false skips it (test harnesses that reach the
+    // pods through a NodePort); anything else, or unset, applies it.
+    let policy_enabled = std::env::var("NETWORK_POLICY_ENABLED").map_or(true, |v| v != "false");
     let policies: Api<NetworkPolicy> = Api::namespaced(ctx.client.clone(), &ns);
-    let desired_policy = build_network_policy(&svc, &metrics_ns)?;
-    policies
-        .patch(&name, &pp, &Patch::Apply(&desired_policy))
-        .await?;
+    let extra_ns: Vec<String> = std::env::var("EXTRA_INGRESS_NAMESPACES")
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
+    let desired_policy = build_network_policy_with(&svc, &metrics_ns, &extra_ns)?;
+    if policy_enabled {
+        policies
+            .patch(&name, &pp, &Patch::Apply(&desired_policy))
+            .await?;
+    }
 
     // 2. Derive the lifecycle phase from the Deployment's ready replicas.
     let desired_replicas = svc.spec.replicas;
@@ -715,6 +753,29 @@ mod tests {
         assert_eq!(ports.len(), 1);
         assert_eq!(ports[0].port, 8000);
     }
+    #[test]
+    fn network_policy_admits_extra_namespaces_only_when_set() {
+        let svc = sample();
+        let none = build_network_policy_with(&svc, "monitoring", &[]).expect("policy");
+        let from = none.spec.unwrap().ingress.unwrap()[0].from.clone().unwrap();
+        assert_eq!(from.len(), 2, "no extra namespaces by default");
+        let extra = vec!["keda".to_string()];
+        let np = build_network_policy_with(&svc, "monitoring", &extra).expect("policy");
+        let from = np.spec.unwrap().ingress.unwrap()[0].from.clone().unwrap();
+        assert_eq!(from.len(), 3);
+        assert!(
+            from[2].pod_selector.is_none(),
+            "whole namespace, not a pod subset"
+        );
+        let sel = from[2].namespace_selector.clone().expect("ns selector");
+        assert!(sel.match_labels.is_none());
+        let exprs = sel.match_expressions.expect("expressions");
+        assert_eq!(exprs.len(), 1);
+        assert_eq!(exprs[0].key, "kubernetes.io/metadata.name");
+        assert_eq!(exprs[0].operator, "In");
+        assert_eq!(exprs[0].values, Some(extra));
+    }
+
     #[test]
     fn network_policy_admits_only_clients_and_metrics_on_8000() {
         let svc = sample();

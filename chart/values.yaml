@@ -104,4 +104,9 @@ reporter:
 # inference.michelecampi.dev/client=<name> in the same namespace, and any pod
 # in metricsNamespace (the vLLM metrics scraper), may reach port 8000.
 networkPolicy:
+  # Apply the per-VllmService NetworkPolicy (default-deny ingress). Keep true.
+  enabled: true
   metricsNamespace: monitoring
+  # Extra namespaces whose pods may reach vLLM on 8000, e.g. a gateway
+  # or the KEDA HTTP interceptor. Empty (default): none, fail-closed.
+  extraIngressNamespaces: []
