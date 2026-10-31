@@ -16,16 +16,32 @@ groups:
         expr: 1 - sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_bucket{le=~"1|1\\.0"}[1h])) / sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_count[1h]))
       - record: slo:ttft_over_1s:ratio_rate6h
         expr: 1 - sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_bucket{le=~"1|1\\.0"}[6h])) / sum by (namespace, service) (rate(vllm:time_to_first_token_seconds_count[6h]))
+      # The error budget of each service: 1 - percentile/100 of the objective its
+      # team declared (spec.objective, exported by the operator with the
+      # object's namespace as exported_namespace), else the 5% of ADR-0013.
+      - record: slo:ttft_error_budget:ratio
+        expr: |
+          (1 - max by (namespace, service) (label_replace(label_replace(vcso_vllmservice_objective_percentile, "namespace", "$1", "exported_namespace", "(.*)"), "service", "$1", "name", "(.*)")) / 100)
+          or on (namespace, service)
+          (0 * slo:ttft_over_1s:ratio_rate1h + 0.05)
       - alert: VllmTtftBudgetBurnFast
         # 14.4 times the budget: 2% of a 30-day budget in one hour.
-        expr: slo:ttft_over_1s:ratio_rate1h > 14.4 * 0.05 and slo:ttft_over_1s:ratio_rate5m > 14.4 * 0.05
+        expr: slo:ttft_over_1s:ratio_rate1h > 14.4 * slo:ttft_error_budget:ratio and slo:ttft_over_1s:ratio_rate5m > 14.4 * slo:ttft_error_budget:ratio
         labels:
           severity: page
         annotations:
           runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md
       - alert: VllmTtftBudgetBurnSlow
         # 6 times the budget: 5% of a 30-day budget in six hours.
-        expr: slo:ttft_over_1s:ratio_rate6h > 6 * 0.05 and slo:ttft_over_1s:ratio_rate30m > 6 * 0.05
+        expr: slo:ttft_over_1s:ratio_rate6h > 6 * slo:ttft_error_budget:ratio and slo:ttft_over_1s:ratio_rate30m > 6 * slo:ttft_error_budget:ratio
+        labels:
+          severity: ticket
+        annotations:
+          runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md
+      - alert: VllmTtftObjectiveUnsupported
+        # The rules measure TTFT at the 1 s bucket of vLLM's histogram; an
+        # objective at another edge would be silently measured at 1 s, so say it.
+        expr: vcso_vllmservice_objective_ttft_seconds != 1
         labels:
           severity: ticket
         annotations:

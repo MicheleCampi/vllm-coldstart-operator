@@ -81,6 +81,63 @@ impl Collector for ServiceCollector {
                 }
             }
         }
+        {
+            let mut family = encoder.encode_descriptor(
+                "vllmservice_objective_ttft_seconds",
+                "Time to first token objective declared by the team (spec.objective.ttftSeconds)",
+                None,
+                ConstGauge::new(0f64).metric_type(),
+            )?;
+            for svc in &services {
+                // Exported only when the team declared it (spec.objective / spec.budget).
+                let Some(v) = svc.spec.objective.as_ref().map(|o| o.ttft_seconds) else {
+                    continue;
+                };
+                let labels = ServiceLabels {
+                    name: svc.name_any(),
+                    namespace: svc.namespace().unwrap_or_default(),
+                };
+                ConstGauge::new(f64::from(v)).encode(family.encode_family(&labels)?)?;
+            }
+        }
+        {
+            let mut family = encoder.encode_descriptor(
+                "vllmservice_objective_percentile",
+                "Share of requests that must meet the TTFT objective, in percent (spec.objective.percentile)",
+                None,
+                ConstGauge::new(0f64).metric_type(),
+            )?;
+            for svc in &services {
+                // Exported only when the team declared it (spec.objective / spec.budget).
+                let Some(v) = svc.spec.objective.as_ref().map(|o| o.percentile) else {
+                    continue;
+                };
+                let labels = ServiceLabels {
+                    name: svc.name_any(),
+                    namespace: svc.namespace().unwrap_or_default(),
+                };
+                ConstGauge::new(f64::from(v)).encode(family.encode_family(&labels)?)?;
+            }
+        }
+        {
+            let mut family = encoder.encode_descriptor(
+                "vllmservice_budget_eur_per_month",
+                "Monthly budget declared by the team, in EUR (spec.budget.eurPerMonth)",
+                None,
+                ConstGauge::new(0f64).metric_type(),
+            )?;
+            for svc in &services {
+                // Exported only when the team declared it (spec.objective / spec.budget).
+                let Some(v) = svc.spec.budget.as_ref().map(|b| b.eur_per_month) else {
+                    continue;
+                };
+                let labels = ServiceLabels {
+                    name: svc.name_any(),
+                    namespace: svc.namespace().unwrap_or_default(),
+                };
+                ConstGauge::new(f64::from(v)).encode(family.encode_family(&labels)?)?;
+            }
+        }
         let mut family = encoder.encode_descriptor(
             "vllmservice_desired_replicas",
             "Replicas each VllmService asks for (spec.replicas)",
@@ -247,6 +304,16 @@ mod tests {
             "{out}"
         );
 
+        // Nothing declared, nothing exported.
+        // The HELP/TYPE lines stay; no series does.
+        for series in [
+            "vllmservice_objective_ttft_seconds{",
+            "vllmservice_objective_percentile{",
+            "vllmservice_budget_eur_per_month{",
+        ] {
+            assert!(!out.contains(series), "{series} in {out}");
+        }
+
         // A deleted VllmService leaves no series behind.
         writer.apply_watcher_event(&watcher::Event::Delete(service("a", 1, "Ready")));
         let out = m.encode();
@@ -257,5 +324,29 @@ mod tests {
             ),
             "{out}"
         );
+    }
+
+    #[test]
+    fn objective_and_budget_series_when_declared() {
+        let (reader, mut writer) = store::<VllmService>();
+        let m = Metrics::with_services(reader);
+        let mut svc = service("b", 1, "Ready");
+        svc.spec.objective = Some(crate::Objective {
+            ttft_seconds: 1.0,
+            percentile: 95.0,
+        });
+        svc.spec.budget = Some(crate::Budget {
+            eur_per_month: 500.0,
+        });
+        writer.apply_watcher_event(&watcher::Event::Apply(svc));
+
+        let out = m.encode();
+        for want in [
+            "vcso_vllmservice_objective_ttft_seconds{name=\"b\",namespace=\"vllm-system\"} 1",
+            "vcso_vllmservice_objective_percentile{name=\"b\",namespace=\"vllm-system\"} 95",
+            "vcso_vllmservice_budget_eur_per_month{name=\"b\",namespace=\"vllm-system\"} 500",
+        ] {
+            assert!(out.contains(want), "{want} missing in {out}");
+        }
     }
 }
