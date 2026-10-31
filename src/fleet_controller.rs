@@ -249,6 +249,10 @@ fn build_owned_vllm_service(
         extra_args: t.extra_args.clone(),
         model_cache_host_path: t.model_cache_host_path.clone(),
         api_key_secret_ref: t.api_key_secret_ref.clone(),
+        // Fleet templates do not carry an objective or budget yet: the
+        // platform-wide objective (ADR-0013) applies to fleet replicas.
+        objective: None,
+        budget: None,
         node_name: Some(node_name.to_string()),
     };
 

@@ -60,6 +60,20 @@ spec:
                 - key
                 - name
                 type: object
+              budget:
+                description: |-
+                  Monthly budget the team declares for this service, in EUR. Used for
+                  showback against the measured cost per million tokens (ADR-0025).
+                nullable: true
+                properties:
+                  eurPerMonth:
+                    description: Budget in EUR per calendar month.
+                    format: double
+                    minimum: 0.0
+                    type: number
+                required:
+                - eurPerMonth
+                type: object
               extraArgs:
                 default: []
                 description: |-
@@ -114,6 +128,29 @@ spec:
                   CI use, where no node constraint is emitted.
                 nullable: true
                 type: string
+              objective:
+                description: |-
+                  Latency objective the team declares for this service. Unset: the
+                  platform-wide objective applies (ADR-0013: TTFT <= 1s for 95%).
+                  Bounds are enforced by the API server through the CRD schema.
+                nullable: true
+                properties:
+                  percentile:
+                    description: Share of requests, in percent, that must meet the target.
+                    format: double
+                    maximum: 99.9
+                    minimum: 50.0
+                    type: number
+                  ttftSeconds:
+                    description: TTFT target in seconds.
+                    format: double
+                    maximum: 60.0
+                    minimum: 0.05
+                    type: number
+                required:
+                - percentile
+                - ttftSeconds
+                type: object
               replicas:
                 default: 1
                 description: Number of replicas to run.
