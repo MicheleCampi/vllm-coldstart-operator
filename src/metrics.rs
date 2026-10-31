@@ -97,7 +97,7 @@ impl Collector for ServiceCollector {
                     name: svc.name_any(),
                     namespace: svc.namespace().unwrap_or_default(),
                 };
-                ConstGauge::new(f64::from(v)).encode(family.encode_family(&labels)?)?;
+                ConstGauge::new(v).encode(family.encode_family(&labels)?)?;
             }
         }
         {
@@ -116,7 +116,7 @@ impl Collector for ServiceCollector {
                     name: svc.name_any(),
                     namespace: svc.namespace().unwrap_or_default(),
                 };
-                ConstGauge::new(f64::from(v)).encode(family.encode_family(&labels)?)?;
+                ConstGauge::new(v).encode(family.encode_family(&labels)?)?;
             }
         }
         {
@@ -135,7 +135,7 @@ impl Collector for ServiceCollector {
                     name: svc.name_any(),
                     namespace: svc.namespace().unwrap_or_default(),
                 };
-                ConstGauge::new(f64::from(v)).encode(family.encode_family(&labels)?)?;
+                ConstGauge::new(v).encode(family.encode_family(&labels)?)?;
             }
         }
         let mut family = encoder.encode_descriptor(
