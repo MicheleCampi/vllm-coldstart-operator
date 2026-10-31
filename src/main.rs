@@ -6,6 +6,7 @@ use futures::StreamExt;
 use k8s_openapi::api::apps::v1::{
     Deployment, DeploymentSpec, DeploymentStrategy, RollingUpdateDeployment,
 };
+use k8s_openapi::api::core::v1::{Capabilities, SeccompProfile, SecurityContext};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EmptyDirVolumeSource, EnvVar, HTTPGetAction, HostPathVolumeSource,
     Lifecycle, LifecycleHandler, PodSpec, PodTemplateSpec, Probe, ResourceRequirements, Service,
@@ -265,6 +266,21 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         resources,
         readiness_probe,
         volume_mounts,
+        // T5 (threat model): no privilege escalation, no Linux capabilities,
+        // runtime-default seccomp. runAsNonRoot is NOT set: the image is
+        // user-supplied and vllm/vllm-openai runs as root.
+        security_context: Some(SecurityContext {
+            allow_privilege_escalation: Some(false),
+            capabilities: Some(Capabilities {
+                drop: Some(vec!["ALL".to_string()]),
+                ..Default::default()
+            }),
+            seccomp_profile: Some(SeccompProfile {
+                type_: "RuntimeDefault".to_string(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
         lifecycle: Some(Lifecycle {
             pre_stop: Some(LifecycleHandler {
                 sleep: Some(SleepAction {
@@ -684,6 +700,24 @@ mod tests {
             .unwrap()
             .containers[0]
             .clone()
+    }
+
+    #[test]
+    fn container_is_hardened() {
+        for gpu in [true, false] {
+            let svc = if gpu {
+                gpu_svc(false)
+            } else {
+                serde_json::from_value(json!({"metadata": {"name": "p", "namespace": "default", "uid": "00000000-0000-0000-0000-000000000002"}, "spec": {"model": "m", "gpu": 0}})).unwrap()
+            };
+            let sc = container(&svc)
+                .security_context
+                .expect("securityContext missing");
+            assert_eq!(sc.allow_privilege_escalation, Some(false));
+            assert_eq!(sc.capabilities.unwrap().drop, Some(vec!["ALL".to_string()]));
+            assert_eq!(sc.seccomp_profile.unwrap().type_, "RuntimeDefault");
+            assert_eq!(sc.run_as_non_root, None);
+        }
     }
 
     #[test]
