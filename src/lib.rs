@@ -92,6 +92,37 @@ pub struct VllmServiceSpec {
     /// default): no key, any client the NetworkPolicy admits can call it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_key_secret_ref: Option<ApiKeySecretRef>,
+    /// Latency objective the team declares for this service. Unset: the
+    /// platform-wide objective applies (ADR-0013: TTFT <= 1s for 95%).
+    /// Bounds are enforced by the API server through the CRD schema.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub objective: Option<Objective>,
+    /// Monthly budget the team declares for this service, in EUR. Used for
+    /// showback against the measured cost per million tokens (ADR-0025).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget: Option<Budget>,
+}
+
+/// Time-to-first-token objective: `percentile`% of requests must see the
+/// first token within `ttftSeconds`.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Objective {
+    /// TTFT target in seconds.
+    #[schemars(range(min = 0.05, max = 60.0))]
+    pub ttft_seconds: f64,
+    /// Share of requests, in percent, that must meet the target.
+    #[schemars(range(min = 50.0, max = 99.9))]
+    pub percentile: f64,
+}
+
+/// Monthly spending limit for the service.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Budget {
+    /// Budget in EUR per calendar month.
+    #[schemars(range(min = 0.0))]
+    pub eur_per_month: f64,
 }
 
 /// Reference to one key of a Secret in the VllmService's namespace.
@@ -196,5 +227,51 @@ mod tests {
         // than desired; that is still a serving state, not a warming one.
         let (phase, _) = phase_for(2, 3);
         assert_eq!(phase, "Ready");
+    }
+}
+
+#[cfg(test)]
+mod spec_contract_tests {
+    use super::*;
+
+    #[test]
+    fn spec_without_objective_or_budget_still_parses() {
+        let s: VllmServiceSpec = serde_json::from_str(r#"{"model":"m"}"#).unwrap();
+        assert_eq!(s.objective, None);
+        assert_eq!(s.budget, None);
+    }
+
+    #[test]
+    fn objective_and_budget_parse_in_camel_case() {
+        let s: VllmServiceSpec = serde_json::from_str(
+            r#"{"model":"m","objective":{"ttftSeconds":0.8,"percentile":95.0},"budget":{"eurPerMonth":300.0}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            s.objective,
+            Some(Objective {
+                ttft_seconds: 0.8,
+                percentile: 95.0
+            })
+        );
+        assert_eq!(
+            s.budget,
+            Some(Budget {
+                eur_per_month: 300.0
+            })
+        );
+    }
+
+    #[test]
+    fn schema_bounds_are_enforced_by_the_api_server() {
+        let schema = serde_json::to_string(&schemars::schema_for!(Objective)).unwrap();
+        for bound in [
+            r#""minimum":50.0"#,
+            r#""maximum":99.9"#,
+            r#""minimum":0.05"#,
+            r#""maximum":60.0"#,
+        ] {
+            assert!(schema.contains(bound), "missing {bound} in {schema}");
+        }
     }
 }
