@@ -121,18 +121,35 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
 
     // GPU resource limit, only when requested. With gpu=0 (CI / CPU-only)
     // the container requests no GPU and schedules on any node.
-    let resources = if serving {
+    // Serving: GPU limit, plus CPU as a request only (a CPU limit throttles
+    // the tokenizer) and memory as request = limit (guaranteed, OOM is a
+    // sizing signal). Unset fields emit nothing, so the namespace LimitRange
+    // default applies. Placeholder: a tiny fixed request, so an inert pause
+    // pod does not reserve the LimitRange default (2 CPU / 12Gi today).
+    let resources = {
+        let mut requests = BTreeMap::new();
         let mut limits = BTreeMap::new();
-        limits.insert(
-            "nvidia.com/gpu".to_string(),
-            Quantity(svc.spec.gpu.to_string()),
-        );
+        if serving {
+            limits.insert(
+                "nvidia.com/gpu".to_string(),
+                Quantity(svc.spec.gpu.to_string()),
+            );
+            if let Some(c) = &svc.spec.cpu {
+                requests.insert("cpu".to_string(), Quantity(c.clone()));
+            }
+            if let Some(m) = &svc.spec.memory {
+                requests.insert("memory".to_string(), Quantity(m.clone()));
+                limits.insert("memory".to_string(), Quantity(m.clone()));
+            }
+        } else {
+            requests.insert("cpu".to_string(), Quantity("10m".to_string()));
+            requests.insert("memory".to_string(), Quantity("16Mi".to_string()));
+        }
         Some(ResourceRequirements {
-            limits: Some(limits),
+            requests: (!requests.is_empty()).then_some(requests),
+            limits: (!limits.is_empty()).then_some(limits),
             ..Default::default()
         })
-    } else {
-        None
     };
 
     // Invocation. The vllm/vllm-openai image's entrypoint is `vllm serve`,
@@ -700,6 +717,42 @@ mod tests {
             .unwrap()
             .containers[0]
             .clone()
+    }
+
+    fn svc_with(spec: serde_json::Value) -> VllmService {
+        serde_json::from_value(json!({"metadata": {"name": "r", "namespace": "default", "uid": "00000000-0000-0000-0000-000000000003"}, "spec": spec})).unwrap()
+    }
+
+    fn qty(m: &Option<BTreeMap<String, Quantity>>, k: &str) -> Option<String> {
+        m.as_ref().and_then(|m| m.get(k)).map(|q| q.0.clone())
+    }
+
+    #[test]
+    fn resources_follow_spec_and_placeholder_is_tiny() {
+        // Serving with cpu+memory: CPU request only, memory request = limit.
+        let r = container(&svc_with(
+            json!({"model": "m", "gpu": 1, "cpu": "4", "memory": "24Gi"}),
+        ))
+        .resources
+        .unwrap();
+        assert_eq!(qty(&r.requests, "cpu").as_deref(), Some("4"));
+        assert_eq!(qty(&r.limits, "cpu"), None);
+        assert_eq!(qty(&r.requests, "memory").as_deref(), Some("24Gi"));
+        assert_eq!(qty(&r.limits, "memory").as_deref(), Some("24Gi"));
+        assert_eq!(qty(&r.limits, "nvidia.com/gpu").as_deref(), Some("1"));
+
+        // Serving without cpu/memory: GPU limit only, LimitRange fills the rest.
+        let r = container(&gpu_svc(false)).resources.unwrap();
+        assert!(r.requests.is_none());
+        assert_eq!(r.limits.as_ref().map(|l| l.len()), Some(1));
+
+        // Placeholder: tiny fixed request, no limits.
+        let r = container(&svc_with(json!({"model": "m", "gpu": 0})))
+            .resources
+            .unwrap();
+        assert_eq!(qty(&r.requests, "cpu").as_deref(), Some("10m"));
+        assert_eq!(qty(&r.requests, "memory").as_deref(), Some("16Mi"));
+        assert!(r.limits.is_none());
     }
 
     #[test]

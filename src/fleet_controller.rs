@@ -247,6 +247,8 @@ fn build_owned_vllm_service(
         health_path: t.health_path.clone(),
         runtime_class_name: t.runtime_class_name.clone(),
         extra_args: t.extra_args.clone(),
+        cpu: t.cpu.clone(),
+        memory: t.memory.clone(),
         model_cache_host_path: t.model_cache_host_path.clone(),
         api_key_secret_ref: t.api_key_secret_ref.clone(),
         // Fleet templates do not carry an objective or budget yet: the

@@ -62,6 +62,14 @@ pub struct FleetServiceTemplate {
     pub runtime_class_name: Option<String>,
     #[serde(default)]
     pub extra_args: Vec<String>,
+    /// CPU request per replica (e.g. "4"). Copied to each child
+    /// VllmService; see VllmServiceSpec.cpu. Unset: LimitRange default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cpu: Option<String>,
+    /// Memory request and limit per replica (e.g. "24Gi"). Copied to each
+    /// child VllmService; see VllmServiceSpec.memory. Unset: LimitRange default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory: Option<String>,
     #[serde(default = "default_gpu")]
     pub gpu: i32,
     #[serde(default = "default_health_path")]

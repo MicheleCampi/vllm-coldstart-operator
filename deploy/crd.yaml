@@ -74,6 +74,14 @@ spec:
                 required:
                 - eurPerMonth
                 type: object
+              cpu:
+                description: |-
+                  CPU to request per replica, as a Kubernetes quantity (e.g. "4",
+                  "500m"). Request only, no limit: a CPU limit throttles the tokenizer
+                  and HTTP front-end under load. Unset (the default): the operator
+                  emits no CPU request and the namespace LimitRange default applies.
+                nullable: true
+                type: string
               extraArgs:
                 default: []
                 description: |-
@@ -103,6 +111,14 @@ spec:
               image:
                 default: vllm/vllm-openai:latest
                 description: Container image to run. Defaults to the official vLLM OpenAI server.
+                type: string
+              memory:
+                description: |-
+                  Memory per replica, as a Kubernetes quantity (e.g. "24Gi"). Set as
+                  both request and limit, so the pod gets a guaranteed amount and an
+                  OOM is a sizing signal rather than a noisy-neighbour surprise. Unset
+                  (the default): the namespace LimitRange default applies.
+                nullable: true
                 type: string
               model:
                 description: HuggingFace model id to serve, e.g. "Qwen/Qwen2.5-7B-Instruct".
@@ -383,6 +399,12 @@ spec:
                     - key
                     - name
                     type: object
+                  cpu:
+                    description: |-
+                      CPU request per replica (e.g. "4"). Copied to each child
+                      VllmService; see VllmServiceSpec.cpu. Unset: LimitRange default.
+                    nullable: true
+                    type: string
                   extraArgs:
                     default: []
                     items:
@@ -402,6 +424,12 @@ spec:
                       tag for reproducible fleets; the default (vllm/vllm-openai:latest)
                       exists for interactive convenience only and is not a reproducible
                       reference.
+                    type: string
+                  memory:
+                    description: |-
+                      Memory request and limit per replica (e.g. "24Gi"). Copied to each
+                      child VllmService; see VllmServiceSpec.memory. Unset: LimitRange default.
+                    nullable: true
                     type: string
                   modelCacheHostPath:
                     description: |-

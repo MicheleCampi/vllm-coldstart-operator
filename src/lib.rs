@@ -68,6 +68,18 @@ pub struct VllmServiceSpec {
     /// in the resource spec rather than baked into the operator binary.
     #[serde(default)]
     pub extra_args: Vec<String>,
+    /// CPU to request per replica, as a Kubernetes quantity (e.g. "4",
+    /// "500m"). Request only, no limit: a CPU limit throttles the tokenizer
+    /// and HTTP front-end under load. Unset (the default): the operator
+    /// emits no CPU request and the namespace LimitRange default applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cpu: Option<String>,
+    /// Memory per replica, as a Kubernetes quantity (e.g. "24Gi"). Set as
+    /// both request and limit, so the pod gets a guaranteed amount and an
+    /// OOM is a sizing signal rather than a noisy-neighbour surprise. Unset
+    /// (the default): the namespace LimitRange default applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory: Option<String>,
     /// Exact node this replica must land on, as a `kubernetes.io/hostname`
     /// nodeSelector. Set by the fleet controller (ADR-0004) to pin a placement
     /// to its chosen node while keeping the default scheduler in the loop
