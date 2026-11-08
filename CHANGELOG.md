@@ -6,11 +6,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-11-05
+
+### Added
+
+- **Per-replica CPU and memory (#77).** `spec.cpu` on VllmService and the
+  FleetService template sets a CPU request with no limit, so the tokenizer
+  and HTTP front-end are not throttled; `spec.memory` sets request = limit.
+  Unset fields emit nothing, so existing resources keep their behaviour. The
+  placeholder pod (gpu=0) requests 10m / 16Mi.
+
+### Upgrading from 0.8.0
+
+- The CRDs changed: apply the release's CRDs before `helm upgrade`, since
+  Helm does not update them.
+
+## [0.8.0] — 2026-10-31
+
+### Added
+
+- **A per-team TTFT error budget from `spec.objective` (#75).** The operator
+  exports the declared objective and budget as gauges, only when declared.
+  Burn-rate alerts use each team's budget, 1 - percentile/100, default 5%.
+  `VllmTtftObjectiveUnsupported` fires for an objective off the 1 s bucket.
+  promtool tests show the same traffic pages a p99 team and not a p90 or
+  undeclared one.
+
+## [0.7.0] — 2026-10-31
+
+### Upgrading from 0.6.0
+
+- The CRDs changed: apply the release's CRDs before `helm upgrade`, since
+  Helm does not update them.
+
 ### Security
 
 - Release image: signed SLSA build provenance (actions/attest-build-provenance, Sigstore via OIDC), pushed to GHCR next to the image and verifiable with `gh attestation verify`. The unsigned BuildKit provenance is kept.
+- **The vLLM API key comes from a Secret (S1).** `spec.apiKeySecretRef`
+  {name, key} injects `VLLM_API_KEY` with `optional=false`, so a missing
+  Secret keeps the pod from starting instead of starting it open; the key
+  never appears in args. Unset means no key.
+- **A hardened vLLM container (T5).** Every pod gets
+  `allowPrivilegeEscalation=false`, capabilities drop ALL and seccomp
+  RuntimeDefault. `runAsNonRoot` is not set: the image is user-supplied and
+  vllm/vllm-openai runs as root.
+- **A default-deny NetworkPolicy per VllmService (#70).** Ingress is TCP 8000
+  only, from the model's client pods in the same namespace or from the
+  metrics namespace (`networkPolicy.metricsNamespace`, default `monitoring`).
 
 ### Added
+
+- **An objective and a budget in the VllmService spec (#73).** Optional
+  `spec.objective` {ttftSeconds, percentile} and `spec.budget` {eurPerMonth},
+  bounded in the CRD schema; unset, the platform-wide ADR-0013 objective
+  applies and existing manifests stay valid.
 
 - **The cost of a run per million generated tokens (ADR-0025).**
   `hack/loadgen/cost.py` prices one loadgen run at a declared hourly rate,

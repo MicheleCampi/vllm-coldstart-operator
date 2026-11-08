@@ -148,7 +148,7 @@ and Helm:
 
 ```bash
 kind create cluster --name vcso-release
-git clone --branch v0.5.0 --depth 1 https://github.com/MicheleCampi/vllm-coldstart-operator
+git clone --branch v0.9.0 --depth 1 https://github.com/MicheleCampi/vllm-coldstart-operator
 helm install vcso ./vllm-coldstart-operator/chart \
   --namespace vllm-system --create-namespace --wait
 kubectl wait vllmservice/ci-placeholder -n vllm-system \
@@ -158,19 +158,19 @@ kubectl get vllmservice ci-placeholder -n vllm-system \
 # Ready: 1/1 replicas ready and warm
 ```
 
-To upgrade from 0.4.0, apply the release's CRDs before `helm upgrade`, since
-Helm does not update them; the steps are in [CHANGELOG.md](CHANGELOG.md),
-under 0.5.0.
+To upgrade, apply the release's CRDs before `helm upgrade`, since Helm does
+not update them; each release's steps are under "Upgrading" in
+[CHANGELOG.md](CHANGELOG.md).
 
 The chart's defaults install the operator, its three CRDs and one
 VllmService, `ci-placeholder`: a `pause` container with no GPU and no health
 endpoint, which is Ready as soon as its pod runs. It exercises the control
 plane (reconcile, status, ownership), not inference. Verified on kind v0.30.0
 (Kubernetes v1.34.0) with Helm v3.21.0 and kubectl v1.36.1, running
-operator image `0.5.0`.
+operator image `0.9.0`, on 2026-11-08.
 On Kubernetes 1.34.0, the default node image of kind v0.30.0, registering
-the CRDs prints `unrecognized format` warnings for their `int32`, `int64`
-and `float` fields. That release warned on integer and number formats by
+the CRDs prints `unrecognized format` warnings for their `int32`, `int64`,
+`float` and `double` fields. That release warned on integer and number formats by
 mistake; 1.34.1 fixed it ([kubernetes#133901](https://github.com/kubernetes/kubernetes/pull/133901)),
 and on a 1.34.2 node the same CRDs register without warnings. The install
 completes either way.
@@ -225,7 +225,7 @@ This section stays honest about boundaries, because the value is in what is actu
 
 ## Testing & CI
 
-- **Unit tests** (94: 67 lib, 8 reporter, 14 operator binary, plus 5 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
+- **Unit tests** (104: 71 lib, 8 reporter, 20 operator binary, plus 5 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
 - **End-to-end CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) on every push: `fmt --check` + `clippy -D warnings` + tests + release build, plus an ephemeral kind cluster that installs the CRDs, runs the operator, applies a `VllmService`, and asserts the full lifecycle with bounded polling (convergence, not timing luck). A separate job builds the operator image, loads it into its own kind cluster, installs the chart with its defaults, waits for the example `VllmService` to be Ready, and checks that the operator pod runs the image built in that job rather than a published one with the same tag. Another runs on a kind cluster with two workers and asserts that a preemption notice moves a replica to the surviving worker (ADR-0005, ADR-0011 D2). A fourth serves a `VllmService` from the llm-d inference simulator (`hack/rehearsal/Dockerfile.sim`, base image pinned by digest) and replays, open-loop and through the operator's Service, seeded samples of the busiest five minutes of a public production trace (`hack/loadgen/loadgen.py --profile`, ADR-0012) twice: 2.5%, within the capacity measured for one replica, where it asserts the L4's service level objectives in `hack/loadgen/slo-l4-qwen7b-bf16.json` on the simulator calibrated to one L4 (time to first token at most 1 s, 2 s above 2048 prompt tokens, and time per output token at most 100 ms for 95% of requests, 99.5% served; ADR-0013, ADR-0020, ADR-0022, ADR-0024), and 10%, which overloads the replica on purpose: the calibrated simulator holds those objectives there and one L4 does not (ADR-0024), so they are reported, not asserted. Both runs fail if the replayed sequence is not the pinned one, if any request is not answered with 200 or is served a token count other than the profile's, if the load generator falls behind its schedule, or if its mean latencies disagree with those the simulator measures. A fifth runs `hack/validate-manifests.sh`, which needs no cluster and runs the same locally: `kubeconform -strict` (pinned by SHA-256 in the lock of [inference-platform-ci](https://github.com/MicheleCampi/inference-platform-ci), fetched at the tag and commit in `hack/platform-ci.env`) checks `deploy/examples` and every `yaml` block of this README against schemas generated from `deploy/crd.yaml`, skipping KEDA's `ScaledObject`, and a self-test requires an unknown field in each kind to be rejected.
 
 ## Roadmap
