@@ -1,5 +1,7 @@
 # vllm-coldstart-operator
 
+[![ci](https://github.com/MicheleCampi/vllm-coldstart-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/MicheleCampi/vllm-coldstart-operator/actions/workflows/ci.yml) [![release-image](https://github.com/MicheleCampi/vllm-coldstart-operator/actions/workflows/release-image.yml/badge.svg)](https://github.com/MicheleCampi/vllm-coldstart-operator/actions/workflows/release-image.yml)
+
 A Kubernetes operator, written in Rust with [kube-rs](https://kube.rs/), that manages vLLM inference workloads and treats **cold start as a first-class signal** — first for single-service lifecycle, now as the basis for **GPU fleet orchestration under spot preemption**, validated with measured data on real GPUs.
 
 Kubernetes decides a pod is ready when its process is up. For an LLM inference server that is the wrong moment: the process is alive, but it still has to load weights and warm up before it can serve a token. This operator models that gap explicitly, and uses it to make placement and rescheduling decisions: a warm node with the model in cache is a fundamentally better reschedule target than a cold one, and the difference is measured in minutes of service degradation.
@@ -8,6 +10,18 @@ The operator is the operational half of a pair of tools:
 
 - [vllm-coldstart-probe](https://github.com/MicheleCampi/vllm-coldstart-probe) — an eBPF profiler that traces vLLM's syscalls and libcuda calls during cold start (it does not see the weight reads).
 - **vllm-coldstart-operator** (this repo) — **acts** on that knowledge inside a cluster.
+
+**Results at a glance**
+
+- **Preemption without cascade** (3x A10, 3 reps): 0 errors on the unaffected
+  service; replacement Ready in 57 s; max service gap 2.3 s
+  ([details](#measured-results-preemption-without-cascade)).
+- **Autoscaling that counts warming replicas** (kind, 4 pairs): peak 4 replicas
+  against 27-28, 5.85x less allocation held, every request served in both arms
+  ([details](#measured-results-autoscaling-that-counts-warming-replicas)).
+- **Efficiency-aware placement, a negative result** (3x A10, 8 reps): +2.05%
+  tokens/joule, 95% CI [-2.5%, +6.6%], below the +3% threshold fixed before the
+  run ([details](#measured-results-efficiency-aware-placement-a-negative-result)).
 
 ## Measured results: preemption without cascade
 
@@ -27,7 +41,7 @@ Full evidence — per-request JSONL, operator logs, Kubernetes events, resource 
 
 **Disclosed boundary:** the preemption *notice* was injected via a `NodeState` status patch; detecting the cloud provider's real notice (e.g. the metadata endpoint) is out of scope for this validation. What is measured is everything downstream of the notice: decision, surge, drain, and service continuity.
 
-Method note: the entire preemption mechanic was first validated on a zero-cost kind rehearsal harness ([`hack/rehearsal/`](hack/rehearsal/)); the GPU session then reproduced it on real hardware in ~1.5h for $5.58.
+Method note: the entire preemption mechanic was first validated on a zero-cost kind rehearsal harness ([`hack/rehearsal/`](hack/rehearsal/)); the GPU session then reproduced it on real hardware, three Lambda A10 instances at $1.29/h each ([provenance](hack/gpu-session/runs/2026-07-04/PROVENANCE-session.txt)).
 
 ## Measured results: autoscaling that counts warming replicas
 
@@ -77,7 +91,12 @@ autoscaler.
 
 ## Measured results: efficiency-aware placement, a negative result
 
-The per-node reporter publishes window-based tokens/joule and KV-cache hit-rate into `NodeState.status`, reimplementing the NVML energy read that inferscope's ADR-010 validated and scraping the vLLM series that inferscope's ADR-011 names; placement ranks them as strict lexicographic tie-breakers inside warmth classes (`EfficiencyAware` strategy). Design accepted in [ADR-0007](docs/adr/0007-efficiency-aware-closed-loop-placement.md). Phase A done: `EfficiencyAware` comparator as a pure function with property-tested warmth dominance and fail-open absence semantics, status fields and CRDs in place. Phase B done: per-node reporter (same image, DaemonSet entrypoint, disjoint-ownership status merge-patches), strategy threaded through both natural decision points (initial planning and post-preemption replacement), opt-in Helm wiring with least-privilege RBAC. Falsification level 2 passed 5/5 on kind (`hack/rehearsal/adr0007-run.sh`): EA discriminates on kvCacheHitRate at equal warmth on both decision paths, and degrades to warmth-first when signals are absent. The first in-cluster run also surfaced (and fixed) a real schema/design mismatch — required status fields are incompatible with multi-writer merge-patch ownership. Phase B extended with the real signal source: `VllmScrape` (vLLM prefix-cache counters, inferscope ADR-011 schema) and an NVML sampler behind a build-feature plus runtime double gate, joined cross-source into `tokensPerJoule` on the same reporting round. Level-3 mechanism validated on 3x A10 (Lambda, k3s, one vLLM per node, [evidence](hack/gpu-session/adr0007-ea-experiment/runs/20260723T175747)): NVML populates `NodeState.status` in vivo on all three nodes and the KV-cache scrape on the one that received traffic (the replay drove a single endpoint), `EfficiencyAware` and `WarmthFirst` diverge deterministically at both decision points, 8/8 reps clean with the operator log free of anything but two named benign classes. The primary hypothesis was open until phase C closed it, and the answer is negative. The level-3 run could not test it — the replay drove one fixed endpoint by design and nothing routed traffic to the service just placed, so both arms measured the same loaded node and the near-zero delta was determined before any GPU minute was spent (recorded as a post-run amendment in that [experiment design](hack/gpu-session/adr0007-ea-experiment/DESIGN.md)). [Phase C](hack/adr0008-phasec-experiment/DESIGN.md) built the missing path — placements publish what the planner ranked on, observations carry when they were measured, and a dispatcher sends the workload to the placed replica — then measured 8 reps on 3x A10: **EfficiencyAware 10.384 tokens/joule on the placed node against WarmthFirst 10.175, +2.05%, 95% CI [-2.5%, +6.6%], below the +3% threshold fixed before the run.** A negative result about EA under this workload, and one this design was entitled to draw: the strategies diverged deterministically, with EA choosing the better-tokens/joule node in 4 of 4 reps across both physical machines while WarmthFirst took the same node every time by list order. Two findings travel with it — the power cap makes a node *more* efficient per token rather than less, the opposite of what the design assumed, so the available margin was ~6% and a +3% threshold against it is a demanding test; and the pre-flight caught the reporter publishing 0.0 tokens/joule for an idle GPU, which would have handed both arms identical inputs and reproduced the level-3 null from the instrument.
+`EfficiencyAware` ranks nodes by tokens/joule and KV-cache hit-rate inside
+warmth classes ([ADR-0007](docs/adr/0007-efficiency-aware-closed-loop-placement.md)).
+On 3x A10, 8 reps: **10.384 tokens/joule against WarmthFirst's 10.175, +2.05%,
+95% CI [-2.5%, +6.6%], below the +3% threshold fixed before the run.** The full
+account, phases A to C with their evidence, is in
+[docs/efficiency-aware-placement.md](docs/efficiency-aware-placement.md).
 
 ## What it does
 
@@ -226,7 +245,20 @@ This section stays honest about boundaries, because the value is in what is actu
 ## Testing & CI
 
 - **Unit tests** (104: 71 lib, 8 reporter, 20 operator binary, plus 5 property tests) on the pure decision logic: lifecycle derivation, warmth-first placement, planning, per-node phase machine, hysteresis behavior.
+| CI job | What it asserts |
+|---|---|
+| lint, test, build | `fmt --check`, `clippy -D warnings`, the unit tests above, release build |
+| kind lifecycle | CRDs installed, operator running, a `VllmService` through its full lifecycle, with bounded polling |
+| chart | the image built in the job, installed with chart defaults; the example `VllmService` Ready on that image |
+| preemption | two workers; a preemption notice moves a replica to the survivor (ADR-0005, ADR-0011 D2) |
+| load replay | a production trace through the llm-d simulator: L4 SLOs asserted at 2.5%, reported at 10% (ADR-0012, ADR-0024) |
+| manifests | `kubeconform -strict` on `deploy/examples` and every `yaml` block of this README, with a self-test |
+
+<details><summary>Each job in full</summary>
+
 - **End-to-end CI** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) on every push: `fmt --check` + `clippy -D warnings` + tests + release build, plus an ephemeral kind cluster that installs the CRDs, runs the operator, applies a `VllmService`, and asserts the full lifecycle with bounded polling (convergence, not timing luck). A separate job builds the operator image, loads it into its own kind cluster, installs the chart with its defaults, waits for the example `VllmService` to be Ready, and checks that the operator pod runs the image built in that job rather than a published one with the same tag. Another runs on a kind cluster with two workers and asserts that a preemption notice moves a replica to the surviving worker (ADR-0005, ADR-0011 D2). A fourth serves a `VllmService` from the llm-d inference simulator (`hack/rehearsal/Dockerfile.sim`, base image pinned by digest) and replays, open-loop and through the operator's Service, seeded samples of the busiest five minutes of a public production trace (`hack/loadgen/loadgen.py --profile`, ADR-0012) twice: 2.5%, within the capacity measured for one replica, where it asserts the L4's service level objectives in `hack/loadgen/slo-l4-qwen7b-bf16.json` on the simulator calibrated to one L4 (time to first token at most 1 s, 2 s above 2048 prompt tokens, and time per output token at most 100 ms for 95% of requests, 99.5% served; ADR-0013, ADR-0020, ADR-0022, ADR-0024), and 10%, which overloads the replica on purpose: the calibrated simulator holds those objectives there and one L4 does not (ADR-0024), so they are reported, not asserted. Both runs fail if the replayed sequence is not the pinned one, if any request is not answered with 200 or is served a token count other than the profile's, if the load generator falls behind its schedule, or if its mean latencies disagree with those the simulator measures. A fifth runs `hack/validate-manifests.sh`, which needs no cluster and runs the same locally: `kubeconform -strict` (pinned by SHA-256 in the lock of [inference-platform-ci](https://github.com/MicheleCampi/inference-platform-ci), fetched at the tag and commit in `hack/platform-ci.env`) checks `deploy/examples` and every `yaml` block of this README against schemas generated from `deploy/crd.yaml`, skipping KEDA's `ScaledObject`, and a self-test requires an unknown field in each kind to be rejected.
+
+</details>
 
 ## Roadmap
 
