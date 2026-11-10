@@ -141,3 +141,59 @@ tests:
         values: '1x45'
     alert_rule_test:
       - {eval_time: 40m, alertname: VllmServiceReplicasMissing}
+  # TPOT: 90% of requests over 100 ms in every window, both alerts fire.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:request_time_per_output_token_seconds_bucket{namespace="vllm-system",service="qwen-7b",le="0.1"}'
+        values: '0+10x70'
+      - series: 'vllm:request_time_per_output_token_seconds_count{namespace="vllm-system",service="qwen-7b"}'
+        values: '0+100x70'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: VllmTpotBudgetBurnFast
+        exp_alerts:
+          - exp_labels: {severity: page, namespace: vllm-system, service: qwen-7b}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/tpot-and-success-burn-rate.md}
+      - eval_time: 10m
+        alertname: VllmTpotBudgetBurnSlow
+        exp_alerts:
+          - exp_labels: {severity: ticket, namespace: vllm-system, service: qwen-7b}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/tpot-and-success-burn-rate.md}
+  # TPOT: 2% over 100 ms, inside the 5% budget: nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:request_time_per_output_token_seconds_bucket{namespace="vllm-system",service="qwen-7b",le="0.1"}'
+        values: '0+98x70'
+      - series: 'vllm:request_time_per_output_token_seconds_count{namespace="vllm-system",service="qwen-7b"}'
+        values: '0+100x70'
+    alert_rule_test:
+      - {eval_time: 70m, alertname: VllmTpotBudgetBurnFast}
+      - {eval_time: 70m, alertname: VllmTpotBudgetBurnSlow}
+  # Success: 10% aborted in every window, both alerts fire.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:request_success_total{namespace="vllm-system",service="qwen-7b",finished_reason="abort"}'
+        values: '0+10x70'
+      - series: 'vllm:request_success_total{namespace="vllm-system",service="qwen-7b",finished_reason="stop"}'
+        values: '0+90x70'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: VllmSuccessBudgetBurnFast
+        exp_alerts:
+          - exp_labels: {severity: page, namespace: vllm-system, service: qwen-7b}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/tpot-and-success-burn-rate.md}
+      - eval_time: 10m
+        alertname: VllmSuccessBudgetBurnSlow
+        exp_alerts:
+          - exp_labels: {severity: ticket, namespace: vllm-system, service: qwen-7b}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/tpot-and-success-burn-rate.md}
+  # Success: 0.2% aborted, inside the 0.5% budget: nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'vllm:request_success_total{namespace="vllm-system",service="qwen-7b",finished_reason="abort"}'
+        values: '0+2x70'
+      - series: 'vllm:request_success_total{namespace="vllm-system",service="qwen-7b",finished_reason="stop"}'
+        values: '0+998x70'
+    alert_rule_test:
+      - {eval_time: 70m, alertname: VllmSuccessBudgetBurnFast}
+      - {eval_time: 70m, alertname: VllmSuccessBudgetBurnSlow}

@@ -46,6 +46,61 @@ groups:
           severity: ticket
         annotations:
           runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md
+  # Time per output token (ADR-0026): share of requests whose mean time per
+  # output token is over 100 ms, from the per-request histogram of vLLM v0.11.0
+  # (bucket edge 0.1). Absent from the simulator v0.8.2. Budget 5% (95% within).
+  - name: vllm-tpot-slo
+    rules:
+      - record: slo:tpot_over_100ms:ratio_rate5m
+        expr: 1 - sum by (namespace, service) (rate(vllm:request_time_per_output_token_seconds_bucket{le="0.1"}[5m])) / sum by (namespace, service) (rate(vllm:request_time_per_output_token_seconds_count[5m]))
+      - record: slo:tpot_over_100ms:ratio_rate30m
+        expr: 1 - sum by (namespace, service) (rate(vllm:request_time_per_output_token_seconds_bucket{le="0.1"}[30m])) / sum by (namespace, service) (rate(vllm:request_time_per_output_token_seconds_count[30m]))
+      - record: slo:tpot_over_100ms:ratio_rate1h
+        expr: 1 - sum by (namespace, service) (rate(vllm:request_time_per_output_token_seconds_bucket{le="0.1"}[1h])) / sum by (namespace, service) (rate(vllm:request_time_per_output_token_seconds_count[1h]))
+      - record: slo:tpot_over_100ms:ratio_rate6h
+        expr: 1 - sum by (namespace, service) (rate(vllm:request_time_per_output_token_seconds_bucket{le="0.1"}[6h])) / sum by (namespace, service) (rate(vllm:request_time_per_output_token_seconds_count[6h]))
+      - alert: VllmTpotBudgetBurnFast
+        # 14.4 times the budget: 2% of a 30-day budget in one hour.
+        expr: slo:tpot_over_100ms:ratio_rate1h > 14.4 * 0.05 and slo:tpot_over_100ms:ratio_rate5m > 14.4 * 0.05
+        labels:
+          severity: page
+        annotations:
+          runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/tpot-and-success-burn-rate.md
+      - alert: VllmTpotBudgetBurnSlow
+        # 6 times the budget: 5% of a 30-day budget in six hours.
+        expr: slo:tpot_over_100ms:ratio_rate6h > 6 * 0.05 and slo:tpot_over_100ms:ratio_rate30m > 6 * 0.05
+        labels:
+          severity: ticket
+        annotations:
+          runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/tpot-and-success-burn-rate.md
+  # Success (ADR-0026): share of finished requests with finished_reason abort,
+  # the only failure vLLM v0.11.0 labels (stop, length, abort). Abort also counts
+  # a client that disconnects; requests lost before the replica are not seen.
+  # Budget 0.5% (99.5% success).
+  - name: vllm-success-slo
+    rules:
+      - record: slo:request_aborted:ratio_rate5m
+        expr: sum by (namespace, service) (rate(vllm:request_success_total{finished_reason="abort"}[5m])) / sum by (namespace, service) (rate(vllm:request_success_total[5m]))
+      - record: slo:request_aborted:ratio_rate30m
+        expr: sum by (namespace, service) (rate(vllm:request_success_total{finished_reason="abort"}[30m])) / sum by (namespace, service) (rate(vllm:request_success_total[30m]))
+      - record: slo:request_aborted:ratio_rate1h
+        expr: sum by (namespace, service) (rate(vllm:request_success_total{finished_reason="abort"}[1h])) / sum by (namespace, service) (rate(vllm:request_success_total[1h]))
+      - record: slo:request_aborted:ratio_rate6h
+        expr: sum by (namespace, service) (rate(vllm:request_success_total{finished_reason="abort"}[6h])) / sum by (namespace, service) (rate(vllm:request_success_total[6h]))
+      - alert: VllmSuccessBudgetBurnFast
+        # 14.4 times the budget: 2% of a 30-day budget in one hour.
+        expr: slo:request_aborted:ratio_rate1h > 14.4 * 0.005 and slo:request_aborted:ratio_rate5m > 14.4 * 0.005
+        labels:
+          severity: page
+        annotations:
+          runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/tpot-and-success-burn-rate.md
+      - alert: VllmSuccessBudgetBurnSlow
+        # 6 times the budget: 5% of a 30-day budget in six hours.
+        expr: slo:request_aborted:ratio_rate6h > 6 * 0.005 and slo:request_aborted:ratio_rate30m > 6 * 0.005
+        labels:
+          severity: ticket
+        annotations:
+          runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/tpot-and-success-burn-rate.md
   - name: vllm-targets
     rules:
       - alert: VllmTargetDown
