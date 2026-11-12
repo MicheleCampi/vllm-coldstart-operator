@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-11-12
+
+### Added
+
+- **Scale-up from zero (#82).** `nodePool.provisionOnEmpty` on FleetService,
+  default false. With no candidate node the controller applies a pause Pod
+  `<fleet>-provision` requesting one GPU with the pool's nodeSelector, so the
+  cluster autoscaler adds a node; it is deleted once a candidate exists. The
+  ClusterRole gains get/create/patch/delete on pods.
+- **Fleet objective and budget (#83).** `objective` and `budget` on
+  FleetServiceSpec, same types as VllmService, copied to every replica.
+- **Full SLO policy (#81).** TPOT and request-success burn-rate alerts
+  (ADR-0026).
+
+### Upgrading from 0.9.0
+
+- The CRDs changed: apply the release's CRDs before `helm upgrade`, since
+  Helm does not update them.
+
 ## [0.9.0] — 2026-11-05
 
 ### Added
