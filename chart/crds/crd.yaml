@@ -271,6 +271,20 @@ spec:
               creates and reconciles owned VllmService objects, it does not replace
               their reconciler.
             properties:
+              budget:
+                description: |-
+                  D-0145: monthly budget in EUR the team declares for the fleet, copied
+                  to every child VllmService and compared with measured cost (ADR-0025).
+                nullable: true
+                properties:
+                  eurPerMonth:
+                    description: Budget in EUR per calendar month.
+                    format: double
+                    minimum: 0.0
+                    type: number
+                required:
+                - eurPerMonth
+                type: object
               hysteresis:
                 default:
                   maxConcurrentReschedules: 1
@@ -346,6 +360,28 @@ spec:
                         format: float
                         type: number
                     type: object
+                type: object
+              objective:
+                description: |-
+                  D-0145: latency objective the team declares for the fleet, copied to
+                  every child VllmService. Unset: the platform objective (ADR-0013).
+                nullable: true
+                properties:
+                  percentile:
+                    description: Share of requests, in percent, that must meet the target.
+                    format: double
+                    maximum: 99.9
+                    minimum: 50.0
+                    type: number
+                  ttftSeconds:
+                    description: TTFT target in seconds.
+                    format: double
+                    maximum: 60.0
+                    minimum: 0.05
+                    type: number
+                required:
+                - percentile
+                - ttftSeconds
                 type: object
               placement:
                 default:
