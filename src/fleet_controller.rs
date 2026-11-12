@@ -450,6 +450,20 @@ async fn reconcile_inner(
     // so it displaces placements under the same cap and drain-and-hold.
     let displaced: BTreeSet<String> = preempted.union(&cordoned).cloned().collect();
 
+    // D-0145: scale-up from zero, opt-in. A failure is logged, not fatal:
+    // the fleet still reports why it is Placing.
+    if fleet.spec.node_pool.provision_on_empty {
+        let r = if candidates.is_empty() {
+            let owner = fleet.controller_owner_ref(&()).unwrap();
+            let pod = crate::provision::placeholder_pod(&name, &ns, owner, selector);
+            crate::provision::ensure(ctx.client.clone(), &ns, &pod).await
+        } else {
+            crate::provision::remove(ctx.client.clone(), &ns, &name).await
+        };
+        if let Err(e) = r {
+            warn!("FleetService '{}': provision placeholder: {}", name, e);
+        }
+    }
     if candidates.is_empty() {
         let reason = if selector.is_empty() {
             warn!(

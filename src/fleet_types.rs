@@ -102,6 +102,11 @@ pub struct NodePoolSpec {
     /// admits stays Placing, and its status message and the operator log say so.
     #[serde(default)]
     pub selector: std::collections::BTreeMap<String, String>,
+    /// D-0145: when no node is a candidate, create a placeholder Pod that
+    /// requests one GPU with this selector, so the cluster autoscaler adds a
+    /// node; it is removed once a candidate exists. Off by default.
+    #[serde(default)]
+    pub provision_on_empty: bool,
     /// Reserved: accepted and defaulted, not read by the controller. No
     /// component this operator ships writes which nodes are spot.
     #[serde(default)]

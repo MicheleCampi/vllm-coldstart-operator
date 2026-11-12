@@ -40,6 +40,7 @@ use vllm_coldstart_operator::{
 };
 
 mod fleet_controller;
+mod provision;
 
 const MANAGER: &str = "vllm-coldstart-operator";
 
