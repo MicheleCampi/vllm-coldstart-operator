@@ -53,6 +53,14 @@ pub struct FleetServiceSpec {
     /// Anti-oscillation controls for the reconcile loop.
     #[serde(default)]
     pub hysteresis: HysteresisSpec,
+    /// D-0145: latency objective the team declares for the fleet, copied to
+    /// every child VllmService. Unset: the platform objective (ADR-0013).
+    #[serde(default)]
+    pub objective: Option<crate::Objective>,
+    /// D-0145: monthly budget in EUR the team declares for the fleet, copied
+    /// to every child VllmService and compared with measured cost (ADR-0025).
+    #[serde(default)]
+    pub budget: Option<crate::Budget>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
