@@ -297,6 +297,7 @@ spec:
                 type: string
               nodePool:
                 default:
+                  provisionOnEmpty: false
                   selector: {}
                   spotPolicy:
                     enabled: false
@@ -306,6 +307,13 @@ spec:
                   candidates are the Nodes it admits (ADR-0011 D3); `spotPolicy` is
                   reserved and not read.
                 properties:
+                  provisionOnEmpty:
+                    default: false
+                    description: |-
+                      D-0145: when no node is a candidate, create a placeholder Pod that
+                      requests one GPU with this selector, so the cluster autoscaler adds a
+                      node; it is removed once a candidate exists. Off by default.
+                    type: boolean
                   selector:
                     additionalProperties:
                       type: string
