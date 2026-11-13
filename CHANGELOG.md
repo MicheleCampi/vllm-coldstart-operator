@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-11-13
+### Upgrading from 0.10.0
+- The TTFT recording rules are renamed: `slo:ttft_over_1s:ratio_rate*` becomes `slo:ttft_over_objective:ratio_rate*`, plus `slo:ttft_over_le:ratio_rate*` and `slo:ttft_objective_le:info`. Sync the Grafana-managed rules again; queries and dashboards on the old names must follow.
+- Ship the rules with this operator: `vcso_vllmservice_objective_ttft_seconds` now has a `le` label, and the rules use it. An older operator makes every declared objective "unsupported".
+### Changed
+- Each service is judged at the TTFT bucket edge its team declared (`spec.objective.ttftSeconds`), any of the 22 edges of vLLM v0.11.0; `VllmTtftObjectiveUnsupported` fires only off those edges (ADR-0027, #85).
+
 ## [0.10.0] — 2026-11-12
 
 ### Added
