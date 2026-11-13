@@ -120,7 +120,7 @@ run no more overload. The rules evaluate once a minute: start the destroy
 no sooner than 10 min after the last run, or the email can come after the
 cluster is gone. When the pod is gone the alert resolves with NoData, not
 because the service recovered. If it has not fired after 8 runs, copy the
-four slo:ttft_over_1s recording rules at t1-overload from Explore, with
+four slo:ttft_over_objective recording rules at t1-overload from Explore, with
 the time zone set to UTC: they tell an overload too small from a broken
 notification path. The Job's 1500 s deadline bounds each run.
 

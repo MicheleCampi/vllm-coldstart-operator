@@ -85,18 +85,59 @@ tests:
         exp_alerts:
           - exp_labels: {severity: ticket, namespace: team-demo, service: strict}
             exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md}
-  # An objective at 0.5 s cannot be measured at the 1 s bucket: say so.
+  # 0.5 s is a bucket edge: measured there. 0.8 s is not: say so.
   - interval: 1m
     input_series:
-      - series: 'vcso_vllmservice_objective_ttft_seconds{namespace="vllm-system",exported_namespace="team-demo",name="fast"}'
+      - series: 'vcso_vllmservice_objective_ttft_seconds{namespace="vllm-system",exported_namespace="team-demo",name="fast",le="0.5"}'
         values: '0.5x10'
-      - series: 'vcso_vllmservice_objective_ttft_seconds{namespace="vllm-system",exported_namespace="team-demo",name="ok"}'
-        values: '1x10'
+      - series: 'vcso_vllmservice_objective_ttft_seconds{namespace="vllm-system",exported_namespace="team-demo",name="odd",le="0.8"}'
+        values: '0.8x10'
     alert_rule_test:
       - eval_time: 5m
         alertname: VllmTtftObjectiveUnsupported
         exp_alerts:
-          - exp_labels: {severity: ticket, namespace: vllm-system, exported_namespace: team-demo, name: fast}
+          - exp_labels: {severity: ticket, namespace: vllm-system, exported_namespace: team-demo, name: odd, le: "0.8"}
+            exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md}
+  # Same traffic, three edges: 50% over 0.5 s, 20% over 1 s, 0% over 2.5 s.
+  # Budget 5% for all; only the team that declared 0.5 s burns it (slow).
+  - interval: 1m
+    input_series:
+      - series: 'vcso_vllmservice_objective_ttft_seconds{namespace="vllm-system",exported_namespace="team-demo",name="fast",le="0.5"}'
+        values: '0.5x70'
+      - series: 'vcso_vllmservice_objective_ttft_seconds{namespace="vllm-system",exported_namespace="team-demo",name="relaxed",le="2.5"}'
+        values: '2.5x70'
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="team-demo",service="fast",le="0.5"}'
+        values: '0+50x70'
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="team-demo",service="fast",le="1.0"}'
+        values: '0+80x70'
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="team-demo",service="fast",le="2.5"}'
+        values: '0+100x70'
+      - series: 'vllm:time_to_first_token_seconds_count{namespace="team-demo",service="fast"}'
+        values: '0+100x70'
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="team-demo",service="relaxed",le="0.5"}'
+        values: '0+50x70'
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="team-demo",service="relaxed",le="1.0"}'
+        values: '0+80x70'
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="team-demo",service="relaxed",le="2.5"}'
+        values: '0+100x70'
+      - series: 'vllm:time_to_first_token_seconds_count{namespace="team-demo",service="relaxed"}'
+        values: '0+100x70'
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="team-demo",service="plain",le="0.5"}'
+        values: '0+50x70'
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="team-demo",service="plain",le="1.0"}'
+        values: '0+80x70'
+      - series: 'vllm:time_to_first_token_seconds_bucket{namespace="team-demo",service="plain",le="2.5"}'
+        values: '0+100x70'
+      - series: 'vllm:time_to_first_token_seconds_count{namespace="team-demo",service="plain"}'
+        values: '0+100x70'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: VllmTtftBudgetBurnFast
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: VllmTtftBudgetBurnSlow
+        exp_alerts:
+          - exp_labels: {severity: ticket, namespace: team-demo, service: fast}
             exp_annotations: {runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md}
   # A replica down for six minutes.
   - interval: 1m

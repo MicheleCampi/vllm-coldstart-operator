@@ -70,17 +70,22 @@ jobs:
           P=(docker run --rm --entrypoint promtool -v "$PWD/deploy/monitoring:/r:ro" -w /r "$img")
           "${P[@]}" check rules slo-rules.yaml
           "${P[@]}" test rules slo-rules.test.yaml
-          n=$(mktemp -d)
-          sed 's/le=~"1|1\\\\.0"/le="2.5"/' deploy/monitoring/slo-rules.yaml > "$n/slo-rules.yaml"
-          [ "$(grep -c 'le="2.5"' "$n/slo-rules.yaml")" = 4 ] || { echo "::error::the negative case did not change the four bucket edges"; exit 1; }
-          cp deploy/monitoring/slo-rules.test.yaml "$n/"
-          # promtool runs as nobody: the copies must be readable, and it must
-          # fail on a test, not on reading its files.
-          chmod 755 "$n" && chmod 644 "$n"/*
-          if docker run --rm --entrypoint promtool -v "$n:/r:ro" -w /r "$img" test rules slo-rules.test.yaml > "$n/out" 2>&1; then cat "$n/out"; echo "::error::the tests pass on a rule with the wrong bucket edge"; exit 1; fi
-          cat "$n/out"
-          grep -q FAILED "$n/out" && ! grep -qi 'permission denied' "$n/out" || { echo "::error::promtool failed for another reason than a test"; exit 1; }
-          echo "promtool tests pass, and fail on the wrong bucket edge"
+          # Two broken rules, four rules changed each: le="1.0" of vLLM no
+          # longer normalized, and the declared edge ignored. The tests must
+          # fail on both.
+          for neg in 's/(.+)\\\\.0"/(.+)\\\\.00"/' 's/slo:ttft_objective_le:info)/slo:ttft_objective_le:info{le="1"})/'; do
+            n=$(mktemp -d)
+            sed "$neg" deploy/monitoring/slo-rules.yaml > "$n/slo-rules.yaml"
+            [ "$(diff deploy/monitoring/slo-rules.yaml "$n/slo-rules.yaml" | grep -c '^>')" = 4 ] || { echo "::error::negative case $neg did not change four rules"; exit 1; }
+            cp deploy/monitoring/slo-rules.test.yaml "$n/"
+            # promtool runs as nobody: the copies must be readable, and it must
+            # fail on a test, not on reading its files.
+            chmod 755 "$n" && chmod 644 "$n"/*
+            if docker run --rm --entrypoint promtool -v "$n:/r:ro" -w /r "$img" test rules slo-rules.test.yaml > "$n/out" 2>&1; then cat "$n/out"; echo "::error::the tests pass on a broken rule ($neg)"; exit 1; fi
+            cat "$n/out"
+            grep -q FAILED "$n/out" && ! grep -qi 'permission denied' "$n/out" || { echo "::error::promtool failed for another reason than a test"; exit 1; }
+          done
+          echo "promtool tests pass, and fail when le=1.0 is not normalized or the declared edge is ignored"
 
       - name: Build images avoid Docker Hub
         # A Docker Hub outage could stop the release build before any
@@ -1489,11 +1494,11 @@ jobs:
           kubectl get --raw "$q/rules" | python3 -c 'import json, sys; g = {x["name"] for x in json.load(sys.stdin)["data"]["groups"]}; print("rule groups", sorted(g)); assert {"vllm-ttft-slo", "vllm-targets"} <= g, g'
           v=""
           for i in $(seq 1 12); do
-            v=$(kubectl get --raw "$q/query?query=slo:ttft_over_1s:ratio_rate5m" | python3 -c 'import json, sys; print(" ".join(r["metric"].get("service", "") + "=" + r["value"][1] for r in json.load(sys.stdin)["data"]["result"]))' || true)
+            v=$(kubectl get --raw "$q/query?query=slo:ttft_over_objective:ratio_rate5m" | python3 -c 'import json, sys; print(" ".join(r["metric"].get("service", "") + "=" + r["value"][1] for r in json.load(sys.stdin)["data"]["result"]))' || true)
             [ -n "$v" ] && break
             sleep 5
           done
-          [ -n "$v" ] || { echo "::error::slo:ttft_over_1s:ratio_rate5m has no series after the load"; exit 1; }
+          [ -n "$v" ] || { echo "::error::slo:ttft_over_objective:ratio_rate5m has no series after the load"; exit 1; }
           python3 -c 'import sys; v = [float(p.split("=")[1]) for p in sys.argv[1].split()]; assert all(0 <= x <= 1 for x in v), v' "$v"
           echo "share of first tokens over 1 s, last 5 minutes, per replica: $v"
 

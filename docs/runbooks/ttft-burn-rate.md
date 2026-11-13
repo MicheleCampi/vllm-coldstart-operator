@@ -1,13 +1,14 @@
 # Runbook: time to first token burns its error budget
 
-Alerts from `deploy/monitoring/slo-rules.yaml` (ADR-0021). The objective
-is ADR-0013 D1: 95% of requests with a first token within 1 s, a 5% error
-budget. Labels `namespace` and `service` name the VllmService (for a fleet,
+Alerts from `deploy/monitoring/slo-rules.yaml` (ADR-0021, ADR-0027). The
+objective is the one the team declared in `spec.objective` (threshold and
+percentile); without one, ADR-0013 D1: 95% of requests with a first token
+within 1 s, a 5% error budget. Labels `namespace` and `service` name the VllmService (for a fleet,
 one child per replica).
 
 ## VllmTtftBudgetBurnFast (severity page)
 
-More than 72% of first tokens over 1 s in the last hour and in the last
+More than 72% of first tokens over the service's edge in the last hour and in the last
 5 minutes: at this rate a 30-day budget is gone in about two days.
 
 1. Is the replica queueing? `vllm:num_requests_waiting{service="..."}` above
@@ -26,7 +27,7 @@ and say so. Rollback a change of model or image with the VllmService spec.
 
 ## VllmTtftBudgetBurnSlow (severity ticket)
 
-More than 30% over 1 s in the last 6 hours and in the last 30 minutes. Same
+More than 30% over the service's edge in the last 6 hours and in the last 30 minutes. Same
 checks; usually a sustained load above capacity rather than an incident.
 
 ## VllmTargetDown (severity ticket)
@@ -43,6 +44,14 @@ exists for it for 30 minutes (ADR-0023). Labels `exported_namespace` and
 `name` name the VllmService. Check whether its pod exists
 (`kubectl get pods -n <namespace> -l app=<name>`) and whether it waits for
 a node: a cold start longer than 30 minutes is itself the fault.
+
+## VllmTtftObjectiveUnsupported (severity ticket)
+
+The service declares a `ttftSeconds` that is not a bucket edge of
+`vllm:time_to_first_token_seconds` (label `le` of the alert). It is measured
+at 1 s until fixed. Ask the team to pick the nearest edge (0.25, 0.5, 0.75,
+1, 2.5, 5, 7.5 or 10 s; ADR-0027 lists all 22) and change the VllmService
+spec in Git.
 
 ## What the alerts do not see
 

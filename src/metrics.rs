@@ -29,6 +29,16 @@ pub struct ServiceLabels {
     pub namespace: String,
 }
 
+/// Labels of the TTFT objective: `le` is the bucket edge the SLO rules select,
+/// written as Rust's Display of the f64 (1.0 -> "1", 0.5 -> "0.5"), which is
+/// how the rules normalize vLLM's le="1.0" and how the simulator writes it.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+pub struct ObjectiveLabels {
+    pub name: String,
+    pub namespace: String,
+    pub le: String,
+}
+
 /// The phases a VllmService reports, one series each of vllmservice_phase.
 pub const PHASES: [&str; 3] = ["Pending", "Warming", "Ready"];
 
@@ -93,9 +103,10 @@ impl Collector for ServiceCollector {
                 let Some(v) = svc.spec.objective.as_ref().map(|o| o.ttft_seconds) else {
                     continue;
                 };
-                let labels = ServiceLabels {
+                let labels = ObjectiveLabels {
                     name: svc.name_any(),
                     namespace: svc.namespace().unwrap_or_default(),
+                    le: format!("{v}"),
                 };
                 ConstGauge::new(v).encode(family.encode_family(&labels)?)?;
             }
@@ -339,10 +350,18 @@ mod tests {
             eur_per_month: 500.0,
         });
         writer.apply_watcher_event(&watcher::Event::Apply(svc));
+        // An objective at another bucket edge: its le is that edge.
+        let mut fast = service("c", 1, "Ready");
+        fast.spec.objective = Some(crate::Objective {
+            ttft_seconds: 0.5,
+            percentile: 95.0,
+        });
+        writer.apply_watcher_event(&watcher::Event::Apply(fast));
 
         let out = m.encode();
         for want in [
-            "vcso_vllmservice_objective_ttft_seconds{name=\"b\",namespace=\"vllm-system\"} 1",
+            "vcso_vllmservice_objective_ttft_seconds{name=\"b\",namespace=\"vllm-system\",le=\"1\"} 1",
+            "vcso_vllmservice_objective_ttft_seconds{name=\"c\",namespace=\"vllm-system\",le=\"0.5\"} 0.5",
             "vcso_vllmservice_objective_percentile{name=\"b\",namespace=\"vllm-system\"} 95",
             "vcso_vllmservice_budget_eur_per_month{name=\"b\",namespace=\"vllm-system\"} 500",
         ] {
