@@ -16,7 +16,7 @@
 ARG RUNTIME_IMAGE=gcr.io/distroless/static:nonroot
 # ---- Builder ---------------------------------------------------------------
 # Rust 1.95, the toolchain rust-toolchain.toml pins (CI checks they agree).
-FROM mirror.gcr.io/library/rust:1.95-bookworm@sha256:6258907abe69656e41cd992e0b705cdcfabcbbe3db374f92ed2d47121282d4a1 AS builder
+FROM mirror.gcr.io/library/rust:1.100-bookworm@sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea AS builder
 ARG RUST_TARGET=x86_64-unknown-linux-musl
 ARG CARGO_FEATURES=""
 RUN apt-get update \
