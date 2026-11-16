@@ -1,0 +1,26 @@
+# Weekly update proposals, one grouped pull request per ecosystem.
+# A proposal only runs the PR checks; nothing is released or applied
+# until a maintainer merges it and tags a release.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # The Rust toolchain is pinned on purpose (rust-toolchain.toml); it moves in its own PR.
+      - dependency-name: dtolnay/rust-toolchain
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
