@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- **`spec.env` on VllmService**: plain environment variables for a serving replica, for engine settings with no command-line flag. The vLLM CPU image sizes its KV cache only from `VLLM_CPU_KVCACHE_SPACE` (4 GiB by default, whatever the memory limit), which OOMKilled the 6Gi CPU example on EKS (2026-11-17); the example now sets it to 1. The operator's own variables (`LD_LIBRARY_PATH`, `VLLM_API_KEY`) cannot be overridden, credentials stay in `apiKeySecretRef`, and the placeholder pod gets no env.
+### Upgrading
+- The CRDs changed (new optional field `env`): apply the release's CRDs before `helm upgrade`. Existing services are unchanged.
 
 ## [0.12.0] — 2026-11-17
 ### Fixed

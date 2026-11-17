@@ -115,6 +115,28 @@ pub struct VllmServiceSpec {
     /// showback against the measured cost per million tokens (ADR-0025).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub budget: Option<Budget>,
+    /// Extra environment variables for a serving replica, plain values only
+    /// (credentials go through `apiKeySecretRef`, never here). For engine
+    /// settings that have no command-line flag, e.g. `VLLM_CPU_KVCACHE_SPACE`:
+    /// GiB of KV cache the vLLM CPU image reserves, 4 by default whatever the
+    /// memory limit. Names the operator sets itself (`LD_LIBRARY_PATH`,
+    /// `VLLM_API_KEY`) are reserved and ignored here. Not applied to the
+    /// placeholder pod.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub env: Vec<PlainEnvVar>,
+}
+
+/// Environment variables the operator sets itself; `spec.env` cannot
+/// override them.
+pub const RESERVED_ENV: [&str; 2] = ["LD_LIBRARY_PATH", "VLLM_API_KEY"];
+
+/// One environment variable with a literal value.
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, PartialEq)]
+pub struct PlainEnvVar {
+    /// Variable name.
+    pub name: String,
+    /// Literal value.
+    pub value: String,
 }
 
 /// Time-to-first-token objective: `percentile`% of requests must see the

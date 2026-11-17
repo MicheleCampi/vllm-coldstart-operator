@@ -82,6 +82,29 @@ spec:
                   emits no CPU request and the namespace LimitRange default applies.
                 nullable: true
                 type: string
+              env:
+                description: |-
+                  Extra environment variables for a serving replica, plain values only
+                  (credentials go through `apiKeySecretRef`, never here). For engine
+                  settings that have no command-line flag, e.g. `VLLM_CPU_KVCACHE_SPACE`:
+                  GiB of KV cache the vLLM CPU image reserves, 4 by default whatever the
+                  memory limit. Names the operator sets itself (`LD_LIBRARY_PATH`,
+                  `VLLM_API_KEY`) are reserved and ignored here. Not applied to the
+                  placeholder pod.
+                items:
+                  description: One environment variable with a literal value.
+                  properties:
+                    name:
+                      description: Variable name.
+                      type: string
+                    value:
+                      description: Literal value.
+                      type: string
+                  required:
+                  - name
+                  - value
+                  type: object
+                type: array
               extraArgs:
                 default: []
                 description: |-

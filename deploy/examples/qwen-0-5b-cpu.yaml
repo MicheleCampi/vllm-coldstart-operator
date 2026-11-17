@@ -1,9 +1,11 @@
 # CPU-only serving, no GPU: gpu 0 with cpu and memory both set makes the
 # operator run `vllm serve` on the vLLM CPU release image (an x86 node with
 # AVX-512). Without cpu or memory, gpu 0 stays the inert placeholder of
-# ci-placeholder.yaml. Memory is request = limit; the vLLM CPU default KV
-# cache (4 GiB) plus the 0.5B weights fit in 6Gi: measured 4.9 GiB
-# serving on the vLLM CPU v0.11.2 image (docker, 2026-11-17).
+# ci-placeholder.yaml. Memory is request = limit. The vLLM CPU image
+# reserves VLLM_CPU_KVCACHE_SPACE GiB of KV cache (4 by default, no CLI
+# flag): 4.9 GiB used in docker with a 6 GB limit, but OOMKilled on EKS at
+# 6Gi (live #3, 2026-11-17). 1 GiB holds ~87k tokens, ample for
+# --max-model-len 2048, and leaves headroom under the limit.
 apiVersion: inference.michelecampi.dev/v1alpha1
 kind: VllmService
 metadata:
@@ -19,3 +21,6 @@ spec:
   memory: 6Gi
   healthPath: /health
   extraArgs: ["--max-model-len", "2048", "--dtype", "bfloat16"]
+  env:
+    - name: VLLM_CPU_KVCACHE_SPACE
+      value: "1"

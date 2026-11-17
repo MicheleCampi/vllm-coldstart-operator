@@ -256,6 +256,8 @@ fn build_owned_vllm_service(
         objective: fleet.spec.objective.clone(),
         budget: fleet.spec.budget.clone(),
         node_name: Some(node_name.to_string()),
+        // Fleet replicas are GPU replicas: no engine env passthrough yet.
+        env: Vec::new(),
     };
 
     let mut labels = BTreeMap::new();

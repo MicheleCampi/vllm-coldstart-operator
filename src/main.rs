@@ -37,6 +37,7 @@ use vllm_coldstart_operator::fleet_types::FLEET_LABEL;
 use vllm_coldstart_operator::reconcile_timeout::{bounded, RECONCILE_TIMEOUT};
 use vllm_coldstart_operator::{
     metrics::Metrics, phase_for, VllmService, VllmServiceSpec, VllmServiceStatus, WarmupStrategy,
+    RESERVED_ENV,
 };
 
 mod fleet_controller;
@@ -281,6 +282,17 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
                 }),
                 ..Default::default()
             });
+        }
+        // Engine settings without a CLI flag (VLLM_CPU_KVCACHE_SPACE). The
+        // operator's own variables above are never overridden.
+        for v in &svc.spec.env {
+            if !RESERVED_ENV.contains(&v.name.as_str()) {
+                e.push(EnvVar {
+                    name: v.name.clone(),
+                    value: Some(v.value.clone()),
+                    ..Default::default()
+                });
+            }
         }
         Some(e)
     } else {
@@ -798,6 +810,41 @@ mod tests {
         // vLLM still gets a real /dev/shm.
         let mounts = c.volume_mounts.expect("mounts");
         assert!(mounts.iter().any(|m| m.mount_path == "/dev/shm"));
+    }
+
+    #[test]
+    fn spec_env_reaches_a_serving_replica_but_not_reserved_names() {
+        let c = container(&svc_with(json!({
+            "model": "m", "gpu": 0, "cpu": "1", "memory": "6Gi",
+            "env": [
+                {"name": "VLLM_CPU_KVCACHE_SPACE", "value": "1"},
+                {"name": "LD_LIBRARY_PATH", "value": "/evil"},
+                {"name": "VLLM_API_KEY", "value": "plain"}
+            ]
+        })));
+        let env = c.env.expect("env");
+        let kv = env.iter().find(|e| e.name == "VLLM_CPU_KVCACHE_SPACE");
+        assert_eq!(kv.and_then(|e| e.value.as_deref()), Some("1"));
+        assert!(env.iter().all(|e| e.name != "LD_LIBRARY_PATH"));
+        assert!(env.iter().all(|e| e.name != "VLLM_API_KEY"));
+
+        // On a GPU replica the operator's driver path wins.
+        let mut svc = gpu_svc(false);
+        svc.spec.env = vec![vllm_coldstart_operator::PlainEnvVar {
+            name: "LD_LIBRARY_PATH".to_string(),
+            value: "/evil".to_string(),
+        }];
+        let env = container(&svc).env.expect("env");
+        let ld: Vec<_> = env.iter().filter(|e| e.name == "LD_LIBRARY_PATH").collect();
+        assert_eq!(ld.len(), 1);
+        assert_eq!(ld[0].value.as_deref(), Some("/usr/local/nvidia/lib64"));
+
+        // The placeholder gets no env at all.
+        let c = container(&svc_with(json!({
+            "model": "m", "gpu": 0,
+            "env": [{"name": "VLLM_CPU_KVCACHE_SPACE", "value": "1"}]
+        })));
+        assert!(c.env.is_none());
     }
 
     #[test]

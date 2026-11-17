@@ -12,7 +12,8 @@ paths (image, `nvidia.com/gpu` limit, `runtimeClassName: nvidia`, and the
 readiness probe gating) are unit-tested and confirmed to render correctly,
 with `gpu=0` leaving them absent so CI stays GPU-free. A `gpu=0` service
 that sets both `cpu` and `memory` serves on CPU instead (no GPU limit, no
-GPU driver path); see deploy/examples/qwen-0-5b-cpu.yaml.
+GPU driver path); see deploy/examples/qwen-0-5b-cpu.yaml, which sizes the
+KV cache through `spec.env` (`VLLM_CPU_KVCACHE_SPACE`).
 
 The cold-start cost the Warming->Ready transition observes is measured
 separately on real A10 hardware; see BENCHMARKS.md.
