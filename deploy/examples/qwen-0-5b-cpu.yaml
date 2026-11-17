@@ -1,0 +1,21 @@
+# CPU-only serving, no GPU: gpu 0 with cpu and memory both set makes the
+# operator run `vllm serve` on the vLLM CPU release image (an x86 node with
+# AVX-512). Without cpu or memory, gpu 0 stays the inert placeholder of
+# ci-placeholder.yaml. Memory is request = limit; the vLLM CPU default KV
+# cache (4 GiB) plus the 0.5B weights fit in 6Gi: measured 4.9 GiB
+# serving on the vLLM CPU v0.11.2 image (docker, 2026-11-17).
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: VllmService
+metadata:
+  name: qwen-0-5b-cpu
+  namespace: default
+spec:
+  model: Qwen/Qwen2.5-0.5B-Instruct
+  replicas: 1
+  warmupStrategy: Eager
+  image: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.11.2@sha256:459b4aa1f3d2fbb603e0f8dadb62d952a18760c087d73fd8c4465fae9b155e8a
+  gpu: 0
+  cpu: "1"
+  memory: 6Gi
+  healthPath: /health
+  extraArgs: ["--max-model-len", "2048", "--dtype", "bfloat16"]
