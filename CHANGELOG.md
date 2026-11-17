@@ -6,11 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-11-17
 ### Fixed
 - **CPU-only serving.** A VllmService with `gpu: 0` was always the inert placeholder, so `cpu`/`memory` on a GPU-less service served nothing. With `gpu: 0` and both `cpu` and `memory` set, the operator now runs `vllm serve` with the args, `/dev/shm` and sizing of a GPU replica, without the GPU limit and without the GPU driver `LD_LIBRARY_PATH`. Example: `deploy/examples/qwen-0-5b-cpu.yaml`.
 
 ### Upgrading from 0.11.0
 - A `gpu: 0` service that sets both `cpu` and `memory` starts serving its model on upgrade. Placeholders (no `cpu` or no `memory`) are unchanged.
+- The CRDs changed (description of `gpu` only): apply the release's CRDs before `helm upgrade`.
 
 ## [0.11.0] — 2026-11-13
 ### Upgrading from 0.10.0
