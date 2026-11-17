@@ -43,8 +43,10 @@ pub struct VllmServiceSpec {
     /// Container image to run. Defaults to the official vLLM OpenAI server.
     #[serde(default = "default_image")]
     pub image: String,
-    /// Number of GPUs to request per replica. Set to 0 for CPU-only or
-    /// placeholder runs (e.g. CI on a cluster without GPUs).
+    /// Number of GPUs to request per replica. With 0, the replica serves
+    /// the model on CPU when both `cpu` and `memory` are set (a CPU image,
+    /// e.g. the vLLM CPU release); otherwise it is an inert placeholder that
+    /// runs the image's own entrypoint (e.g. CI on a cluster without GPUs).
     #[serde(default = "default_gpu")]
     pub gpu: i32,
     /// HTTP path for the readiness probe, e.g. "/health". When non-empty,

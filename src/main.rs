@@ -36,7 +36,7 @@ use tracing::{info, warn};
 use vllm_coldstart_operator::fleet_types::FLEET_LABEL;
 use vllm_coldstart_operator::reconcile_timeout::{bounded, RECONCILE_TIMEOUT};
 use vllm_coldstart_operator::{
-    metrics::Metrics, phase_for, VllmService, VllmServiceStatus, WarmupStrategy,
+    metrics::Metrics, phase_for, VllmService, VllmServiceSpec, VllmServiceStatus, WarmupStrategy,
 };
 
 mod fleet_controller;
@@ -93,6 +93,12 @@ const PRE_STOP_SLEEP_SECONDS: i64 = 110;
 /// Grace for a pod with no GPU: the pre-stop sleep, then 10 s for the process.
 const CPU_TERMINATION_GRACE_SECONDS: i64 = PRE_STOP_SLEEP_SECONDS + 10;
 
+/// True when the spec asks for a real vLLM server: GPUs, or CPU-only with
+/// both `cpu` and `memory` set. False is the inert placeholder.
+fn is_serving(spec: &VllmServiceSpec) -> bool {
+    spec.gpu > 0 || (spec.cpu.is_some() && spec.memory.is_some())
+}
+
 fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     let name = svc.name_any();
     let ns = svc.namespace().ok_or(Error::MissingNamespace)?;
@@ -114,11 +120,15 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
 
     let enforce_eager = matches!(svc.spec.warmup_strategy, WarmupStrategy::Eager);
 
-    // A request for GPUs is the signal that this is a real vLLM workload
-    // rather than the inert CI placeholder (gpu=0, pause image). Only then
-    // do we inject the serving command, the GPU limit, the shared-memory
-    // volume and any tuning args; the placeholder stays a do-nothing pod.
-    let serving = svc.spec.gpu > 0;
+    // A real vLLM workload is either a GPU request, or a CPU-only request
+    // that sizes itself (cpu and memory both set: an unsized CPU vLLM pod
+    // would take the LimitRange default or none). Everything else is the
+    // inert CI placeholder (gpu=0, pause image, no sizing), which stays a
+    // do-nothing pod. Only serving pods get the serving command, the
+    // shared-memory volume and the tuning args; only GPU pods get the GPU
+    // limit and the GPU driver path.
+    let gpu = svc.spec.gpu > 0;
+    let serving = is_serving(&svc.spec);
 
     // GPU resource limit, only when requested. With gpu=0 (CI / CPU-only)
     // the container requests no GPU and schedules on any node.
@@ -131,10 +141,12 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         let mut requests = BTreeMap::new();
         let mut limits = BTreeMap::new();
         if serving {
-            limits.insert(
-                "nvidia.com/gpu".to_string(),
-                Quantity(svc.spec.gpu.to_string()),
-            );
+            if gpu {
+                limits.insert(
+                    "nvidia.com/gpu".to_string(),
+                    Quantity(svc.spec.gpu.to_string()),
+                );
+            }
             if let Some(c) = &svc.spec.cpu {
                 requests.insert("cpu".to_string(), Quantity(c.clone()));
             }
@@ -244,13 +256,17 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     // paths, but GKE/EKS/AKS mount the GPU driver at /usr/local/nvidia/lib64;
     // without this the loader cannot find libcuda.so.1 and vLLM falls back to
     // "UnspecifiedPlatform" and fails to infer the device. Point the loader at
-    // the managed-cluster driver mount. Only meaningful on real GPU pods.
+    // the managed-cluster driver mount. Only meaningful on real GPU pods: a
+    // CPU image keeps its own LD_LIBRARY_PATH (its oneDNN/torch libraries).
     let env = if serving {
-        let mut e = vec![EnvVar {
-            name: "LD_LIBRARY_PATH".to_string(),
-            value: Some("/usr/local/nvidia/lib64".to_string()),
-            ..Default::default()
-        }];
+        let mut e = Vec::new();
+        if gpu {
+            e.push(EnvVar {
+                name: "LD_LIBRARY_PATH".to_string(),
+                value: Some("/usr/local/nvidia/lib64".to_string()),
+                ..Default::default()
+            });
+        }
         // threat model S1: the API key comes from a Secret, never from args.
         if let Some(r) = &svc.spec.api_key_secret_ref {
             e.push(EnvVar {
@@ -754,6 +770,49 @@ mod tests {
         assert_eq!(qty(&r.requests, "cpu").as_deref(), Some("10m"));
         assert_eq!(qty(&r.requests, "memory").as_deref(), Some("16Mi"));
         assert!(r.limits.is_none());
+    }
+
+    #[test]
+    fn a_sized_cpu_only_service_serves_without_gpu_settings() {
+        // gpu=0 with cpu and memory: a real CPU vLLM server, not the placeholder.
+        let c = container(&svc_with(json!({
+            "model": "Qwen/Qwen2.5-0.5B-Instruct", "gpu": 0, "cpu": "1",
+            "memory": "6Gi", "warmupStrategy": "Eager",
+            "extraArgs": ["--max-model-len", "2048"]
+        })));
+        assert_eq!(
+            c.command,
+            Some(vec!["vllm".to_string(), "serve".to_string()])
+        );
+        let args = c.args.expect("args");
+        assert_eq!(args[0], "Qwen/Qwen2.5-0.5B-Instruct");
+        assert!(args.contains(&"--enforce-eager".to_string()));
+        assert_eq!(&args[args.len() - 2..], ["--max-model-len", "2048"]);
+        let r = c.resources.expect("resources");
+        assert_eq!(qty(&r.requests, "cpu").as_deref(), Some("1"));
+        assert_eq!(qty(&r.limits, "memory").as_deref(), Some("6Gi"));
+        assert_eq!(qty(&r.limits, "nvidia.com/gpu"), None);
+        // No GPU driver path: the CPU image keeps its own LD_LIBRARY_PATH.
+        let env = c.env.unwrap_or_default();
+        assert!(env.iter().all(|e| e.name != "LD_LIBRARY_PATH"));
+        // vLLM still gets a real /dev/shm.
+        let mounts = c.volume_mounts.expect("mounts");
+        assert!(mounts.iter().any(|m| m.mount_path == "/dev/shm"));
+    }
+
+    #[test]
+    fn gpu_zero_without_full_sizing_stays_a_placeholder() {
+        // Only one of cpu/memory, or neither: the inert pod of the CI jobs.
+        for spec in [
+            json!({"model": "m", "gpu": 0}),
+            json!({"model": "m", "gpu": 0, "cpu": "1"}),
+            json!({"model": "m", "gpu": 0, "memory": "1Gi"}),
+        ] {
+            let c = container(&svc_with(spec.clone()));
+            assert!(c.command.is_none() && c.args.is_none(), "{spec}");
+            assert!(c.env.is_none(), "{spec}");
+            assert!(c.volume_mounts.is_none(), "{spec}");
+        }
     }
 
     #[test]

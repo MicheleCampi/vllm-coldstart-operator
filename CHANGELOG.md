@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **CPU-only serving.** A VllmService with `gpu: 0` was always the inert placeholder, so `cpu`/`memory` on a GPU-less service served nothing. With `gpu: 0` and both `cpu` and `memory` set, the operator now runs `vllm serve` with the args, `/dev/shm` and sizing of a GPU replica, without the GPU limit and without the GPU driver `LD_LIBRARY_PATH`. Example: `deploy/examples/qwen-0-5b-cpu.yaml`.
+
+### Upgrading from 0.11.0
+- A `gpu: 0` service that sets both `cpu` and `memory` starts serving its model on upgrade. Placeholders (no `cpu` or no `memory`) are unchanged.
+
 ## [0.11.0] — 2026-11-13
 ### Upgrading from 0.10.0
 - The TTFT recording rules are renamed: `slo:ttft_over_1s:ratio_rate*` becomes `slo:ttft_over_objective:ratio_rate*`, plus `slo:ttft_over_le:ratio_rate*` and `slo:ttft_objective_le:info`. Sync the Grafana-managed rules again; queries and dashboards on the old names must follow.

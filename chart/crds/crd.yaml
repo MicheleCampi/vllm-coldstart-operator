@@ -95,8 +95,10 @@ spec:
               gpu:
                 default: 1
                 description: |-
-                  Number of GPUs to request per replica. Set to 0 for CPU-only or
-                  placeholder runs (e.g. CI on a cluster without GPUs).
+                  Number of GPUs to request per replica. With 0, the replica serves
+                  the model on CPU when both `cpu` and `memory` are set (a CPU image,
+                  e.g. the vLLM CPU release); otherwise it is an inert placeholder that
+                  runs the image's own entrypoint (e.g. CI on a cluster without GPUs).
                 format: int32
                 type: integer
               healthPath:
