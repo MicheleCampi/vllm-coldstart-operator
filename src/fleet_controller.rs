@@ -1168,8 +1168,8 @@ mod tests {
     #[test]
     fn owned_child_carries_template_image_and_pinned_node() {
         // API contract: the fleet's template image reaches the child spec
-        // verbatim — no silent fallback to default_image(), which is a
-        // :latest tag and therefore not a reproducible reference.
+        // verbatim — no silent fallback to default_image(), which moves
+        // with operator releases.
         let fleet: FleetService = serde_json::from_value(json!({
             "metadata": {
                 "name": "rehearsal",

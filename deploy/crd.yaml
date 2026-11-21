@@ -137,8 +137,11 @@ spec:
                   for inert placeholder images that expose no HTTP health endpoint.
                 type: string
               image:
-                default: vllm/vllm-openai:latest
-                description: Container image to run. Defaults to the official vLLM OpenAI server.
+                default: vllm/vllm-openai:v0.34.0@sha256:20fdb089454afbb324efa4110a2c025ff7b27cc1a086e07aa580b18df8ad1ce1
+                description: |-
+                  Container image to run. Defaults to the official vLLM OpenAI server,
+                  pinned by tag and digest (v0.34.0): each operator release moves it
+                  on purpose, never a floating tag.
                 type: string
               memory:
                 description: |-
@@ -507,12 +510,12 @@ spec:
                     default: /health
                     type: string
                   image:
-                    default: vllm/vllm-openai:latest
+                    default: vllm/vllm-openai:v0.34.0@sha256:20fdb089454afbb324efa4110a2c025ff7b27cc1a086e07aa580b18df8ad1ce1
                     description: |-
                       Container image for every owned VllmService. Pin a digest or exact
-                      tag for reproducible fleets; the default (vllm/vllm-openai:latest)
-                      exists for interactive convenience only and is not a reproducible
-                      reference.
+                      tag for reproducible fleets; the default is the operator's pinned
+                      vLLM release (see VllmServiceSpec.image), which moves with operator
+                      releases.
                     type: string
                   memory:
                     description: |-

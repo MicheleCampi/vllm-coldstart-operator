@@ -83,9 +83,9 @@ pub struct FleetServiceTemplate {
     #[serde(default = "default_health_path")]
     pub health_path: String,
     /// Container image for every owned VllmService. Pin a digest or exact
-    /// tag for reproducible fleets; the default (vllm/vllm-openai:latest)
-    /// exists for interactive convenience only and is not a reproducible
-    /// reference.
+    /// tag for reproducible fleets; the default is the operator's pinned
+    /// vLLM release (see VllmServiceSpec.image), which moves with operator
+    /// releases.
     #[serde(default = "crate::default_image")]
     pub image: String,
     /// Host directory mounted at the container's HuggingFace cache on every

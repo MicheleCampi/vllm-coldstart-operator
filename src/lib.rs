@@ -40,7 +40,9 @@ pub struct VllmServiceSpec {
     /// is not always more end-to-end throughput (see docs/BENCHMARKS.md).
     #[serde(default)]
     pub warmup_strategy: WarmupStrategy,
-    /// Container image to run. Defaults to the official vLLM OpenAI server.
+    /// Container image to run. Defaults to the official vLLM OpenAI server,
+    /// pinned by tag and digest (v0.34.0): each operator release moves it
+    /// on purpose, never a floating tag.
     #[serde(default = "default_image")]
     pub image: String,
     /// Number of GPUs to request per replica. With 0, the replica serves
@@ -208,8 +210,12 @@ pub enum WarmupStrategy {
 fn default_replicas() -> i32 {
     1
 }
+/// Pinned so that a VllmService without `image` is reproducible and passes
+/// admission policies that reject `:latest` (e.g. Kyverno disallow-latest-tag).
+pub const DEFAULT_IMAGE: &str =
+    "vllm/vllm-openai:v0.34.0@sha256:20fdb089454afbb324efa4110a2c025ff7b27cc1a086e07aa580b18df8ad1ce1";
 pub fn default_image() -> String {
-    "vllm/vllm-openai:latest".to_string()
+    DEFAULT_IMAGE.to_string()
 }
 fn default_gpu() -> i32 {
     1
@@ -254,6 +260,18 @@ pub fn phase_for(desired: i32, ready: i32) -> (&'static str, String) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn default_image_is_pinned_not_latest() {
+        // Admission policies such as Kyverno disallow-latest-tag reject
+        // :latest; the default must be a tag and a digest.
+        let (name, digest) = DEFAULT_IMAGE.split_once('@').expect("digest");
+        assert!(!name.ends_with(":latest") && name.contains(':'), "{name}");
+        assert!(
+            digest.starts_with("sha256:") && digest.len() == 71,
+            "{digest}"
+        );
+    }
+
     use super::*;
 
     #[test]
