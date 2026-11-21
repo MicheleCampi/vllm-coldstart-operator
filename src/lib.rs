@@ -52,8 +52,11 @@ pub struct VllmServiceSpec {
     /// HTTP path for the readiness probe, e.g. "/health". When non-empty,
     /// the operator gates readiness (and thus the Warming->Ready transition)
     /// on this endpoint, so "Ready" means the server can actually serve.
-    /// Set to an empty string to disable the probe entirely, for inert
-    /// placeholder images that expose no HTTP health endpoint.
+    /// On serving pods it also adds a startup probe that sends one 1-token
+    /// completion first, so "Ready" means warm: the first client request
+    /// does not pay the server's one-time costs (15.9 s against 2.1 s on
+    /// the vLLM CPU image). Set to an empty string to disable both probes,
+    /// for inert placeholder images that expose no HTTP health endpoint.
     #[serde(default = "default_health_path")]
     pub health_path: String,
     /// RuntimeClass for the workload pod. Cluster-dependent: K3s GPU nodes

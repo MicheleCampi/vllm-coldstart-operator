@@ -8,9 +8,10 @@ use k8s_openapi::api::apps::v1::{
 };
 use k8s_openapi::api::core::v1::{Capabilities, SeccompProfile, SecurityContext};
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, HTTPGetAction, HostPathVolumeSource,
-    Lifecycle, LifecycleHandler, PodSpec, PodTemplateSpec, Probe, ResourceRequirements, Service,
-    ServicePort, ServiceSpec, SleepAction, TopologySpreadConstraint, Volume, VolumeMount,
+    Container, ContainerPort, EmptyDirVolumeSource, EnvVar, ExecAction, HTTPGetAction,
+    HostPathVolumeSource, Lifecycle, LifecycleHandler, PodSpec, PodTemplateSpec, Probe,
+    ResourceRequirements, Service, ServicePort, ServiceSpec, SleepAction, TopologySpreadConstraint,
+    Volume, VolumeMount,
 };
 use k8s_openapi::api::core::v1::{EnvVarSource, SecretKeySelector};
 use k8s_openapi::api::networking::v1::{
@@ -96,6 +97,20 @@ const CPU_TERMINATION_GRACE_SECONDS: i64 = PRE_STOP_SLEEP_SECONDS + 10;
 
 /// True when the spec asks for a real vLLM server: GPUs, or CPU-only with
 /// both `cpu` and `memory` set. False is the inert placeholder.
+/// The startup probe's warmup: one 1-token completion against the local
+/// server, as a client would send it. Any error (server not up yet, no
+/// model listed, non-2xx) exits non-zero, so the probe retries.
+const WARMUP_SCRIPT: &str = r#"import json, os, urllib.request as u
+h = {"Content-Type": "application/json"}
+k = os.environ.get("VLLM_API_KEY")
+if k:
+    h["Authorization"] = "Bearer " + k
+b = "http://127.0.0.1:8000"
+m = json.load(u.urlopen(u.Request(b + "/v1/models", headers=h), timeout=10))["data"][0]["id"]
+d = json.dumps({"model": m, "prompt": "Hi", "max_tokens": 1}).encode()
+u.urlopen(u.Request(b + "/v1/completions", data=d, headers=h), timeout=110).read()
+"#;
+
 fn is_serving(spec: &VllmServiceSpec) -> bool {
     spec.gpu > 0 || (spec.cpu.is_some() && spec.memory.is_some())
 }
@@ -253,6 +268,36 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
             ..Default::default()
         })
     };
+    // Startup probe, on serving pods with a health path: one real
+    // 1-token completion before the pod can become Ready. /health answers
+    // as soon as the server is up, and the first completion pays one-time
+    // costs: on the vLLM CPU image 15.9 s against 2.1 s after it (CI job
+    // "first request after Ready on vLLM CPU"; EKS game day #1, 17 to 19 s
+    // for the first client). One 1-token completion took 9 s and left the
+    // next 32-token request, other prompt included, at 2.0 s. Kubernetes
+    // runs readiness only after the startup probe has passed once, so
+    // Ready now means warm. The model id comes from /v1/models (it honours
+    // --served-model-name) and the API key from the pod's own variable.
+    // Budget: 720 x 5 s = 1 h, the termination grace period; a server that
+    // cannot answer one completion in an hour is restarted.
+    let startup_probe = if serving && !svc.spec.health_path.is_empty() {
+        Some(Probe {
+            exec: Some(ExecAction {
+                command: Some(vec![
+                    "python3".to_string(),
+                    "-c".to_string(),
+                    WARMUP_SCRIPT.to_string(),
+                ]),
+            }),
+            initial_delay_seconds: Some(5),
+            period_seconds: Some(5),
+            timeout_seconds: Some(120),
+            failure_threshold: Some(720),
+            ..Default::default()
+        })
+    } else {
+        None
+    };
     // vLLM's base image (CUDA 12.8+) sets LD_LIBRARY_PATH to /usr/local/cuda
     // paths, but GKE/EKS/AKS mount the GPU driver at /usr/local/nvidia/lib64;
     // without this the loader cannot find libcuda.so.1 and vLLM falls back to
@@ -311,6 +356,7 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         }]),
         resources,
         readiness_probe,
+        startup_probe,
         volume_mounts,
         // T5 (threat model): no privilege escalation, no Linux capabilities,
         // runtime-default seccomp. runAsNonRoot is NOT set: the image is
@@ -787,6 +833,45 @@ mod tests {
             .spec
             .unwrap()
             .topology_spread_constraints
+    }
+
+    #[test]
+    fn ready_waits_for_one_real_completion_on_serving_pods() {
+        let container = |spec| {
+            build_deployment(&svc_with(spec))
+                .unwrap()
+                .spec
+                .unwrap()
+                .template
+                .spec
+                .unwrap()
+                .containers
+                .remove(0)
+        };
+        // Serving CPU pod (the game day's model): exec startup probe that
+        // sends a completion; readiness on /health stays.
+        let c = container(json!({"model": "m", "gpu": 0, "cpu": "1", "memory": "6Gi"}));
+        let p = c.startup_probe.expect("startup probe on a serving pod");
+        let cmd = p.exec.unwrap().command.unwrap();
+        assert_eq!(cmd[..2], ["python3".to_string(), "-c".to_string()]);
+        assert!(cmd[2].contains("/v1/completions") && cmd[2].contains("\"max_tokens\": 1"));
+        assert!(cmd[2].contains("VLLM_API_KEY"));
+        assert_eq!(
+            p.period_seconds.unwrap() * p.failure_threshold.unwrap(),
+            3600
+        );
+        assert!(c.readiness_probe.unwrap().http_get.is_some());
+        // GPU pod: same.
+        assert!(container(json!({"model": "m", "gpu": 1}))
+            .startup_probe
+            .is_some());
+        // Placeholder (no python, no server) and healthPath "": none.
+        assert!(container(json!({"model": "m", "gpu": 0}))
+            .startup_probe
+            .is_none());
+        assert!(container(json!({"model": "m", "gpu": 1, "healthPath": ""}))
+            .startup_probe
+            .is_none());
     }
 
     #[test]

@@ -7,6 +7,7 @@
 #   warm-1   one 1-token completion first, then the client's request
 #   warm-32  one 32-token completion first, then the client's request
 # The HF cache volume is shared, so only the first server downloads.
+# Usage: diagnose.sh [RUN...]  (default: cold warm-1 warm-32)
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 docker volume create hfcache > /dev/null
@@ -32,13 +33,19 @@ serve() {
 
 m() { python3 "$here/measure.py" http://127.0.0.1:8000 "$MODEL" "$@" | sed "s/^{/{\"run\":\"$run\",/"; }
 
-run=cold;    serve $run; m "client:32:Kubernetes is" "again:32:Kubernetes is" \
-  "other-prompt:32:Explain in one sentence what a Kubernetes operator does for a team" "one-token:1:Hi"
-docker logs vllm > cold.log 2>&1
-run=warm-1;  serve $run; m "warmup:1:Hi" "client:32:Kubernetes is" \
-  "other-prompt:32:Explain in one sentence what a Kubernetes operator does for a team"
-docker logs vllm > warm-1.log 2>&1
-run=warm-32; serve $run; m "warmup:32:Hi" "client:32:Kubernetes is" \
-  "other-prompt:32:Explain in one sentence what a Kubernetes operator does for a team"
-docker logs vllm > warm-32.log 2>&1
+cold()    { m "client:32:Kubernetes is" "again:32:Kubernetes is" \
+  "other-prompt:32:Explain in one sentence what a Kubernetes operator does for a team" "one-token:1:Hi"; }
+warm-1()  { m "warmup:1:Hi" "client:32:Kubernetes is" \
+  "other-prompt:32:Explain in one sentence what a Kubernetes operator does for a team"; }
+warm-32() { m "warmup:32:Hi" "client:32:Kubernetes is" \
+  "other-prompt:32:Explain in one sentence what a Kubernetes operator does for a team"; }
+
+for run in "${@:-cold warm-1 warm-32}"; do
+  for r in $run; do
+    run=$r
+    serve "$run"
+    "$run"
+    docker logs vllm > "$run.log" 2>&1
+  done
+done
 docker rm -f vllm > /dev/null
