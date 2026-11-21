@@ -1304,7 +1304,8 @@ jobs:
         # Same image, model and args, plain Docker: what a client got
         # before v0.16.0.
         run: |
-          bash hack/first-request/diagnose.sh cold | tee baseline.jsonl
+          bash hack/first-request/diagnose.sh cold | tee baseline.log
+          grep '^{' baseline.log > baseline.jsonl
           docker volume rm hfcache > /dev/null
 
       - name: Create kind cluster
@@ -1370,7 +1371,7 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8001/health > /dev/null && break; sleep 1; done
           python3 hack/first-request/measure.py http://127.0.0.1:8001 "$MODEL" \
             "client:32:Kubernetes is" "again:32:Kubernetes is" | tee operator.jsonl
-          echo "cold baseline (no operator): $(head -1 baseline.jsonl)"
+          echo "cold baseline (no operator): $(grep -m1 '"label"' baseline.jsonl)"
           python3 -c 'import json,sys; r=json.loads(open("operator.jsonl").readline()); sys.exit(0 if r["code"]==200 and r["s"]<8 else "first request after Ready: %s, objective 8 s" % r)'
 
       - name: Dump cluster and operator state on failure
