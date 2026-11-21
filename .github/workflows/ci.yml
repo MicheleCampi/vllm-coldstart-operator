@@ -1263,6 +1263,10 @@ jobs:
     # is measured first and reported, not asserted.
     name: first request after Ready on vLLM CPU
     runs-on: ubuntu-24.04
+    # packages: write for the GHCR mirror of the vLLM CPU image.
+    permissions:
+      contents: read
+      packages: write
     timeout-minutes: 50
     env:
       VLLM_CPU_IMAGE: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.11.2@sha256:459b4aa1f3d2fbb603e0f8dadb62d952a18760c087d73fd8c4465fae9b155e8a
@@ -1285,26 +1289,37 @@ jobs:
       - name: Build operator
         run: cargo build --bins
 
-      - name: Pull the vLLM CPU image once
-        # Anonymous pulls from ECR Public are rate-limited per runner IP
-        # ("toomanyrequests: Data limit exceeded" on run 44909937562).
-        # Layers already downloaded are kept, so each retry resumes. The
-        # kind node gets this copy through kind load, not a second pull.
+      - name: Pull the vLLM CPU image from the project's mirror
+        # Anonymous pulls from ECR Public are limited per runner IP: run
+        # 44909937562 and run 44911748503 (6 attempts over 10 min) got
+        # "toomanyrequests: Data limit exceeded", run 44910114786 did not.
+        # The job pulls from a GHCR mirror by the same digest instead. When
+        # the mirror lacks it, skopeo copies it from ECR once with
+        # --preserve-digests, so the bytes and the digest are upstream's.
+        # The kind node gets this copy through kind load, not a pull.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          for i in 1 2 3 4 5 6; do
-            docker pull -q "$VLLM_CPU_IMAGE" && break
-            echo "pull attempt $i failed, retrying in $((30 * i)) s"
-            sleep $((30 * i))
-          done
-          docker image inspect "$VLLM_CPU_IMAGE" > /dev/null
-          docker tag "$VLLM_CPU_IMAGE" vllm-cpu-ci:v0.11.2
+          digest=${VLLM_CPU_IMAGE##*@}
+          mirror=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vllm-cpu-mirror
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if ! docker pull -q "$mirror@$digest"; then
+            for i in 1 2 3; do
+              skopeo copy --all --preserve-digests --dest-creds "$GITHUB_ACTOR:$GH_TOKEN" \
+                "docker://$VLLM_CPU_IMAGE" "docker://$mirror:v0.11.2" && break
+              echo "mirror copy attempt $i failed, retrying in $((60 * i)) s"
+              sleep $((60 * i))
+            done
+            docker pull -q "$mirror@$digest"
+          fi
+          docker tag "$mirror@$digest" vllm-cpu-ci:v0.11.2
           df -h / | tail -1
 
       - name: Cold baseline, no warmup (reported)
         # Same image, model and args, plain Docker: what a client got
         # before v0.16.0.
         run: |
-          bash hack/first-request/diagnose.sh cold | tee baseline.log
+          VLLM_CPU_IMAGE=vllm-cpu-ci:v0.11.2 bash hack/first-request/diagnose.sh cold | tee baseline.log
           grep '^{' baseline.log > baseline.jsonl
           docker volume rm hfcache > /dev/null
 
