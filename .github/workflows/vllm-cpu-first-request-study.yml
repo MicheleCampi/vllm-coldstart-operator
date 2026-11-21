@@ -74,6 +74,8 @@ jobs:
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker pull -q "$mirror"
           HF_CACHE=$HOME/hf-cache bash hack/first-request/fetch-model.sh "$mirror"
+          # The container wrote the files as root: the cache save (tar) must read them.
+          sudo chown -R "$(id -u):$(id -g)" "$HOME/hf-cache"
 
   measure:
     name: ${{ matrix.tag }} ${{ matrix.mode }} rep ${{ matrix.rep }}
@@ -105,11 +107,14 @@ jobs:
           echo "IMG=$img" >> "$GITHUB_ENV"
           df -h / | tail -1
       - name: Restore the model
+        id: model-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/hf-cache
           key: hf-qwen2.5-0.5b-instruct-${{ env.MODEL_REVISION }}
-          fail-on-cache-miss: true
+      - name: Fetch the model at the pinned commit (cache miss only)
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        run: HF_CACHE=$HOME/hf-cache bash hack/first-request/fetch-model.sh "$IMG"
       - name: Measure (fresh server, cold, then fresh server, warm-1)
         run: HF_CACHE=$HOME/hf-cache bash hack/first-request/study.sh "$IMG" "${{ matrix.mode }}" "out/${{ matrix.tag }}-${{ matrix.mode }}-${{ matrix.rep }}"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
