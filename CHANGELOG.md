@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-11-21
+### Changed
+- **Ready means warm on serving pods.** A startup probe sends one 1-token completion to the local server (model id from `/v1/models`, API key from the pod's `VLLM_API_KEY`) before readiness is checked, so the first client request no longer pays the server's one-time costs. Before, `/health` answered as soon as the server was up and `warmupStrategy: Eager` only meant `--enforce-eager`. Measured on the vLLM CPU image with Qwen2.5-0.5B: first request 15.9 s cold, 2.0 s after a 1-token warmup that took 9 s (a 32-token warmup gives the same). Found by the EKS game day of 2026-11-20 (first request 17 to 19 s on a Ready replica). New CI job `first request after Ready on vLLM CPU` serves that model through the operator on kind and asserts the first request is within the 8 s objective.
+
+### Upgrading
+- Serving pods (GPU, or CPU with `cpu` and `memory`) with a non-empty `healthPath` get the probe; their pods roll once. The image must provide `python3` (every vLLM image does).
+- The startup budget is 1 h (720 x 5 s). A server that cannot answer one completion in that time is restarted, where before it stayed not Ready.
+
 ## [0.15.0] — 2026-11-21
 ### Added
 - **`spec.zoneSpread` on VllmService**: replicas spread across zones (`topology.kubernetes.io/zone`, maxSkew 1, counted by the Deployment's selector). `Preferred` (default) is ScheduleAnyway; `Required` is DoNotSchedule, so a replica stays Pending rather than stacking in one zone and an autoscaler such as Karpenter launches a node in the other zone; `Disabled` emits nothing (not `Off`, which YAML 1.1 parsers such as the API server read as the boolean false). Not applied when `nodeName` pins the replica (fleet children). Found by the EKS game day of 2026-11-20: after a Spot interruption both replicas of a model ended in one zone.

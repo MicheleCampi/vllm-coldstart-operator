@@ -1251,6 +1251,174 @@ jobs:
           kill "$(cat port-forward.pid)" 2>/dev/null || true
           kill "$(cat operator.pid)" 2>/dev/null || true
 
+  first-request:
+    # EKS game day #1 finding 4: the first request to a fresh replica took
+    # 17 to 19 s although the pod was Ready, because /health answers before
+    # any completion has run. Since v0.16.0 a startup probe sends one
+    # 1-token completion before Ready. This job serves the game day's model
+    # (tests/gameday/model.yaml of eks-llm-inference-platform: real vLLM
+    # CPU image, Qwen2.5-0.5B) through the operator on kind and asserts
+    # that the first client request after Ready meets the 8 s latency
+    # objective. The cold baseline, the same server without the operator,
+    # is measured first and reported, not asserted.
+    name: first request after Ready on vLLM CPU
+    runs-on: ubuntu-24.04
+    # packages: write for the GHCR mirror of the vLLM CPU image.
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 50
+    env:
+      VLLM_CPU_IMAGE: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.11.2@sha256:459b4aa1f3d2fbb603e0f8dadb62d952a18760c087d73fd8c4465fae9b155e8a
+      MODEL: Qwen/Qwen2.5-0.5B-Instruct
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build operator
+        run: cargo build --bins
+
+      - name: Pull the vLLM CPU image from the project's mirror
+        # Anonymous pulls from ECR Public are limited per runner IP: run
+        # 44909937562 and run 44911748503 (6 attempts over 10 min) got
+        # "toomanyrequests: Data limit exceeded", run 44910114786 did not.
+        # The job pulls from a GHCR mirror by the same digest instead. When
+        # the mirror lacks it, skopeo copies it from ECR once with
+        # --preserve-digests, so the bytes and the digest are upstream's.
+        # The kind node gets this copy through kind load, not a pull.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          digest=${VLLM_CPU_IMAGE##*@}
+          repo=${VLLM_CPU_IMAGE%@*}
+          # skopeo takes a tag or a digest, not both.
+          src=${repo%:*}@$digest
+          mirror=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vllm-cpu-mirror
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if ! docker pull -q "$mirror@$digest"; then
+            for i in 1 2 3; do
+              skopeo copy --all --preserve-digests --dest-creds "$GITHUB_ACTOR:$GH_TOKEN" \
+                "docker://$src" "docker://$mirror:${repo##*:}" && break
+              echo "mirror copy attempt $i failed, retrying in $((60 * i)) s"
+              sleep $((60 * i))
+            done
+            docker pull -q "$mirror@$digest"
+          fi
+          docker tag "$mirror@$digest" vllm-cpu-ci:v0.11.2
+          df -h / | tail -1
+
+      - name: Cold baseline, no warmup (reported)
+        # Same image, model and args, plain Docker: what a client got
+        # before v0.16.0.
+        run: |
+          VLLM_CPU_IMAGE=vllm-cpu-ci:v0.11.2 bash hack/first-request/diagnose.sh cold | tee baseline.log
+          grep '^{' baseline.log > baseline.jsonl
+          docker volume rm hfcache > /dev/null
+
+      - name: Create kind cluster
+        uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
+        with:
+          version: ${{ env.KIND_VERSION }}
+          node_image: ${{ env.KIND_NODE_IMAGE }}
+          cluster_name: first-request
+
+      - name: Load the image into the kind node
+        run: |
+          kind load docker-image vllm-cpu-ci:v0.11.2 --name first-request
+          df -h / | tail -1
+
+      - name: Install CRD
+        run: |
+          kubectl apply -f deploy/crd.yaml
+          kubectl wait --for=condition=Established crd/vllmservices.inference.michelecampi.dev --timeout=30s
+
+      - name: Start operator in background
+        run: |
+          ./target/debug/vllm-coldstart-operator > operator.log 2>&1 &
+          echo $! > operator.pid
+          sleep 3
+          echo "operator started (pid $(cat operator.pid))"
+
+      - name: Serve the game day's model through the operator
+        run: |
+          kubectl apply -f - <<EOF
+          apiVersion: inference.michelecampi.dev/v1alpha1
+          kind: VllmService
+          metadata:
+            name: qwen-0-5b-cpu
+            namespace: default
+          spec:
+            model: ${MODEL}
+            replicas: 1
+            warmupStrategy: Eager
+            image: vllm-cpu-ci:v0.11.2
+            gpu: 0
+            cpu: "1"
+            memory: 6Gi
+            healthPath: /health
+            extraArgs: ["--max-model-len", "2048", "--dtype", "bfloat16"]
+            env:
+              - name: VLLM_CPU_KVCACHE_SPACE
+                value: "1"
+          EOF
+          t0=$SECONDS
+          for i in $(seq 1 180); do
+            phase=$(kubectl get vllmservice qwen-0-5b-cpu -o jsonpath='{.status.phase}')
+            echo "$((SECONDS - t0)) s phase=${phase:-none}"
+            [ "$phase" = Ready ] && break
+            sleep 10
+          done
+          [ "$phase" = Ready ]
+          kubectl get pods -l app=qwen-0-5b-cpu -o wide
+
+      - name: The first request after Ready meets the 8 s objective
+        run: |
+          kubectl port-forward svc/qwen-0-5b-cpu 8001:8000 > port-forward.log 2>&1 &
+          echo $! > port-forward.pid
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8001/health > /dev/null && break; sleep 1; done
+          python3 hack/first-request/measure.py http://127.0.0.1:8001 "$MODEL" \
+            "client:32:Kubernetes is" "again:32:Kubernetes is" | tee operator.jsonl
+          echo "cold baseline (no operator): $(grep -m1 '"label"' baseline.jsonl)"
+          python3 -c 'import json,sys; r=json.loads(open("operator.jsonl").readline()); sys.exit(0 if r["code"]==200 and r["s"]<8 else "first request after Ready: %s, objective 8 s" % r)'
+
+      - name: Dump cluster and operator state on failure
+        if: failure()
+        timeout-minutes: 3
+        run: |
+          k="kubectl --request-timeout=20s"
+          $k get vllmservice,deployment,service,pods -o wide || true
+          $k describe pods || true
+          $k logs -l app=qwen-0-5b-cpu --tail=100 || true
+          $k get events -A --sort-by=.lastTimestamp || true
+
+      - name: Upload measurements and logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: first-request
+          path: |
+            baseline.jsonl
+            operator.jsonl
+            *.log
+          if-no-files-found: ignore
+
+      - name: Stop port-forward and operator
+        if: always()
+        run: |
+          kill "$(cat port-forward.pid)" 2>/dev/null || true
+          kill "$(cat operator.pid)" 2>/dev/null || true
+
   manifests:
     name: examples and README against the CRDs
     runs-on: ubuntu-24.04
