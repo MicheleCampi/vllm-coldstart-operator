@@ -1,0 +1,132 @@
+# Study, not a gate: does the first request after /health on a CURRENT vLLM
+# CPU release still pay a one-time cost, and is it compilation at request
+# time? Our evidence so far (operator CI, EKS game day) is on v0.11.2.
+# Each job is a fresh GitHub runner: 2 releases x 2 modes x 3 repetitions,
+# each job a cold server and a warm-1 server, offline on a pinned model.
+# Images are pinned by digest and pulled from the project's GHCR mirror
+# (skopeo --preserve-digests from Docker Hub), like the first-request job.
+name: vllm-cpu-first-request-study
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-t0udyd]
+    paths:
+      - .github/workflows/vllm-cpu-first-request-study.yml
+      - hack/first-request/study.sh
+      - hack/first-request/summarize.py
+
+permissions:
+  contents: read
+
+env:
+  MODEL: Qwen/Qwen2.5-0.5B-Instruct
+  MODEL_REVISION: 7ae557604adf67be50417f59c2c2f167def9a775
+  MIRROR_REPO: vllm-cpu-mirror
+
+jobs:
+  mirror:
+    name: mirror images and model
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        image:
+          - docker.io/vllm/vllm-openai-cpu:v0.34.0-x86_64@sha256:b14c3a46a4b08852b32528643e070d57f3731cccb0fa33ef86d4f3b3f8ac36c4
+          - docker.io/vllm/vllm-openai-cpu:nightly-f8b29fab414884206460fe63b983ca34fc6e3e9b@sha256:9df6e58fe111b857c3ee36f2edb40b1afa3495071ba05e783c22dbb04446c099
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Copy the image to the GHCR mirror by digest (once)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          digest=${IMAGE##*@}; repo=${IMAGE%@*}
+          mirror=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$MIRROR_REPO
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          if skopeo inspect --raw --creds "$GITHUB_ACTOR:$GH_TOKEN" "docker://$mirror@$digest" > /dev/null 2>&1; then
+            echo "mirror already has $digest"
+          else
+            for i in 1 2 3; do
+              skopeo copy --all --preserve-digests --dest-creds "$GITHUB_ACTOR:$GH_TOKEN" \
+                "docker://${repo%:*}@$digest" "docker://$mirror:${repo##*:}" && break
+              echo "mirror copy attempt $i failed, retrying in $((60 * i)) s"; sleep $((60 * i))
+            done
+          fi
+      - name: Restore the model from the Actions cache
+        id: model-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/hf-cache
+          key: hf-qwen2.5-0.5b-instruct-${{ env.MODEL_REVISION }}
+      - name: Fetch the model at the pinned commit
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          mirror=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$MIRROR_REPO@${IMAGE##*@}
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker pull -q "$mirror"
+          HF_CACHE=$HOME/hf-cache bash hack/first-request/fetch-model.sh "$mirror"
+
+  measure:
+    name: ${{ matrix.tag }} ${{ matrix.mode }} rep ${{ matrix.rep }}
+    needs: mirror
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        include:
+          - {tag: v0.34.0, digest: "sha256:b14c3a46a4b08852b32528643e070d57f3731cccb0fa33ef86d4f3b3f8ac36c4"}
+          - {tag: nightly-f8b29fa, digest: "sha256:9df6e58fe111b857c3ee36f2edb40b1afa3495071ba05e783c22dbb04446c099"}
+        tag: [v0.34.0, nightly-f8b29fa]
+        mode: [default, eager]
+        rep: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Pull the image from the mirror by digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          img=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$MIRROR_REPO@${{ matrix.digest }}
+          docker pull -q "$img"
+          echo "IMG=$img" >> "$GITHUB_ENV"
+          df -h / | tail -1
+      - name: Restore the model
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/hf-cache
+          key: hf-qwen2.5-0.5b-instruct-${{ env.MODEL_REVISION }}
+          fail-on-cache-miss: true
+      - name: Measure (fresh server, cold, then fresh server, warm-1)
+        run: HF_CACHE=$HOME/hf-cache bash hack/first-request/study.sh "$IMG" "${{ matrix.mode }}" "out/${{ matrix.tag }}-${{ matrix.mode }}-${{ matrix.rep }}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: study-${{ matrix.tag }}-${{ matrix.mode }}-${{ matrix.rep }}
+          path: out/
+
+  summary:
+    needs: measure
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: study-*
+          path: all
+          merge-multiple: true
+      - run: python3 hack/first-request/summarize.py all/* | tee -a "$GITHUB_STEP_SUMMARY"
