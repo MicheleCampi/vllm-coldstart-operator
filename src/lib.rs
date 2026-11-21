@@ -131,7 +131,7 @@ pub struct VllmServiceSpec {
     /// an autoscaler such as Karpenter launches a node in the other zone
     /// (EKS game day #1, 2026-11-20: after a Spot interruption both replicas
     /// ended in one zone). Required needs zone labels on the nodes: on a
-    /// cluster without them (kind) the pods stay Pending. `Off` emits no
+    /// cluster without them (kind) the pods stay Pending. `Disabled` emits no
     /// constraint. Ignored when `nodeName` pins the replica.
     #[serde(default)]
     pub zone_spread: ZoneSpread,
@@ -146,7 +146,7 @@ pub enum ZoneSpread {
     /// whenUnsatisfiable: DoNotSchedule.
     Required,
     /// No zone constraint.
-    Off,
+    Disabled,
 }
 
 /// Environment variables the operator sets itself; `spec.env` cannot

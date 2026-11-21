@@ -359,7 +359,7 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     // Deployment's selector labels. No constraint when node_name pins the
     // replica: the fleet controller already chose the node.
     let when_unsatisfiable = match (svc.spec.node_name.is_some(), svc.spec.zone_spread) {
-        (true, _) | (_, ZoneSpread::Off) => None,
+        (true, _) | (_, ZoneSpread::Disabled) => None,
         (false, ZoneSpread::Preferred) => Some("ScheduleAnyway"),
         (false, ZoneSpread::Required) => Some("DoNotSchedule"),
     };
@@ -812,7 +812,7 @@ mod tests {
         assert_eq!(c[0].when_unsatisfiable, "DoNotSchedule");
 
         assert!(spread(&svc_with(
-            json!({"model": "m", "gpu": 0, "zoneSpread": "Off"})
+            json!({"model": "m", "gpu": 0, "zoneSpread": "Disabled"})
         ))
         .is_none());
         // Pinned to a node by the fleet controller: no zone constraint.
