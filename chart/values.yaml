@@ -16,6 +16,16 @@ image:
 # -- Replicas for the operator Deployment itself (leader election not
 #    implemented, so keep at 1).
 replicaCount: 1
+# -- Node selector for the operator pod. Empty: any node. On a cluster with a
+#    dedicated node group for platform controllers, pin the operator there,
+#    e.g. {platform.michelecampi.dev/pool: system} on the EKS platform.
+nodeSelector: {}
+# -- Tolerations for the operator pod, e.g. the CriticalAddonsOnly taint of a
+#    dedicated add-on node group (EKS convention):
+#    [{key: CriticalAddonsOnly, operator: Exists, effect: NoSchedule}]
+tolerations: []
+# -- Affinity for the operator pod.
+affinity: {}
 # -- Resource requests/limits for the operator pod. The binary is a ~18MB
 #    static-pie musl on distroless/static; it needs very little.
 resources:

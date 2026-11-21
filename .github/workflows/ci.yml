@@ -133,6 +133,21 @@ jobs:
           [ "$n" = 2 ] && [ "$uniq" = "$want" ] || { echo "::error::chart defaults render $n image line(s) [$uniq], want 2 x $want"; exit 1; }
           echo "operator and reporter both render $want"
 
+      - name: Chart scheduling values reach the operator pod
+        # A platform with a tainted node group for its controllers (EKS game
+        # day #1, 2026-11-20) places the operator there through these values.
+        # Defaults render no scheduling fields; set values render as given.
+        run: |
+          H=/tmp/linux-amd64/helm
+          def=$($H template t chart --set example.enabled=false --show-only templates/deployment.yaml)
+          if printf '%s\n' "$def" | grep -qE '^ +(nodeSelector|tolerations|affinity):'; then echo "::error::defaults render scheduling fields"; exit 1; fi
+          set_=$($H template t chart --set example.enabled=false --show-only templates/deployment.yaml \
+            --set-json 'nodeSelector={"platform.michelecampi.dev/pool":"system"}' \
+            --set-json 'tolerations=[{"key":"CriticalAddonsOnly","operator":"Exists","effect":"NoSchedule"}]')
+          printf '%s\n' "$set_" | grep -q 'platform.michelecampi.dev/pool: system' || { echo "::error::nodeSelector not rendered"; exit 1; }
+          printf '%s\n' "$set_" | grep -q 'key: CriticalAddonsOnly' || { echo "::error::tolerations not rendered"; exit 1; }
+          echo "defaults render no scheduling fields; nodeSelector and tolerations render when set"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
         with:

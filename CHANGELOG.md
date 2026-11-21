@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-11-21
+### Added
+- **Scheduling values for the operator pod:** `nodeSelector`, `tolerations` and `affinity` in the chart, all empty by default. A platform that keeps its controllers on a dedicated, tainted node group can now place the operator there. The EKS platform needs this: its game day #1 (2026-11-20) found model replicas scheduling onto the platform's node group, so that group is getting the `CriticalAddonsOnly` taint, and an operator without the toleration would move to Spot capacity.
+### Upgrading
+- No CRD change. With the defaults the rendered Deployment is the same as 0.13.0.
+
 ## [0.13.0] — 2026-11-17
 ### Added
 - **`spec.env` on VllmService**: plain environment variables for a serving replica, for engine settings with no command-line flag. The vLLM CPU image sizes its KV cache only from `VLLM_CPU_KVCACHE_SPACE` (4 GiB by default, whatever the memory limit), which OOMKilled the 6Gi CPU example on EKS (2026-11-17); the example now sets it to 1. The operator's own variables (`LD_LIBRARY_PATH`, `VLLM_API_KEY`) cannot be overridden, credentials stay in `apiKeySecretRef`, and the placeholder pod gets no env.
