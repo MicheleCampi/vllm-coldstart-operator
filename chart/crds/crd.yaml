@@ -5,7 +5,6 @@ metadata:
 spec:
   group: inference.michelecampi.dev
   names:
-    categories: []
     kind: VllmService
     plural: vllmservices
     shortNames:
@@ -274,7 +273,6 @@ metadata:
 spec:
   group: inference.michelecampi.dev
   names:
-    categories: []
     kind: FleetService
     plural: fleetservices
     shortNames:
@@ -696,7 +694,6 @@ metadata:
 spec:
   group: inference.michelecampi.dev
   names:
-    categories: []
     kind: NodeState
     plural: nodestates
     shortNames:
