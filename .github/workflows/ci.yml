@@ -1271,8 +1271,9 @@ jobs:
     env:
       VLLM_CPU_IMAGE: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.11.2@sha256:459b4aa1f3d2fbb603e0f8dadb62d952a18760c087d73fd8c4465fae9b155e8a
       MODEL: Qwen/Qwen2.5-0.5B-Instruct
-      # The model's commit on HuggingFace: the servers run offline at it.
-      MODEL_REVISION: ""
+      # The model's commit on HuggingFace (main on 2026-11-21, run
+      # 44926627715): fetched once, cached, and the servers run offline at it.
+      MODEL_REVISION: 7ae557604adf67be50417f59c2c2f167def9a775
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
