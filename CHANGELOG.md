@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- **vLLM CPU image v0.11.2 → v0.34.0** in the CI job `first request after Ready on vLLM CPU` and in `deploy/examples/qwen-0-5b-cpu.yaml`: `docker.io/vllm/vllm-openai-cpu:v0.34.0-x86_64`, pinned by digest (upstream moved the CPU release image from ECR Public to Docker Hub). The probe of v0.16.0 still matters on v0.34.0: in eager mode (`warmupStrategy: Eager`) the first request after `/health` took 15 to 18 s on Intel (AMX) runners and 78 to 120 s on AMD runners in the study of 2026-11-21 (run 44953491417); in the default mode (CUDA graphs and compile on) there is no first-request penalty but the server takes 95 to 206 s to start, against 30 to 46 s in eager mode.
+- Metric names and histogram edges the SLO rules use (`vllm:time_to_first_token_seconds` 22 edges, `vllm:request_time_per_output_token_seconds` edge 0.1, `vllm:request_success_total`, `vllm:num_requests_*`, `vllm:prefix_cache_*`) checked unchanged in v0.34.0 source.
 
 ## [0.16.0] — 2026-11-21
 ### Changed
