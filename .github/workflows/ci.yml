@@ -1301,12 +1301,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           digest=${VLLM_CPU_IMAGE##*@}
+          repo=${VLLM_CPU_IMAGE%@*}
+          # skopeo takes a tag or a digest, not both.
+          src=${repo%:*}@$digest
           mirror=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/vllm-cpu-mirror
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           if ! docker pull -q "$mirror@$digest"; then
             for i in 1 2 3; do
               skopeo copy --all --preserve-digests --dest-creds "$GITHUB_ACTOR:$GH_TOKEN" \
-                "docker://$VLLM_CPU_IMAGE" "docker://$mirror:v0.11.2" && break
+                "docker://$src" "docker://$mirror:${repo##*:}" && break
               echo "mirror copy attempt $i failed, retrying in $((60 * i)) s"
               sleep $((60 * i))
             done
