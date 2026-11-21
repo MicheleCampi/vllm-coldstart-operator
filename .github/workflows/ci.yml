@@ -1285,14 +1285,26 @@ jobs:
       - name: Build operator
         run: cargo build --bins
 
+      - name: Pull the vLLM CPU image once
+        # Anonymous pulls from ECR Public are rate-limited per runner IP
+        # ("toomanyrequests: Data limit exceeded" on run 44909937562).
+        # Layers already downloaded are kept, so each retry resumes. The
+        # kind node gets this copy through kind load, not a second pull.
+        run: |
+          for i in 1 2 3 4 5 6; do
+            docker pull -q "$VLLM_CPU_IMAGE" && break
+            echo "pull attempt $i failed, retrying in $((30 * i)) s"
+            sleep $((30 * i))
+          done
+          docker image inspect "$VLLM_CPU_IMAGE" > /dev/null
+          docker tag "$VLLM_CPU_IMAGE" vllm-cpu-ci:v0.11.2
+          df -h / | tail -1
+
       - name: Cold baseline, no warmup (reported)
         # Same image, model and args, plain Docker: what a client got
-        # before v0.16.0. The image and cache are removed afterwards, so
-        # the kind node pulls its own copy and the disk holds one.
+        # before v0.16.0.
         run: |
-          docker pull -q "$VLLM_CPU_IMAGE"
           bash hack/first-request/diagnose.sh cold | tee baseline.jsonl
-          docker rmi -f "$VLLM_CPU_IMAGE" > /dev/null
           docker volume rm hfcache > /dev/null
 
       - name: Create kind cluster
@@ -1301,6 +1313,11 @@ jobs:
           version: ${{ env.KIND_VERSION }}
           node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: first-request
+
+      - name: Load the image into the kind node
+        run: |
+          kind load docker-image vllm-cpu-ci:v0.11.2 --name first-request
+          df -h / | tail -1
 
       - name: Install CRD
         run: |
@@ -1326,7 +1343,7 @@ jobs:
             model: ${MODEL}
             replicas: 1
             warmupStrategy: Eager
-            image: ${VLLM_CPU_IMAGE}
+            image: vllm-cpu-ci:v0.11.2
             gpu: 0
             cpu: "1"
             memory: 6Gi
