@@ -1271,6 +1271,9 @@ jobs:
     env:
       VLLM_CPU_IMAGE: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.11.2@sha256:459b4aa1f3d2fbb603e0f8dadb62d952a18760c087d73fd8c4465fae9b155e8a
       MODEL: Qwen/Qwen2.5-0.5B-Instruct
+      # The model's commit on HuggingFace (main on 2026-11-21, run
+      # 44926627715): fetched once, cached, and the servers run offline at it.
+      MODEL_REVISION: 7ae557604adf67be50417f59c2c2f167def9a775
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -1318,13 +1321,40 @@ jobs:
           docker tag "$mirror@$digest" vllm-cpu-ci:v0.11.2
           df -h / | tail -1
 
+      - name: Restore the model from the Actions cache
+        # On 2026-11-21 (ee5e0f0, first attempt) vLLM went silent after its
+        # imports for 10 min, waiting on HuggingFace. The servers of this job
+        # now run offline (HF_HUB_OFFLINE=1) on a model fetched before, at a
+        # pinned commit, and cached here.
+        id: model-cache
+        if: env.MODEL_REVISION != ''
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/hf-cache
+          key: hf-qwen2.5-0.5b-instruct-${{ env.MODEL_REVISION }}
+
+      - name: Fetch the model at the pinned commit (bounded, one line per attempt)
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        run: HF_CACHE=$HOME/hf-cache bash hack/first-request/fetch-model.sh vllm-cpu-ci:v0.11.2
+
       - name: Cold baseline, no warmup (reported)
-        # Same image, model and args, plain Docker: what a client got
-        # before v0.16.0.
+        # Same image, model and args, plain Docker, offline: what a client
+        # got before v0.16.0.
         run: |
-          VLLM_CPU_IMAGE=vllm-cpu-ci:v0.11.2 bash hack/first-request/diagnose.sh cold | tee baseline.log
+          HF_CACHE=$HOME/hf-cache VLLM_CPU_IMAGE=vllm-cpu-ci:v0.11.2 bash hack/first-request/diagnose.sh cold | tee baseline.log
           grep '^{' baseline.log > baseline.jsonl
-          docker volume rm hfcache > /dev/null
+
+      - name: kind config with the model cache mounted on the node
+        run: |
+          cat > kind-first-request.yaml <<EOF
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+            - role: control-plane
+              extraMounts:
+                - hostPath: $HOME/hf-cache
+                  containerPath: /hf-cache
+          EOF
 
       - name: Create kind cluster
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
@@ -1332,6 +1362,7 @@ jobs:
           version: ${{ env.KIND_VERSION }}
           node_image: ${{ env.KIND_NODE_IMAGE }}
           cluster_name: first-request
+          config: kind-first-request.yaml
 
       - name: Load the image into the kind node
         run: |
@@ -1367,9 +1398,12 @@ jobs:
             cpu: "1"
             memory: 6Gi
             healthPath: /health
-            extraArgs: ["--max-model-len", "2048", "--dtype", "bfloat16"]
+            modelCacheHostPath: /hf-cache
+            extraArgs: ["--revision", "${MODEL_REVISION}", "--tokenizer-revision", "${MODEL_REVISION}", "--max-model-len", "2048", "--dtype", "bfloat16"]
             env:
               - name: VLLM_CPU_KVCACHE_SPACE
+                value: "1"
+              - name: HF_HUB_OFFLINE
                 value: "1"
           EOF
           t0=$SECONDS
