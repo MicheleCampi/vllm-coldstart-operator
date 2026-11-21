@@ -124,6 +124,29 @@ pub struct VllmServiceSpec {
     /// placeholder pod.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub env: Vec<PlainEnvVar>,
+    /// How replicas spread across zones (`topology.kubernetes.io/zone`),
+    /// maxSkew 1. `Preferred` (the default) asks the scheduler to spread and
+    /// still places a replica when it cannot. `Required` keeps a replica
+    /// Pending rather than stacking it in a zone that already has more, so
+    /// an autoscaler such as Karpenter launches a node in the other zone
+    /// (EKS game day #1, 2026-11-20: after a Spot interruption both replicas
+    /// ended in one zone). Required needs zone labels on the nodes: on a
+    /// cluster without them (kind) the pods stay Pending. `Disabled` emits no
+    /// constraint. Ignored when `nodeName` pins the replica.
+    #[serde(default)]
+    pub zone_spread: ZoneSpread,
+}
+
+/// Zone spread of a service's replicas.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema, Default, PartialEq)]
+pub enum ZoneSpread {
+    /// whenUnsatisfiable: ScheduleAnyway.
+    #[default]
+    Preferred,
+    /// whenUnsatisfiable: DoNotSchedule.
+    Required,
+    /// No zone constraint.
+    Disabled,
 }
 
 /// Environment variables the operator sets itself; `spec.env` cannot

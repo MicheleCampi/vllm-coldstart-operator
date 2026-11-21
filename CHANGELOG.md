@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-11-21
+### Added
+- **`spec.zoneSpread` on VllmService**: replicas spread across zones (`topology.kubernetes.io/zone`, maxSkew 1, counted by the Deployment's selector). `Preferred` (default) is ScheduleAnyway; `Required` is DoNotSchedule, so a replica stays Pending rather than stacking in one zone and an autoscaler such as Karpenter launches a node in the other zone; `Disabled` emits nothing (not `Off`, which YAML 1.1 parsers such as the API server read as the boolean false). Not applied when `nodeName` pins the replica (fleet children). Found by the EKS game day of 2026-11-20: after a Spot interruption both replicas of a model ended in one zone.
+### Upgrading
+- The CRDs changed (new optional field `zoneSpread`): apply the release's CRDs before `helm upgrade`.
+- Existing services get the `Preferred` constraint, so their pods roll once on upgrade (make-before-break, maxUnavailable 0). `Required` needs zone labels on the nodes: on a cluster without them (kind) the pods stay Pending.
+
 ## [0.14.0] — 2026-11-21
 ### Added
 - **Scheduling values for the operator pod:** `nodeSelector`, `tolerations` and `affinity` in the chart, all empty by default. A platform that keeps its controllers on a dedicated, tainted node group can now place the operator there. The EKS platform needs this: its game day #1 (2026-11-20) found model replicas scheduling onto the platform's node group, so that group is getting the `CriticalAddonsOnly` taint, and an operator without the toleration would move to Spot capacity.

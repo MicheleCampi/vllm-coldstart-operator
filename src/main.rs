@@ -10,7 +10,7 @@ use k8s_openapi::api::core::v1::{Capabilities, SeccompProfile, SecurityContext};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EmptyDirVolumeSource, EnvVar, HTTPGetAction, HostPathVolumeSource,
     Lifecycle, LifecycleHandler, PodSpec, PodTemplateSpec, Probe, ResourceRequirements, Service,
-    ServicePort, ServiceSpec, SleepAction, Volume, VolumeMount,
+    ServicePort, ServiceSpec, SleepAction, TopologySpreadConstraint, Volume, VolumeMount,
 };
 use k8s_openapi::api::core::v1::{EnvVarSource, SecretKeySelector};
 use k8s_openapi::api::networking::v1::{
@@ -37,7 +37,7 @@ use vllm_coldstart_operator::fleet_types::FLEET_LABEL;
 use vllm_coldstart_operator::reconcile_timeout::{bounded, RECONCILE_TIMEOUT};
 use vllm_coldstart_operator::{
     metrics::Metrics, phase_for, VllmService, VllmServiceSpec, VllmServiceStatus, WarmupStrategy,
-    RESERVED_ENV,
+    ZoneSpread, RESERVED_ENV,
 };
 
 mod fleet_controller;
@@ -355,6 +355,27 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         m
     });
 
+    // Replicas spread across zones (spec.zoneSpread), counted by the
+    // Deployment's selector labels. No constraint when node_name pins the
+    // replica: the fleet controller already chose the node.
+    let when_unsatisfiable = match (svc.spec.node_name.is_some(), svc.spec.zone_spread) {
+        (true, _) | (_, ZoneSpread::Disabled) => None,
+        (false, ZoneSpread::Preferred) => Some("ScheduleAnyway"),
+        (false, ZoneSpread::Required) => Some("DoNotSchedule"),
+    };
+    let topology_spread_constraints = when_unsatisfiable.map(|w| {
+        vec![TopologySpreadConstraint {
+            max_skew: 1,
+            topology_key: "topology.kubernetes.io/zone".to_string(),
+            when_unsatisfiable: w.to_string(),
+            label_selector: Some(LabelSelector {
+                match_labels: Some(labels.clone()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }]
+    });
+
     let template = PodTemplateSpec {
         metadata: Some(ObjectMeta {
             labels: Some(pod_labels),
@@ -364,6 +385,7 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
             containers: vec![container],
             runtime_class_name: svc.spec.runtime_class_name.clone(),
             node_selector,
+            topology_spread_constraints,
             volumes,
             termination_grace_period_seconds: Some(if serving {
                 TERMINATION_GRACE_SECONDS
@@ -754,6 +776,50 @@ mod tests {
 
     fn qty(m: &Option<BTreeMap<String, Quantity>>, k: &str) -> Option<String> {
         m.as_ref().and_then(|m| m.get(k)).map(|q| q.0.clone())
+    }
+
+    fn spread(svc: &VllmService) -> Option<Vec<TopologySpreadConstraint>> {
+        build_deployment(svc)
+            .unwrap()
+            .spec
+            .unwrap()
+            .template
+            .spec
+            .unwrap()
+            .topology_spread_constraints
+    }
+
+    #[test]
+    fn replicas_spread_across_zones_as_the_spec_asks() {
+        // Default: preferred, so a cluster without zone labels (kind) still schedules.
+        let c = spread(&svc_with(json!({"model": "m", "gpu": 0, "replicas": 2})))
+            .expect("default spread");
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0].topology_key, "topology.kubernetes.io/zone");
+        assert_eq!(c[0].max_skew, 1);
+        assert_eq!(c[0].when_unsatisfiable, "ScheduleAnyway");
+        // Counted by the Deployment's own selector, not by every pod in the namespace.
+        let d = build_deployment(&svc_with(json!({"model": "m", "gpu": 0}))).unwrap();
+        assert_eq!(
+            c[0].label_selector.as_ref().unwrap().match_labels,
+            d.spec.unwrap().selector.match_labels
+        );
+
+        let c = spread(&svc_with(
+            json!({"model": "m", "gpu": 0, "zoneSpread": "Required"}),
+        ))
+        .unwrap();
+        assert_eq!(c[0].when_unsatisfiable, "DoNotSchedule");
+
+        assert!(spread(&svc_with(
+            json!({"model": "m", "gpu": 0, "zoneSpread": "Disabled"})
+        ))
+        .is_none());
+        // Pinned to a node by the fleet controller: no zone constraint.
+        assert!(spread(&svc_with(
+            json!({"model": "m", "gpu": 0, "zoneSpread": "Required", "nodeName": "n1"})
+        ))
+        .is_none());
     }
 
     #[test]
