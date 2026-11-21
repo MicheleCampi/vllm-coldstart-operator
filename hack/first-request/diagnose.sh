@@ -8,15 +8,26 @@
 #   warm-32  one 32-token completion first, then the client's request
 # The HF cache volume is shared, so only the first server downloads.
 # Usage: diagnose.sh [RUN...]  (default: cold warm-1 warm-32)
+# With HF_CACHE (a host directory already holding the model, see
+# fetch-model.sh) and MODEL_REVISION, the server runs offline at that
+# revision: no HuggingFace call at runtime. Without them it downloads into
+# a Docker volume, as before.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-docker volume create hfcache > /dev/null
+if [ -n "${HF_CACHE:-}" ]; then
+  cache=(-v "$HF_CACHE:/root/.cache/huggingface" -e HF_HUB_OFFLINE=1)
+  rev=(--revision "$MODEL_REVISION" --tokenizer-revision "$MODEL_REVISION")
+else
+  docker volume create hfcache > /dev/null
+  cache=(-v hfcache:/root/.cache/huggingface)
+  rev=()
+fi
 
 serve() {
   docker rm -f vllm > /dev/null 2>&1 || true
   docker run -d --name vllm --cpus 2 --memory 6g --shm-size 1g \
-    -e VLLM_CPU_KVCACHE_SPACE=1 -p 8000:8000 -v hfcache:/root/.cache/huggingface \
-    --entrypoint vllm "$VLLM_CPU_IMAGE" serve "$MODEL" --host 0.0.0.0 --port 8000 \
+    -e VLLM_CPU_KVCACHE_SPACE=1 -p 8000:8000 "${cache[@]}" \
+    --entrypoint vllm "$VLLM_CPU_IMAGE" serve "$MODEL" "${rev[@]}" --host 0.0.0.0 --port 8000 \
     --enforce-eager --max-model-len 2048 --dtype bfloat16 > /dev/null
   local t0=$SECONDS
   for i in $(seq 1 120); do
@@ -27,7 +38,7 @@ serve() {
     echo "$1 waiting for /health ($((SECONDS - t0)) s)"
     sleep 5
   done
-  docker logs --tail 50 vllm
+  docker logs vllm 2>&1 | tail -200
   return 1
 }
 
