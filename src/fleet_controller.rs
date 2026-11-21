@@ -258,6 +258,8 @@ fn build_owned_vllm_service(
         node_name: Some(node_name.to_string()),
         // Fleet replicas are GPU replicas: no engine env passthrough yet.
         env: Vec::new(),
+        // Pinned to a node by node_name: a zone constraint would not apply.
+        zone_spread: vllm_coldstart_operator::ZoneSpread::Off,
     };
 
     let mut labels = BTreeMap::new();
