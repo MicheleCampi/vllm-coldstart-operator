@@ -26,7 +26,7 @@ args=(--max-model-len 2048 --dtype bfloat16)
 [ "$mode" = eager ] && args+=(--enforce-eager)
 
 cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1)
-isa=$(grep -o -w -E 'amx_bf16|avx512f' /proc/cpuinfo | sort -u | paste -sd, -)
+isa=$(grep -o -w -E 'amx_bf16|avx512f' /proc/cpuinfo | sort -u | paste -sd, - || true)
 echo "cpu: $cpu (${isa:-avx2 only}), runner $(nproc) cpus, cpuset $set_ ($cpus), smt siblings of cpu0: $(cat /sys/devices/system/cpu/cpu0/topology/thread_siblings_list)" | tee "$out/cpu.txt"
 lscpu -e > "$out/lscpu.txt" || true
 
