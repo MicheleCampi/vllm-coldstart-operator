@@ -17,5 +17,11 @@ export MODEL=Qwen/Qwen2.5-0.5B-Instruct MODEL_REVISION=7ae557604adf67be50417f59c
 set +x
 bash hack/first-request/fetch-model.sh docker.io/vllm/vllm-openai-cpu:v0.19.1-x86_64@sha256:4c697ae650ebeb3a41f3c9c7020913d4c84d2729dc428ce39d60ca353975a4ce || echo "A024 model fetch FAILED"
 bash hack/sapphire-bisect/a024.sh || echo "A024 a024.sh exited $?"
-echo "A024 powering off at $(date -u +%H:%M:%SZ)"
+# The console output read with --latest is cut when the instance terminates
+# (A-024 first run lost its results that way): repeat every result line once
+# more, then wait 4 min while the instance is still running so the operator's
+# monitor reads them before power-off.
+grep -a '^A024 ' /var/log/a024.log | grep -v '^A024 SUMMARY' | awk '!s[$0]++' | sed 's/^A024 /A024 SUMMARY /'
+echo "A024 powering off in 4 min, at $(date -u -d '+4 min' +%H:%M:%SZ)"
+sleep 240
 sync; shutdown -h now
