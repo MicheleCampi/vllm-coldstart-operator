@@ -10,7 +10,8 @@
 #   MODE  eager | default
 #   CPUS  thread (1 logical CPU) | core (cpu0 and its SMT siblings: what a
 #         2-vCPU m7i-flex.large is) | all (every runner CPU)
-# Env: MODEL, MODEL_REVISION, HF_CACHE (host directory holding the model).
+# Env: MODEL, MODEL_REVISION, HF_CACHE (host directory holding the model);
+# STUDY_ENV, one extra NAME=VALUE passed to the server container.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 image=$1 mode=$2 cpus=$3 out=$4
@@ -32,7 +33,7 @@ lscpu -e > "$out/lscpu.txt" || true
 
 docker rm -f vllm > /dev/null 2>&1 || true
 docker run -d --name vllm --cpuset-cpus "$set_" --memory 6g --shm-size 1g \
-  -e VLLM_CPU_KVCACHE_SPACE=1 -e HF_HUB_OFFLINE=1 -p 8000:8000 \
+  -e VLLM_CPU_KVCACHE_SPACE=1 -e HF_HUB_OFFLINE=1 ${STUDY_ENV:+-e "$STUDY_ENV"} -p 8000:8000 \
   -v "$HF_CACHE:/root/.cache/huggingface" \
   --entrypoint vllm "$image" serve "$MODEL" --revision "$MODEL_REVISION" \
   --tokenizer-revision "$MODEL_REVISION" --host 0.0.0.0 --port 8000 "${args[@]}" > /dev/null
