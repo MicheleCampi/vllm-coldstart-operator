@@ -15,7 +15,8 @@
 # from the EC2 console output.
 #
 # Usage: bisect.sh  (env: REPS=2, OUT=out, MIN_RATIO=1.3, MODEL, MODEL_REVISION,
-# HF_CACHE). MIN_RATIO lower than 1.3 only to exercise the search in a dry run.
+# HF_CACHE). MIN_RATIO lower than 1.3 only to exercise the search in a dry run;
+# STUDY replaces study.sh with a stub to test the search logic offline.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 reps=${REPS:-2} out=${OUT:-out} min_ratio=${MIN_RATIO:-1.3}
@@ -33,7 +34,7 @@ measure() {
   if [ -z "$tag" ] && [ -n "${p50[$i]:-}" ]; then return; fi
   for r in $(seq 1 "$reps"); do
     d="$out/${rel[$i]}${tag}-$r"
-    if bash "$here/../steady-study/study.sh" "${img[$i]}" eager core "$d" > "$d.log" 2>&1; then
+    if bash "${STUDY:-$here/../steady-study/study.sh}" "${img[$i]}" eager core "$d" > "$d.log" 2>&1; then
       v=$(python3 "$here/../steady-study/summarize.py" "$d" | python3 -c 'import json,sys; r=json.load(sys.stdin); print(r["p50_s"], r["p95_s"], r["first_s"], r["ready_s"], r["n"], r["failed"])')
       say "run ${rel[$i]}${tag} rep $r: p50 p95 first ready n failed = $v"
       vals+=("${v%% *}")
