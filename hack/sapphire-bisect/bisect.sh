@@ -14,10 +14,11 @@
 # drift control. Every result line starts with "BISECT " so it can be read
 # from the EC2 console output.
 #
-# Usage: bisect.sh  (env: REPS=2, OUT=out, MODEL, MODEL_REVISION, HF_CACHE)
+# Usage: bisect.sh  (env: REPS=2, OUT=out, MIN_RATIO=1.3, MODEL, MODEL_REVISION,
+# HF_CACHE). MIN_RATIO lower than 1.3 only to exercise the search in a dry run.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-reps=${REPS:-2} out=${OUT:-out}
+reps=${REPS:-2} out=${OUT:-out} min_ratio=${MIN_RATIO:-1.3}
 mkdir -p "$out"
 mapfile -t rel < <(grep -v '^#' "$here/images.txt" | awk '{print $1}')
 mapfile -t img < <(grep -v '^#' "$here/images.txt" | awk '{print $2}')
@@ -54,8 +55,8 @@ measure 0; measure "$last"
 a=${p50[0]} b=${p50[$last]}
 ratio=$(awk -v a="$a" -v b="$b" 'BEGIN{printf "%.3f", b/a}')
 say "endpoints: ${rel[0]} $a s, ${rel[$last]} $b s, ratio $ratio"
-if awk -v r="$ratio" 'BEGIN{exit !(r < 1.3)}'; then
-  say "RESULT no step >= 1.3x on this CPU: nothing to bisect"
+if awk -v r="$ratio" -v m="$min_ratio" 'BEGIN{exit !(r < m)}'; then
+  say "RESULT no step >= ${min_ratio}x on this CPU: nothing to bisect"
 else
   thr=$(awk -v a="$a" -v b="$b" 'BEGIN{printf "%.3f", (a+b)/2}')
   say "threshold $thr s (midpoint)"
