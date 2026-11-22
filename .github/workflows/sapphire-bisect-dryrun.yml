@@ -1,0 +1,46 @@
+# Study, not a gate: dry run of hack/sapphire-bisect on a GitHub runner
+# (Granite Rapids or AMD, not Sapphire Rapids) before the paid EC2 session.
+# It proves the scripts end to end: model fetch, two releases, the stop rule
+# or the binary search, the drift control, the BISECT lines. REPS=1 and a
+# three-release list keep it short; the numbers are not the result.
+name: sapphire-bisect-dryrun
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-t7cl72]
+    paths:
+      - .github/workflows/sapphire-bisect-dryrun.yml
+      - hack/sapphire-bisect/**
+
+permissions:
+  contents: read
+
+jobs:
+  dryrun:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore the model
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/hf-cache
+          key: hf-qwen2.5-0.5b-instruct-7ae557604adf67be50417f59c2c2f167def9a775
+      - name: Three releases only (first, a middle one, last), one rep
+        run: |
+          f=hack/sapphire-bisect/images.txt
+          { grep '^#' $f; grep -v '^#' $f | sed -n '1p;12p;$p'; } > /tmp/images.txt
+          cp /tmp/images.txt $f; cat $f
+      - name: Bisect (dry run)
+        env:
+          MODEL: Qwen/Qwen2.5-0.5B-Instruct
+          MODEL_REVISION: 7ae557604adf67be50417f59c2c2f167def9a775
+          REPS: "1"
+          OUT: out
+        run: |
+          export HF_CACHE=$HOME/hf-cache
+          [ -d "$HF_CACHE/hub" ] || bash hack/first-request/fetch-model.sh "$(grep -v '^#' hack/sapphire-bisect/images.txt | head -1 | awk '{print $2}')"
+          bash hack/sapphire-bisect/bisect.sh 2>&1 | tee bisect.txt
+          grep -q 'BISECT DONE' bisect.txt
+          grep '^BISECT' bisect.txt >> "$GITHUB_STEP_SUMMARY"

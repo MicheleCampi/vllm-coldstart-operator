@@ -1,0 +1,28 @@
+# vLLM CPU release images, one per minor (last patch), x86_64, by digest.
+# Read 2026-11-22: v0.11-v0.15 from ECR Public (vllm-cpu-release-repo),
+# v0.16+ from Docker Hub (vllm/vllm-openai-cpu; v0.16.0 has the same digest in both).
+# Format: <release> <image@digest>
+v0.11.2 public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.11.2@sha256:459b4aa1f3d2fbb603e0f8dadb62d952a18760c087d73fd8c4465fae9b155e8a
+v0.12.0 public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.12.0@sha256:ab3e952c3af002086908c4d0ff6b7506295ccb57fde1678c4bf289d0fc63673b
+v0.13.0 public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.13.0@sha256:4dfa778dab065a0a3557caf609f856e9f65513eb9a4d9e681d413122ec0041c1
+v0.14.1 public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.14.1@sha256:980691743917fcc3294837145d4731d08926b48a513303887a622af1ed0b44aa
+v0.15.1 public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.15.1@sha256:6d66b3e9226a9cba0649de45512e68212b1a314137db0b1f065196116e95a233
+v0.16.0 docker.io/vllm/vllm-openai-cpu:v0.16.0-x86_64@sha256:db0fb9e4cb8068304a06291ca47f1bc033e51f76d676ae9e835393bb1d04e398
+v0.17.1 docker.io/vllm/vllm-openai-cpu:v0.17.1-x86_64@sha256:d19978a2d4bb2289c740a6c89d4cc15fbcf4d20d916f1e268168b8bbad3b776b
+v0.18.1 docker.io/vllm/vllm-openai-cpu:v0.18.1-x86_64@sha256:30a33eba83433a2d1684b72aa6d49e6eb6ee1d8dfc17bca0af550b72c6108189
+v0.19.1 docker.io/vllm/vllm-openai-cpu:v0.19.1-x86_64@sha256:4c697ae650ebeb3a41f3c9c7020913d4c84d2729dc428ce39d60ca353975a4ce
+v0.20.2 docker.io/vllm/vllm-openai-cpu:v0.20.2-x86_64@sha256:48a5febdbdd3c47a99f83c15c8689c765e16bc76e0a486a67203ae3e1595ca50
+v0.21.0 docker.io/vllm/vllm-openai-cpu:v0.21.0-x86_64@sha256:eb680690f111f2b26316265716218f31ce0a0f83efdcac1821fc6caeed41baea
+v0.22.1 docker.io/vllm/vllm-openai-cpu:v0.22.1-x86_64@sha256:232e968ac6e3562aaeaf5f83344f01c764e49f49a83c05ee0cb35b56ca28b34f
+v0.23.0 docker.io/vllm/vllm-openai-cpu:v0.23.0-x86_64@sha256:6240a6bba604e607300e47490e3477211f968bdf125211bb877d19a70b8fe844
+v0.24.0 docker.io/vllm/vllm-openai-cpu:v0.24.0-x86_64@sha256:00eeb8bfad017e2fd9ca9f18999e8417bebfa146a0eb4276b4c26c8272dc2377
+v0.25.1 docker.io/vllm/vllm-openai-cpu:v0.25.1-x86_64@sha256:78818dd939f8772f49fa3d901ec5e245acc888ba48a1c0232ecbb27cdbc7269b
+v0.26.0 docker.io/vllm/vllm-openai-cpu:v0.26.0-x86_64@sha256:8ed97d93c37e8025ca91c4bafaebb03529d55bae68dc40af6609fe129b5dad36
+v0.27.1 docker.io/vllm/vllm-openai-cpu:v0.27.1-x86_64@sha256:0314b8a7594a3fc54e8a0c3ca1ba0c9257302bfb546abfb49a2d6107d2d0767f
+v0.28.0 docker.io/vllm/vllm-openai-cpu:v0.28.0-x86_64@sha256:ea8b61f8ccab650e1c369105373863ac12a581b53f289b344cea72a09238e131
+v0.29.0 docker.io/vllm/vllm-openai-cpu:v0.29.0-x86_64@sha256:66064cf683152e60eff2e5b18ec2d4ace236fb063c0a241f918691db9caddcf4
+v0.30.0 docker.io/vllm/vllm-openai-cpu:v0.30.0-x86_64@sha256:0fd700a207f4f4f0cc9c87fb425b5fa2aafa420c9affca904e2fd44920cbf5a7
+v0.31.0 docker.io/vllm/vllm-openai-cpu:v0.31.0-x86_64@sha256:8024248339dc6878daa5349344ed29d49c8a6732f6bdf7400fda32ce33e4b30b
+v0.32.0 docker.io/vllm/vllm-openai-cpu:v0.32.0-x86_64@sha256:827ef38187f9b52f2bb838695ef815ec5b65f4bf3e4c061b002b2b0a19cb0701
+v0.33.0 docker.io/vllm/vllm-openai-cpu:v0.33.0-x86_64@sha256:4154467a886f8b7ffa9dbab32f873f5ca4528409d042a6ec866e8888223263d3
+v0.34.0 docker.io/vllm/vllm-openai-cpu:v0.34.0-x86_64@sha256:b14c3a46a4b08852b32528643e070d57f3731cccb0fa33ef86d4f3b3f8ac36c4
