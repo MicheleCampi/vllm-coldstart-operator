@@ -20,14 +20,13 @@ permissions:
 
 jobs:
   study:
-    name: ${{ matrix.cpus }} ${{ matrix.reserved }}
+    name: ${{ matrix.cpus }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {cpus: all, reserved: "reserved0"}
+        cpus: [all]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore the model
@@ -40,20 +39,20 @@ jobs:
           MODEL: Qwen/Qwen2.5-0.5B-Instruct
           MODEL_REVISION: 7ae557604adf67be50417f59c2c2f167def9a775
           CPUS: ${{ matrix.cpus }}
-          RESERVED: ${{ matrix.reserved }}
         run: |
           export HF_CACHE=$HOME/hf-cache
           A=docker.io/vllm/vllm-openai-cpu:v0.19.1-x86_64@sha256:4c697ae650ebeb3a41f3c9c7020913d4c84d2729dc428ce39d60ca353975a4ce
           B=docker.io/vllm/vllm-openai-cpu:v0.20.0-x86_64@sha256:dc28ea3382c4cfe71be754fc1bbf66dc6c8e487afaae0b55d938c54bc158f363
           [ -d "$HF_CACHE/hub" ] || bash hack/first-request/fetch-model.sh "$A"
+          # Three variants on the same runner, interleaved: v0.19.1, v0.20.0
+          # default, v0.20.0 with VLLM_CPU_NUM_OF_RESERVED_CPU=0 (the
+          # scheduler core is not taken away from the OpenMP threads).
           for r in 1 2; do
-            for v in v0.19.1 v0.20.0; do
-              img=$A; [ $v = v0.20.0 ] && img=$B
-              # reserved0: v0.20.0 with VLLM_CPU_NUM_OF_RESERVED_CPU=0, so the
-              # scheduler core is not taken away from the OpenMP threads.
-              STUDY_ENV=; [ "$RESERVED" = reserved0 ] && [ $v = v0.20.0 ] && STUDY_ENV=VLLM_CPU_NUM_OF_RESERVED_CPU=0
+            for v in v0.19.1 v0.20.0 v0.20.0-reserved0; do
+              img=$A; STUDY_ENV=
+              case $v in v0.20.0) img=$B;; v0.20.0-reserved0) img=$B; STUDY_ENV=VLLM_CPU_NUM_OF_RESERVED_CPU=0;; esac
               STUDY_ENV=$STUDY_ENV bash hack/steady-study/study.sh "$img" eager "$CPUS" "out/$v-$CPUS-$r" > "out-$v-$r.log" 2>&1 || { tail -30 "out-$v-$r.log"; exit 1; }
-              grep -h -i -E 'OpenMP thread binding|core ids|reserved_cpus|Selected CPU core number|executor' "out/$v-$CPUS-$r/vllm.log" | head -6 | sed "s/^/$v: /"
+              grep -h -E 'core ids|reserved_cpus' "out/$v-$CPUS-$r/vllm.log" | head -2 | sed "s/^/$v: /"
             done
           done
           python3 hack/steady-study/summarize.py out/* | tee table.txt
