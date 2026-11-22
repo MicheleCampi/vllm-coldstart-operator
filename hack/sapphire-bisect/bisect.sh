@@ -51,7 +51,8 @@ measure() {
 
 say "cpu: $(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1), $(nproc) vcpus, $(grep -o -w -E 'amx_bf16|avx512f' /proc/cpuinfo | sort -u | paste -sd, - || true)"
 say "releases: ${rel[*]} (reps $reps)"
-measure 0; measure "$last"
+measure 0 || { say "RESULT endpoint ${rel[0]} failed, stopping"; exit 1; }
+measure "$last" || { say "RESULT endpoint ${rel[$last]} failed, stopping"; exit 1; }
 a=${p50[0]} b=${p50[$last]}
 ratio=$(awk -v a="$a" -v b="$b" 'BEGIN{printf "%.3f", b/a}')
 say "endpoints: ${rel[0]} $a s, ${rel[$last]} $b s, ratio $ratio"

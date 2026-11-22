@@ -19,6 +19,9 @@ permissions:
 jobs:
   dryrun:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,7 +34,16 @@ jobs:
         run: |
           f=hack/sapphire-bisect/images.txt
           { grep '^#' $f; grep -v '^#' $f | sed -n '1p;12p;$p'; } > /tmp/images.txt
+          # ECR Public caps anonymous data per IP outside AWS ("toomanyrequests:
+          # Data limit exceeded" on runners): pull v0.11.2 from the project's
+          # GHCR mirror by the same digest. The EC2 session pulls from ECR
+          # Public itself, inside AWS.
+          sed -i 's#public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.11.2@#ghcr.io/michelecampi/vllm-cpu-mirror@#' /tmp/images.txt
           cp /tmp/images.txt $f; cat $f
+      - name: Log in to GHCR (mirror)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - name: Bisect (dry run)
         env:
           MODEL: Qwen/Qwen2.5-0.5B-Instruct
