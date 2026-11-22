@@ -1,0 +1,43 @@
+# Study, not a gate: dry run of hack/sapphire-bisect/a024.sh on a GitHub
+# runner (Granite Rapids, Emerald Rapids or AMD, not Sapphire Rapids) before
+# the paid EC2 session A-024. It proves the script end to end (the torch-only
+# matmul with the torch of v0.19.1 and v0.20.0, the oneDNN kernel lines, the
+# steady-state runs) and gives the same matmul on a non-Sapphire CPU as a
+# control. REPS=1; the steady numbers are not the result.
+name: a024-dryrun
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-t7cl72]
+    paths:
+      - .github/workflows/a024-dryrun.yml
+      - hack/sapphire-bisect/a024.sh
+      - hack/sapphire-bisect/matmul.py
+
+permissions:
+  contents: read
+
+jobs:
+  dryrun:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore the model
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/hf-cache
+          key: hf-qwen2.5-0.5b-instruct-7ae557604adf67be50417f59c2c2f167def9a775
+      - name: A-024 (dry run)
+        env:
+          MODEL: Qwen/Qwen2.5-0.5B-Instruct
+          MODEL_REVISION: 7ae557604adf67be50417f59c2c2f167def9a775
+          REPS: "1"
+          OUT: out
+        run: |
+          export HF_CACHE=$HOME/hf-cache
+          [ -d "$HF_CACHE/hub" ] || bash hack/first-request/fetch-model.sh docker.io/vllm/vllm-openai-cpu:v0.19.1-x86_64@sha256:4c697ae650ebeb3a41f3c9c7020913d4c84d2729dc428ce39d60ca353975a4ce
+          bash hack/sapphire-bisect/a024.sh 2>&1 | tee a024.txt
+          grep -q 'A024 DONE' a024.txt
+          grep '^A024' a024.txt >> "$GITHUB_STEP_SUMMARY"

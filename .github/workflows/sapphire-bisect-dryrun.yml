@@ -11,7 +11,8 @@ on:
     branches: [claude/project-thread-t7cl72]
     paths:
       - .github/workflows/sapphire-bisect-dryrun.yml
-      - hack/sapphire-bisect/**
+      - hack/sapphire-bisect/bisect.sh
+      - hack/sapphire-bisect/images.txt
 
 permissions:
   contents: read
