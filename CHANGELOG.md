@@ -5,12 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.17.0] — 2026-11-22
 ### Changed
 - **vLLM CPU image v0.11.2 → v0.34.0** in the CI job `first request after Ready on vLLM CPU` and in `deploy/examples/qwen-0-5b-cpu.yaml`: `docker.io/vllm/vllm-openai-cpu:v0.34.0-x86_64`, pinned by digest (upstream moved the CPU release image from ECR Public to Docker Hub). The probe of v0.16.0 still matters on v0.34.0: in eager mode (`warmupStrategy: Eager`) the first request after `/health` took 15 to 18 s on Intel (AMX) runners and 78 to 120 s on AMD runners in the study of 2026-11-21 (run 44953491417); in the default mode (CUDA graphs and compile on) there is no first-request penalty but the server takes 95 to 206 s to start, against 30 to 46 s in eager mode. Measured by this job on v0.34.0 (run 44956125336): first request without the operator 18.22 s, first request after Ready through the operator 5.26 s (objective 8 s), second request 2.67 s.
 - Metric names and histogram edges the SLO rules use (`vllm:time_to_first_token_seconds` 22 edges, `vllm:request_time_per_output_token_seconds` edge 0.1, `vllm:request_success_total`, `vllm:num_requests_*`, `vllm:prefix_cache_*`) checked unchanged in v0.34.0 source.
 - **`spec.image` defaults to a pinned vLLM release, not `:latest`** (VllmService and FleetService template): `vllm/vllm-openai:v0.34.0@sha256:20fdb089…`. A service without `image` is now reproducible and passes admission policies that reject `:latest`, such as the `disallow-latest-tag` Kyverno policy of eks-llm-inference-platform. The default moves only with operator releases.
 - Rust toolchain 1.95 → 1.100 (rust-toolchain.toml, `rust-version`, builder image, CI action).
 - kube 2 → 5 and k8s-openapi 0.26 (`v1_34`) → 0.29 (`v1_36`): the operator now compiles against the Kubernetes 1.36 API it runs on. CRDs regenerated (only the empty `categories` list is gone).
+- Dependency updates by Renovate (`renovate.json`, `config:best-practices`, digests pinned) instead of Dependabot. It also covers the Rust toolchain, kind and its node image, and the vLLM CPU image in the workflow env.
 ### Upgrading
 - Services that relied on the default get vLLM v0.34.0 instead of whatever `:latest` resolved to; their pods roll once. Set `image` explicitly to keep another version. Apply the release's CRDs before `helm upgrade` (the default lives in the CRD schema).
 
