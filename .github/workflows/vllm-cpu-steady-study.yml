@@ -1,0 +1,118 @@
+# Study, not a gate: why is vLLM CPU v0.34.0 slower at steady state than
+# v0.11.2 on EKS (live A-021, 2026-11-22, finding 3 of
+# eks-llm-inference-platform docs/evidence/live-a021-2026-11-22.md)? Same
+# m7i-flex.large nodes, pod request 1 CPU, eager mode and probe: p50 5.86 s
+# against 3.81 s. Each job is one fresh server on a fresh runner, pinned to
+# a CPU set: one logical CPU, one physical core with its SMT sibling (what a
+# 2-vCPU m7i-flex.large is), or the whole runner. The CPU model is recorded
+# next to every number. Images by digest from the project's GHCR mirror.
+name: vllm-cpu-steady-study
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-t7cl72]
+    paths:
+      - .github/workflows/vllm-cpu-steady-study.yml
+      - hack/steady-study/**
+
+permissions:
+  contents: read
+
+env:
+  MODEL: Qwen/Qwen2.5-0.5B-Instruct
+  MODEL_REVISION: 7ae557604adf67be50417f59c2c2f167def9a775
+  MIRROR_REPO: vllm-cpu-mirror
+
+jobs:
+  mirror:
+    name: mirror ${{ matrix.image }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        image:
+          - public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.11.2@sha256:459b4aa1f3d2fbb603e0f8dadb62d952a18760c087d73fd8c4465fae9b155e8a
+          - docker.io/vllm/vllm-openai-cpu:v0.34.0-x86_64@sha256:b14c3a46a4b08852b32528643e070d57f3731cccb0fa33ef86d4f3b3f8ac36c4
+    steps:
+      - name: Copy the image to the GHCR mirror by digest (once)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          digest=${IMAGE##*@}; repo=${IMAGE%@*}
+          mirror=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$MIRROR_REPO
+          if skopeo inspect --raw --creds "$GITHUB_ACTOR:$GH_TOKEN" "docker://$mirror@$digest" > /dev/null 2>&1; then
+            echo "mirror already has $digest"
+          else
+            for i in 1 2 3; do
+              skopeo copy --all --preserve-digests --dest-creds "$GITHUB_ACTOR:$GH_TOKEN" \
+                "docker://${repo%:*}@$digest" "docker://$mirror:${repo##*:}" && break
+              echo "mirror copy attempt $i failed, retrying in $((60 * i)) s"; sleep $((60 * i))
+            done
+            skopeo inspect --raw --creds "$GITHUB_ACTOR:$GH_TOKEN" "docker://$mirror@$digest" > /dev/null
+          fi
+
+  measure:
+    name: ${{ matrix.variant }} ${{ matrix.cpus }} rep ${{ matrix.rep }}
+    needs: mirror
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      max-parallel: 9
+      matrix:
+        variant: [v0.11.2-eager, v0.34.0-eager, v0.34.0-default]
+        cpus: [thread, core, all]
+        rep: [1, 2]
+        include:
+          - {variant: v0.11.2-eager, mode: eager, digest: "sha256:459b4aa1f3d2fbb603e0f8dadb62d952a18760c087d73fd8c4465fae9b155e8a"}
+          - {variant: v0.34.0-eager, mode: eager, digest: "sha256:b14c3a46a4b08852b32528643e070d57f3731cccb0fa33ef86d4f3b3f8ac36c4"}
+          - {variant: v0.34.0-default, mode: default, digest: "sha256:b14c3a46a4b08852b32528643e070d57f3731cccb0fa33ef86d4f3b3f8ac36c4"}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Pull the image from the mirror by digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          img=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$MIRROR_REPO@${{ matrix.digest }}
+          docker pull -q "$img"
+          echo "IMG=$img" >> "$GITHUB_ENV"
+      - name: Restore the model
+        id: model-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/hf-cache
+          key: hf-qwen2.5-0.5b-instruct-${{ env.MODEL_REVISION }}
+      - name: Fetch the model at the pinned commit (cache miss only)
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        run: HF_CACHE=$HOME/hf-cache bash hack/first-request/fetch-model.sh "$IMG"
+      - name: Measure (fresh server, 16-token warmup, 40 probe requests)
+        run: HF_CACHE=$HOME/hf-cache bash hack/steady-study/study.sh "$IMG" "${{ matrix.mode }}" "${{ matrix.cpus }}" "out/${{ matrix.variant }}-${{ matrix.cpus }}-${{ matrix.rep }}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: steady-${{ matrix.variant }}-${{ matrix.cpus }}-${{ matrix.rep }}
+          path: out/
+
+  summary:
+    needs: measure
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: steady-*
+          path: all
+          merge-multiple: true
+      - run: python3 hack/steady-study/summarize.py all/* | tee -a "$GITHUB_STEP_SUMMARY"
