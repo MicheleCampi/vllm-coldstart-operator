@@ -9,5 +9,5 @@ spec:
   model: "Qwen/Qwen2.5-7B-Instruct"
   replicas: 1
   warmupStrategy: Eager
-  image: "vllm/vllm-openai:latest"
+  image: "vllm/vllm-openai:v0.34.0@sha256:20fdb089454afbb324efa4110a2c025ff7b27cc1a086e07aa580b18df8ad1ce1"
   gpu: 1

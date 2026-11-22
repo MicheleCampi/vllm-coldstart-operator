@@ -2,14 +2,17 @@
 name = "vllm-coldstart-operator"
 version = "0.16.0"
 edition = "2021"
-rust-version = "1.95"
+rust-version = "1.100"
 license = "Apache-2.0"
 description = "A Kubernetes operator that manages vLLM inference replicas with cold-start as a first-class signal"
 repository = "https://github.com/MicheleCampi/vllm-coldstart-operator"
 
 [dependencies]
-kube = { version = "2", features = ["runtime", "derive", "client"] }
-k8s-openapi = { version = "0.26", features = ["v1_34"] }
+kube = { version = "5", features = ["runtime", "derive", "client"] }
+k8s-openapi = { version = "0.29", features = ["v1_36"] }
+# k8s-openapi re-exported chrono up to 0.26; 0.27+ uses jiff for its own
+# types, so the RFC 3339 arithmetic here names chrono directly.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

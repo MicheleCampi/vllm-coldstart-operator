@@ -65,7 +65,7 @@ example:
     #     model: "Qwen/Qwen2.5-7B-Instruct"
     #     replicas: 1
     #     warmupStrategy: Eager          # operator appends --enforce-eager
-    #     image: "vllm/vllm-openai:v0.11.0"
+    #     image: "vllm/vllm-openai:v0.34.0"
     #     gpu: 1
     #     healthPath: "/health"
     #     # runtimeClassName: leave unset on managed clusters; set to "nvidia"

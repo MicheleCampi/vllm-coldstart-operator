@@ -20,12 +20,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use k8s_openapi::api::core::v1::Node;
-use k8s_openapi::chrono::{DateTime, Utc};
 use kube::{
     api::{Api, DeleteParams, ListParams, ObjectMeta, Patch, PatchParams},
-    core::ErrorResponse,
     runtime::{
         controller::{Action, Controller},
         reflector::ObjectRef,
@@ -848,7 +847,7 @@ async fn reconcile_inner(
         // reconcile must stay idempotent across a retry that lost its ack.
         match services.delete(&child_name, &dp).await {
             Ok(_) => {}
-            Err(kube::Error::Api(ErrorResponse { code: 404, .. })) => {
+            Err(kube::Error::Api(status)) if status.code == 404 => {
                 info!(
                     "FleetService '{}': surplus child '{}' already gone",
                     name, child_name
@@ -1168,8 +1167,8 @@ mod tests {
     #[test]
     fn owned_child_carries_template_image_and_pinned_node() {
         // API contract: the fleet's template image reaches the child spec
-        // verbatim — no silent fallback to default_image(), which is a
-        // :latest tag and therefore not a reproducible reference.
+        // verbatim — no silent fallback to default_image(), which moves
+        // with operator releases.
         let fleet: FleetService = serde_json::from_value(json!({
             "metadata": {
                 "name": "rehearsal",

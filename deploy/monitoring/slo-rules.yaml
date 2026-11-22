@@ -2,7 +2,7 @@
 # requests with a first token within 1 s, so an error budget of 5%. Rules in
 # the Prometheus format, the same file for promtool, the CI Prometheus and the
 # Grafana-managed rules of Grafana Cloud (ADR-0021). The 1 s edge is a bucket of
-# vllm:time_to_first_token_seconds in vLLM v0.11.0 and in the simulator
+# vllm:time_to_first_token_seconds in vLLM v0.11.0 to v0.34.0 and in the simulator
 # v0.8.2; Go writes le="1", Python le="1.0". Windows and factors are the
 # multiwindow, multi-burn-rate alerts of the Google SRE Workbook.
 groups:
@@ -68,7 +68,7 @@ groups:
           runbook_url: https://github.com/MicheleCampi/vllm-coldstart-operator/blob/main/docs/runbooks/ttft-burn-rate.md
       - alert: VllmTtftObjectiveUnsupported
         # The 22 edges of vllm:time_to_first_token_seconds in vLLM v0.11.0
-        # (vllm/v1/metrics/loggers.py) and the simulator v0.8.2. An objective at
+        # (vllm/v1/metrics/loggers.py), unchanged in v0.34.0 (vllm/v1/metrics/buckets.py) and the simulator v0.8.2. An objective at
         # another value would be measured at 1 s, so say it.
         expr: vcso_vllmservice_objective_ttft_seconds{le!~"0.001|0.005|0.01|0.02|0.04|0.06|0.08|0.1|0.25|0.5|0.75|1|2.5|5|7.5|10|20|40|80|160|640|2560"}
         labels:

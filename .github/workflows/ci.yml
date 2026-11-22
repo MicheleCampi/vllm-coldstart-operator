@@ -149,7 +149,7 @@ jobs:
           echo "defaults render no scheduling fields; nodeSelector and tolerations render when set"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100
         with:
           components: rustfmt, clippy
 
@@ -181,7 +181,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100
 
       - name: Cache cargo registry and target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -822,7 +822,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+      - uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -1003,7 +1003,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+      - uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -1121,7 +1121,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100
 
       - name: Cache cargo registry and target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -1259,7 +1259,11 @@ jobs:
     # (tests/gameday/model.yaml of eks-llm-inference-platform: real vLLM
     # CPU image, Qwen2.5-0.5B) through the operator on kind and asserts
     # that the first client request after Ready meets the 8 s latency
-    # objective. The cold baseline, the same server without the operator,
+    # objective. vLLM v0.34.0 (was v0.11.2 until 2026-11-21): in eager mode,
+    # which warmupStrategy Eager selects, the first request still pays 15 to
+    # 18 s on v0.34.0 (study run 44953491417; since v0.31.0 --enforce-eager
+    # also skips the JIT kernel warmup), so the probe is still what makes
+    # Ready mean warm. The cold baseline, the same server without the operator,
     # is measured first and reported, not asserted.
     name: first request after Ready on vLLM CPU
     runs-on: ubuntu-24.04
@@ -1269,7 +1273,7 @@ jobs:
       packages: write
     timeout-minutes: 50
     env:
-      VLLM_CPU_IMAGE: public.ecr.aws/q9t5s3a7/vllm-cpu-release-repo:v0.11.2@sha256:459b4aa1f3d2fbb603e0f8dadb62d952a18760c087d73fd8c4465fae9b155e8a
+      VLLM_CPU_IMAGE: docker.io/vllm/vllm-openai-cpu:v0.34.0-x86_64@sha256:b14c3a46a4b08852b32528643e070d57f3731cccb0fa33ef86d4f3b3f8ac36c4
       MODEL: Qwen/Qwen2.5-0.5B-Instruct
       # The model's commit on HuggingFace (main on 2026-11-21, run
       # 44926627715): fetched once, cached, and the servers run offline at it.
@@ -1278,7 +1282,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100
 
       - name: Cache cargo registry and target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -1293,12 +1297,12 @@ jobs:
         run: cargo build --bins
 
       - name: Pull the vLLM CPU image from the project's mirror
-        # Anonymous pulls from ECR Public are limited per runner IP: run
-        # 44909937562 and run 44911748503 (6 attempts over 10 min) got
-        # "toomanyrequests: Data limit exceeded", run 44910114786 did not.
-        # The job pulls from a GHCR mirror by the same digest instead. When
-        # the mirror lacks it, skopeo copies it from ECR once with
-        # --preserve-digests, so the bytes and the digest are upstream's.
+        # Anonymous pulls from public registries are limited per runner IP
+        # (ECR Public: runs 44909937562 and 44911748503 got "toomanyrequests:
+        # Data limit exceeded"). The job pulls from a GHCR mirror by the same
+        # digest instead. When the mirror lacks it, skopeo copies it from the
+        # upstream registry once with --preserve-digests, so the bytes and the
+        # digest are upstream's.
         # The kind node gets this copy through kind load, not a pull.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1318,7 +1322,7 @@ jobs:
             done
             docker pull -q "$mirror@$digest"
           fi
-          docker tag "$mirror@$digest" vllm-cpu-ci:v0.11.2
+          docker tag "$mirror@$digest" vllm-cpu-ci:pinned
           df -h / | tail -1
 
       - name: Restore the model from the Actions cache
@@ -1335,13 +1339,13 @@ jobs:
 
       - name: Fetch the model at the pinned commit (bounded, one line per attempt)
         if: steps.model-cache.outputs.cache-hit != 'true'
-        run: HF_CACHE=$HOME/hf-cache bash hack/first-request/fetch-model.sh vllm-cpu-ci:v0.11.2
+        run: HF_CACHE=$HOME/hf-cache bash hack/first-request/fetch-model.sh vllm-cpu-ci:pinned
 
       - name: Cold baseline, no warmup (reported)
         # Same image, model and args, plain Docker, offline: what a client
         # got before v0.16.0.
         run: |
-          HF_CACHE=$HOME/hf-cache VLLM_CPU_IMAGE=vllm-cpu-ci:v0.11.2 bash hack/first-request/diagnose.sh cold | tee baseline.log
+          HF_CACHE=$HOME/hf-cache VLLM_CPU_IMAGE=vllm-cpu-ci:pinned bash hack/first-request/diagnose.sh cold | tee baseline.log
           grep '^{' baseline.log > baseline.jsonl
 
       - name: kind config with the model cache mounted on the node
@@ -1366,7 +1370,7 @@ jobs:
 
       - name: Load the image into the kind node
         run: |
-          kind load docker-image vllm-cpu-ci:v0.11.2 --name first-request
+          kind load docker-image vllm-cpu-ci:pinned --name first-request
           df -h / | tail -1
 
       - name: Install CRD
@@ -1393,7 +1397,7 @@ jobs:
             model: ${MODEL}
             replicas: 1
             warmupStrategy: Eager
-            image: vllm-cpu-ci:v0.11.2
+            image: vllm-cpu-ci:pinned
             gpu: 0
             cpu: "1"
             memory: 6Gi
@@ -1453,6 +1457,13 @@ jobs:
           kill "$(cat port-forward.pid)" 2>/dev/null || true
           kill "$(cat operator.pid)" 2>/dev/null || true
 
+      - name: Make the model cache readable for the cache save
+        # The containers write the cache as root; without this the post step
+        # of actions/cache fails with "Permission denied" (run 44956125336)
+        # and every run downloads the model again.
+        if: always() && steps.model-cache.outputs.cache-hit != 'true'
+        run: sudo chown -R "$(id -u):$(id -g)" "$HOME/hf-cache"
+
   manifests:
     name: examples and README against the CRDs
     runs-on: ubuntu-24.04
@@ -1470,7 +1481,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100
 
       - name: Cache cargo registry and target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -1589,7 +1600,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100
 
       - name: Cache cargo registry and target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -1760,7 +1771,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@035fceb3c12fb0c6a9461b52775e16473133e591 # 1.95
+        uses: dtolnay/rust-toolchain@d5e4d57b030548f435d0befec15ff413a2c60eff # 1.100
 
       - name: Cache cargo registry and target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

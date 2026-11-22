@@ -33,7 +33,7 @@
 //!     by design.
 
 use anyhow::{bail, Context as _};
-use k8s_openapi::chrono::Utc;
+use chrono::Utc;
 use kube::{
     api::{Api, Patch, PatchParams, PostParams},
     Client,
