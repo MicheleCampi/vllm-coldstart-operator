@@ -1,0 +1,55 @@
+# Study, not a gate: what changed inside the vLLM CPU image between v0.19.1
+# (fast on Xeon 8488C) and v0.20.x (+51 % steady-state p50, Ready 30 -> 70 s;
+# A-023 bisect, eks docs/evidence/bisect-a023-2026-11-22.md). No benchmark:
+# it prints the vLLM build commit, the Python packages that drive CPU kernels
+# (torch, IPEX, oneDNN, triton...), the environment variables baked into the
+# image, and the vLLM CPU platform defaults. Runs on any runner.
+name: sapphire-bisect-inspect
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-t7cl72]
+    paths:
+      - .github/workflows/sapphire-bisect-inspect.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    name: inspect ${{ matrix.release }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {release: v0.19.1, image: "docker.io/vllm/vllm-openai-cpu:v0.19.1-x86_64@sha256:4c697ae650ebeb3a41f3c9c7020913d4c84d2729dc428ce39d60ca353975a4ce"}
+          - {release: v0.20.0, image: "docker.io/vllm/vllm-openai-cpu:v0.20.0-x86_64@sha256:dc28ea3382c4cfe71be754fc1bbf66dc6c8e487afaae0b55d938c54bc158f363"}
+          - {release: v0.20.2, image: "docker.io/vllm/vllm-openai-cpu:v0.20.2-x86_64@sha256:48a5febdbdd3c47a99f83c15c8689c765e16bc76e0a486a67203ae3e1595ca50"}
+    steps:
+      - name: Image config (env, labels, entrypoint)
+        env:
+          IMG: ${{ matrix.image }}
+        run: |
+          docker pull -q "$IMG" > /dev/null
+          docker inspect "$IMG" --format '{{json .Config.Env}}' | tr ',' '\n'
+          docker inspect "$IMG" --format '{{json .Config.Labels}}'
+          docker inspect "$IMG" --format 'entrypoint {{json .Config.Entrypoint}} cmd {{json .Config.Cmd}}'
+      - name: Packages and vLLM build
+        env:
+          IMG: ${{ matrix.image }}
+        run: |
+          docker run --rm --entrypoint sh "$IMG" -c '
+            python3 -c "import vllm, sys; print(\"vllm\", vllm.__version__, getattr(vllm, \"__commit__\", \"?\")); print(\"python\", sys.version.split()[0])"
+            python3 -c "import torch; print(\"torch\", torch.__version__); print(torch.__config__.show())" 2>&1 | head -40
+            pip list 2>/dev/null | grep -i -E "^(torch|intel|ipex|onednn|oneccl|triton|numpy|transformers|tokenizers|xformers|mkl|tbb|vllm)" || true
+            ls /usr/local/lib/python3*/*-packages 2>/dev/null | grep -i -E "ipex|intel_extension|onednn|dnnl" || true
+            python3 - <<EOF
+          import os
+          for k, v in sorted(os.environ.items()):
+              if k.startswith(("VLLM", "OMP", "KMP", "LD_PRELOAD", "ONEDNN", "DNNL", "MKL")):
+                  print("env", k, "=", v)
+          EOF
+          '
