@@ -1427,8 +1427,13 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8001/health > /dev/null && break; sleep 1; done
           python3 hack/first-request/measure.py http://127.0.0.1:8001 "$MODEL" \
             "client:32:Kubernetes is" "again:32:Kubernetes is" | tee operator.jsonl
+          # The one-time costs depend on the CPU (AMX on Intel, AVX2 only on
+          # AMD EPYC runners): every number is recorded with the CPU it ran on.
+          cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1)
+          isa=$(grep -m1 -o -w -E 'amx_bf16|avx512f' /proc/cpuinfo | sort -u | paste -sd, -)
+          echo "cpu: $cpu (${isa:-avx2 only}), $(nproc) cpus" | tee cpu.txt
           echo "cold baseline (no operator): $(grep -m1 '"label"' baseline.jsonl)"
-          python3 -c 'import json,sys; r=json.loads(open("operator.jsonl").readline()); sys.exit(0 if r["code"]==200 and r["s"]<8 else "first request after Ready: %s, objective 8 s" % r)'
+          python3 -c 'import json,sys; r=json.loads(open("operator.jsonl").readline()); c=open("cpu.txt").read().strip(); print("first request after Ready: %s s, %s" % (r["s"], c)); sys.exit(0 if r["code"]==200 and r["s"]<8 else "first request after Ready: %s, objective 8 s, %s" % (r, c))'
 
       - name: Dump cluster and operator state on failure
         if: failure()
@@ -1448,6 +1453,7 @@ jobs:
           path: |
             baseline.jsonl
             operator.jsonl
+            cpu.txt
             *.log
           if-no-files-found: ignore
 

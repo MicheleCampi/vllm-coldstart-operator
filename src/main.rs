@@ -97,9 +97,11 @@ const CPU_TERMINATION_GRACE_SECONDS: i64 = PRE_STOP_SLEEP_SECONDS + 10;
 
 /// True when the spec asks for a real vLLM server: GPUs, or CPU-only with
 /// both `cpu` and `memory` set. False is the inert placeholder.
-/// The startup probe's warmup: one 1-token completion against the local
-/// server, as a client would send it. Any error (server not up yet, no
-/// model listed, non-2xx) exits non-zero, so the probe retries.
+/// The startup probe's warmup: one completion against the local server, as
+/// a client would send it, long enough to run decode steps and not only the
+/// prefill: a sentence prompt and 16 tokens. Any error (server not up yet,
+/// no model listed, non-2xx, timeout) exits non-zero, so the probe retries;
+/// the server keeps its warm state across retries.
 const WARMUP_SCRIPT: &str = r#"import json, os, urllib.request as u
 h = {"Content-Type": "application/json"}
 k = os.environ.get("VLLM_API_KEY")
@@ -107,7 +109,7 @@ if k:
     h["Authorization"] = "Bearer " + k
 b = "http://127.0.0.1:8000"
 m = json.load(u.urlopen(u.Request(b + "/v1/models", headers=h), timeout=10))["data"][0]["id"]
-d = json.dumps({"model": m, "prompt": "Hi", "max_tokens": 1}).encode()
+d = json.dumps({"model": m, "prompt": "Write one sentence about the sea.", "max_tokens": 16}).encode()
 u.urlopen(u.Request(b + "/v1/completions", data=d, headers=h), timeout=110).read()
 "#;
 
@@ -269,12 +271,16 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
         })
     };
     // Startup probe, on serving pods with a health path: one real
-    // 1-token completion before the pod can become Ready. /health answers
-    // as soon as the server is up, and the first completion pays one-time
-    // costs: on the vLLM CPU image 15.9 s against 2.1 s after it (CI job
-    // "first request after Ready on vLLM CPU"; EKS game day #1, 17 to 19 s
-    // for the first client). One 1-token completion took 9 s and left the
-    // next 32-token request, other prompt included, at 2.0 s. Kubernetes
+    // completion (sentence prompt, 16 tokens) before the pod can become
+    // Ready. /health answers as soon as the server is up, and the first
+    // completion pays one-time costs: on the vLLM CPU image v0.11.2 15.9 s
+    // against 2.1 s after it (CI job "first request after Ready on vLLM
+    // CPU"; EKS game day #1, 17 to 19 s for the first client). Up to
+    // v0.16.0 the probe sent 1 token, prefill only: enough on v0.11.2, not
+    // on v0.34.0, where decode pays its own first-use cost. Study run
+    // 44953491417, eager mode: after a 1-token warmup the first 32-token
+    // request took 5.1 s on an Intel Xeon 6975P (AMX; steady 2.6 s) and
+    // 61.4 s on an AMD EPYC 7763 (steady 4.7 s). Kubernetes
     // runs readiness only after the startup probe has passed once, so
     // Ready now means warm. The model id comes from /v1/models (it honours
     // --served-model-name) and the API key from the pod's own variable.
@@ -854,7 +860,9 @@ mod tests {
         let p = c.startup_probe.expect("startup probe on a serving pod");
         let cmd = p.exec.unwrap().command.unwrap();
         assert_eq!(cmd[..2], ["python3".to_string(), "-c".to_string()]);
-        assert!(cmd[2].contains("/v1/completions") && cmd[2].contains("\"max_tokens\": 1"));
+        assert!(cmd[2].contains("/v1/completions"));
+        // More than one token: the warmup must run decode, not only prefill.
+        assert!(cmd[2].contains("\"max_tokens\": 16"));
         assert!(cmd[2].contains("VLLM_API_KEY"));
         assert_eq!(
             p.period_seconds.unwrap() * p.failure_threshold.unwrap(),
