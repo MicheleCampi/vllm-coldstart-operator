@@ -1,7 +1,7 @@
 # Study, not a gate: dry run of hack/sapphire-bisect on a GitHub runner
 # (Granite Rapids or AMD, not Sapphire Rapids) before the paid EC2 session.
 # It proves the scripts end to end: model fetch, two releases, the stop rule
-# (first run) and the binary search (MIN_RATIO 1.05), the drift control, the BISECT lines. REPS=1 and a
+# (first run) and the binary search (MIN_RATIO 0), the drift control, the BISECT lines. REPS=1 and a
 # three-release list keep it short; the numbers are not the result.
 name: sapphire-bisect-dryrun
 
@@ -49,7 +49,7 @@ jobs:
           MODEL: Qwen/Qwen2.5-0.5B-Instruct
           MODEL_REVISION: 7ae557604adf67be50417f59c2c2f167def9a775
           REPS: "1"
-          MIN_RATIO: "1.05" # Granite Rapids shows ~1.1x: forces the search path in the dry run
+          MIN_RATIO: "0" # always search in the dry run: runner CPUs show 1.0-1.15x
           OUT: out
         run: |
           export HF_CACHE=$HOME/hf-cache
