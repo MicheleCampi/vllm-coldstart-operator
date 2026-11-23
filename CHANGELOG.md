@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pods leave the Service when their node shuts down** (ADR-0028). On EKS AL2023 1.34+ the kubelet drains its own pods on an instance shutdown (graceful node shutdown, 150 s) without the API: no deletionTimestamp, and the kubelet stops probing readiness as soon as the termination starts (kubernetes/kubernetes#105780), so the pod stays Ready and routed for its whole 110 s pre-stop sleep. The EKS game day re-run of 2026-11-21 lost one request 111 s after `terminate-instances` (availability SLI 99.32 % against 99.5 %). The operator now watches Nodes and, when a kubelet reports "node is shutting down", deletes through the API the pods it manages on that node: the endpoint leaves the ready set within seconds, the pre-stop sleep drains it, and the replacement starts at once.
 ### Changed
 - RBAC: `nodes` adds `watch`, `pods` adds `list`. The chart job checks the operator's ServiceAccount can watch nodes and list and delete pods.
-- New CI job `node-shutdown`: graceful node shutdown on kind (D-Bus and logind added to the workers, `PrepareForShutdown` sent to one replica's node) under a client without retry; with the operator running no request may be lost, with it stopped some must be.
+- New CI job `node-shutdown`: graceful node shutdown on kind (D-Bus and logind added to the workers, `PrepareForShutdown` sent to one replica's node) under a client without retry; with the operator running no request may be lost and the target leaves the Service within 10 s; with it stopped the target must stay routed until SIGTERM, the defect itself.
 ### Upgrading
 - No pod template change, no rollout. Upgrade the chart for the new RBAC.
 

@@ -69,8 +69,12 @@ availability SLI of the window was 99.32 %, below its 99.5 % objective.
   added, and logind's `PrepareForShutdown` signal sent to the node of one
   of two replicas, under a client that sends a request every 0.2 s through
   the Service, from the control plane, without retry. With the operator
-  running no request may be lost; with the operator stopped (v0.17.0 had no
-  node watch) some must be, or the job could not see the defect.
+  running, no request may be lost and the target must answer nothing later
+  than 10 s after the signal; with the operator stopped (v0.17.0 had no
+  node watch) the target must still answer within 15 s of its end, routed
+  until SIGTERM, or the job could not see the defect. Losses alone would
+  not do as a control: a request is lost only when one arrives at SIGTERM,
+  and the control lost one in some runs and none in others.
 - Rejected:
   - a pre-stop hook that turns readiness off (a drain flag the readiness
     probe checks). Built and run first: the flag was there and the check
