@@ -42,6 +42,7 @@ use vllm_coldstart_operator::{
 };
 
 mod fleet_controller;
+mod node_drain;
 mod provision;
 
 const MANAGER: &str = "vllm-coldstart-operator";
@@ -94,26 +95,6 @@ const TERMINATION_GRACE_SECONDS: i64 = 120;
 const PRE_STOP_SLEEP_SECONDS: i64 = 110;
 /// Grace for a pod with no GPU: the pre-stop sleep, then 10 s for the process.
 const CPU_TERMINATION_GRACE_SECONDS: i64 = PRE_STOP_SLEEP_SECONDS + 10;
-
-/// ADR-0028: a serving pod's pre-stop hook writes the flag
-/// /tmp/vllm-coldstart-draining before its sleep. While it exists the
-/// readiness probe fails, so the pod leaves the Service before SIGTERM in
-/// every termination path, including the kubelet's graceful node shutdown,
-/// which sets no deletionTimestamp: there the endpoint is removed only when
-/// the pod turns NotReady (EKS game day re-run, 21/11: a request sent at
-/// SIGTERM, 111 s after the instance was terminated, was lost).
-/// Readiness of a serving pod: not draining, and the health path answers.
-/// argv[1] is the health path. The server's own error or a timeout fails it.
-const READY_SCRIPT: &str = r#"import os, sys, urllib.request as u
-if os.path.exists("/tmp/vllm-coldstart-draining"):
-    sys.exit("draining")
-u.urlopen("http://127.0.0.1:8000" + sys.argv[1], timeout=8).read()
-"#;
-/// Pre-stop of a serving pod: the drain flag, then the ADR-0019 sleep.
-const PRE_STOP_SCRIPT: &str = r#"import pathlib, sys, time
-pathlib.Path("/tmp/vllm-coldstart-draining").touch()
-time.sleep(int(sys.argv[1]))
-"#;
 
 /// True when the spec asks for a real vLLM server: GPUs, or CPU-only with
 /// both `cpu` and `memory` set. False is the inert placeholder.
@@ -275,31 +256,8 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
     // ready only once the server answers on this endpoint, so the
     // Warming->Ready transition tracks the real cold start. Inert
     // placeholder images set health_path to "" to disable the probe.
-    // Serving pods (ADR-0028): an exec probe that also fails while the
-    // pre-stop hook drains, with python3 from the image as the startup
-    // probe already uses. -I -S: no site-packages scan, a few ms per probe.
-    // The startup probe gates the cold start, so readiness needs no long
-    // failure budget: 3 failures 5 s apart turn a draining or dead server
-    // NotReady within 15 s, well inside the 110 s pre-stop sleep.
     let readiness_probe = if svc.spec.health_path.is_empty() {
         None
-    } else if serving {
-        Some(Probe {
-            exec: Some(ExecAction {
-                command: Some(vec![
-                    "python3".to_string(),
-                    "-I".to_string(),
-                    "-S".to_string(),
-                    "-c".to_string(),
-                    READY_SCRIPT.to_string(),
-                    svc.spec.health_path.clone(),
-                ]),
-            }),
-            period_seconds: Some(5),
-            timeout_seconds: Some(10),
-            failure_threshold: Some(3),
-            ..Default::default()
-        })
     } else {
         Some(Probe {
             http_get: Some(HTTPGetAction {
@@ -422,31 +380,12 @@ fn build_deployment(svc: &VllmService) -> Result<Deployment, Error> {
             }),
             ..Default::default()
         }),
-        // ADR-0019 sleep before SIGTERM. Serving pods also raise the drain
-        // flag first (ADR-0028), so readiness fails during the sleep; the
-        // placeholder and the simulator keep the native sleep (no python).
         lifecycle: Some(Lifecycle {
-            pre_stop: Some(if serving {
-                LifecycleHandler {
-                    exec: Some(ExecAction {
-                        command: Some(vec![
-                            "python3".to_string(),
-                            "-I".to_string(),
-                            "-S".to_string(),
-                            "-c".to_string(),
-                            PRE_STOP_SCRIPT.to_string(),
-                            PRE_STOP_SLEEP_SECONDS.to_string(),
-                        ]),
-                    }),
-                    ..Default::default()
-                }
-            } else {
-                LifecycleHandler {
-                    sleep: Some(SleepAction {
-                        seconds: PRE_STOP_SLEEP_SECONDS,
-                    }),
-                    ..Default::default()
-                }
+            pre_stop: Some(LifecycleHandler {
+                sleep: Some(SleepAction {
+                    seconds: PRE_STOP_SLEEP_SECONDS,
+                }),
+                ..Default::default()
             }),
             ..Default::default()
         }),
@@ -855,7 +794,9 @@ async fn main() -> anyhow::Result<()> {
     // under normal operation, so this never returns. (select! would tear the
     // other controller down the instant one stream ended — wrong here.)
     let fleet_fut = fleet_controller::run(fleet_client, fleet_metrics);
-    tokio::join!(vllm_fut, fleet_fut);
+    // ADR-0028: pods off the Service when their node shuts down.
+    let drain_fut = node_drain::run(client.clone(), MANAGER);
+    tokio::join!(vllm_fut, fleet_fut, drain_fut);
 
     Ok(())
 }
@@ -917,8 +858,7 @@ mod tests {
                 .remove(0)
         };
         // Serving CPU pod (the game day's model): exec startup probe that
-        // sends a completion; readiness on /health, failing while draining
-        // (ADR-0028).
+        // sends a completion; readiness on /health stays.
         let c = container(json!({"model": "m", "gpu": 0, "cpu": "1", "memory": "6Gi"}));
         let p = c.startup_probe.expect("startup probe on a serving pod");
         let cmd = p.exec.unwrap().command.unwrap();
@@ -931,9 +871,7 @@ mod tests {
             p.period_seconds.unwrap() * p.failure_threshold.unwrap(),
             3600
         );
-        let r = c.readiness_probe.expect("readiness on a serving pod");
-        let rcmd = r.exec.expect("exec readiness").command.unwrap();
-        assert_eq!(rcmd.last().map(String::as_str), Some("/health"));
+        assert!(c.readiness_probe.unwrap().http_get.is_some());
         // GPU pod: same.
         assert!(container(json!({"model": "m", "gpu": 1}))
             .startup_probe
@@ -1196,64 +1134,16 @@ mod tests {
                 .template
                 .spec
                 .expect("pod spec");
-            let hook = pod.containers[0]
+            let sleep = pod.containers[0]
                 .lifecycle
                 .as_ref()
                 .and_then(|l| l.pre_stop.as_ref())
-                .expect("pre-stop hook");
-            // The placeholder (gpu 0, no cpu/memory) sleeps natively; a
-            // serving pod (gpu 1) raises the drain flag, then sleeps as long.
-            let sleep = match (&hook.sleep, &hook.exec) {
-                (Some(s), None) => s.seconds,
-                (None, Some(e)) => e.command.as_ref().unwrap().last().unwrap().parse().unwrap(),
-                other => panic!("gpu {gpu}: unexpected hook {other:?}"),
-            };
-            assert_eq!(sleep, PRE_STOP_SLEEP_SECONDS, "gpu {gpu}");
-            assert_eq!(hook.exec.is_some(), gpu > 0, "gpu {gpu}");
+                .and_then(|h| h.sleep.as_ref())
+                .map(|s| s.seconds);
+            assert_eq!(sleep, Some(PRE_STOP_SLEEP_SECONDS), "gpu {gpu}");
             let grace = pod.termination_grace_period_seconds.expect("grace");
             assert!(grace > PRE_STOP_SLEEP_SECONDS, "gpu {gpu}: grace {grace}");
         }
-    }
-
-    #[test]
-    fn a_draining_serving_pod_is_not_ready_before_sigterm() {
-        // ADR-0028, run with the python3 the hooks use: the pre-stop hook
-        // raises the flag, and from then on the readiness probe fails even
-        // with the server up, so the pod leaves the Service before SIGTERM
-        // also when nothing deletes it (graceful node shutdown).
-        let flag = std::path::Path::new("/tmp/vllm-coldstart-draining");
-        assert!(READY_SCRIPT.contains(flag.to_str().unwrap()));
-        assert!(PRE_STOP_SCRIPT.contains(flag.to_str().unwrap()));
-        let _ = std::fs::remove_file(flag);
-        let server = std::net::TcpListener::bind("127.0.0.1:8000");
-        let py = |script: &str, arg: &str| {
-            std::process::Command::new("python3")
-                .args(["-I", "-S", "-c", script, arg])
-                .output()
-                .expect("python3")
-        };
-        if let Ok(listener) = server {
-            // A minimal /health on 8000 for the first probe only.
-            let t = std::thread::spawn(move || {
-                use std::io::{Read, Write};
-                let (mut c, _) = listener.accept().unwrap();
-                let mut buf = [0u8; 1024];
-                let _ = c.read(&mut buf);
-                c.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
-                    .unwrap();
-            });
-            assert!(
-                py(READY_SCRIPT, "/health").status.success(),
-                "ready before the drain"
-            );
-            t.join().unwrap();
-        }
-        assert!(py(PRE_STOP_SCRIPT, "0").status.success());
-        assert!(flag.exists(), "pre-stop raised the flag");
-        let out = py(READY_SCRIPT, "/health");
-        assert!(!out.status.success(), "not ready while draining");
-        assert!(String::from_utf8_lossy(&out.stderr).contains("draining"));
-        std::fs::remove_file(flag).unwrap();
     }
 
     #[test]

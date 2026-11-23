@@ -8,12 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.18.0] — 2026-11-23
 ### Fixed
-- **A serving pod leaves the Service before SIGTERM also when its node shuts down** (ADR-0028). On EKS AL2023 1.34+ the kubelet drains its own pods on an instance shutdown (graceful node shutdown, 150 s) and sets no deletionTimestamp, so the endpoint stays ready until the pod turns NotReady. The ADR-0019 pre-stop sleep kept `/health` answering, and SIGTERM reached a routed server: the EKS game day re-run of 2026-11-21 lost one request 111 s after `terminate-instances` (availability SLI 99.32 % against 99.5 %). Serving pods now write a drain flag in their pre-stop hook before the same 110 s sleep, and their readiness probe (exec, `python3 -I -S`) fails while it exists: NotReady within 15 s, inside the sleep.
+- **Pods leave the Service when their node shuts down** (ADR-0028). On EKS AL2023 1.34+ the kubelet drains its own pods on an instance shutdown (graceful node shutdown, 150 s) without the API: no deletionTimestamp, and the kubelet stops probing readiness as soon as the termination starts (kubernetes/kubernetes#105780), so the pod stays Ready and routed for its whole 110 s pre-stop sleep. The EKS game day re-run of 2026-11-21 lost one request 111 s after `terminate-instances` (availability SLI 99.32 % against 99.5 %). The operator now watches Nodes and, when a kubelet reports "node is shutting down", deletes through the API the pods it manages on that node: the endpoint leaves the ready set within seconds, the pre-stop sleep drains it, and the replacement starts at once.
 ### Changed
-- Readiness of serving pods: exec probe on the health path, period 5 s, timeout 10 s, 3 failures (was HTTP, 60 failures, a budget from before the startup probe gated the cold start). The placeholder and the simulator keep the HTTP probe and the native sleep.
-- New CI job `node-shutdown`: graceful node shutdown on kind (D-Bus and logind added to the workers, `PrepareForShutdown` sent to one replica's node) under a client without retry; this release must lose no request, the v0.17.0 pod spec must lose some.
+- RBAC: `nodes` adds `watch`, `pods` adds `list`. The chart job checks the operator's ServiceAccount can watch nodes and list and delete pods.
+- New CI job `node-shutdown`: graceful node shutdown on kind (D-Bus and logind added to the workers, `PrepareForShutdown` sent to one replica's node) under a client without retry; with the operator running no request may be lost, with it stopped some must be.
 ### Upgrading
-- Serving pods roll once. The image must provide `python3`, as since v0.16.0.
+- No pod template change, no rollout. Upgrade the chart for the new RBAC.
 
 ## [0.17.0] — 2026-11-22
 ### Fixed

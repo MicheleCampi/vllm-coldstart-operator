@@ -3,8 +3,8 @@ Usage: analyze.py MODE CLIENT_LOG T_SIGNAL T_TERMINAL TARGET_POD
 The window runs from the PrepareForShutdown signal to 10 s after the target
 pod is terminal. Valid only if the target pod answered requests in the 10 s
 before the signal (traffic reached it). fixed: exit 0 only with 0 failures.
-control (pod spec of v0.17.0): exit 0 only with at least one failure, i.e.
-the job sees the defect it guards against."""
+control (operator stopped, as v0.17.0 had no node watch): exit 0 only with
+at least one failure, i.e. the job sees the defect it guards against."""
 import json, sys
 
 mode, log, t_sig, t_end, target = sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), sys.argv[5]
@@ -25,7 +25,7 @@ print(json.dumps({
 if to_target_before == 0:
     sys.exit("INVALID: no request reached the target pod before the signal")
 if mode == "fixed" and failed:
-    sys.exit(f"FAIL: {len(failed)} requests lost with the drain flag")
+    sys.exit(f"FAIL: {len(failed)} requests lost with the operator's node watch")
 if mode == "control" and not failed:
     sys.exit("INVALID: the control lost nothing, so this job cannot see the defect")
 print("PASS")
