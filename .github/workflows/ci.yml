@@ -1170,6 +1170,8 @@ jobs:
         run: bash hack/node-shutdown/run.sh fixed
 
       - name: Node shutdown, v0.17.0 pod spec as control (requests lost)
+        # Runs after a failed fixed mode too: both results are needed to read one.
+        if: ${{ !cancelled() }}
         run: bash hack/node-shutdown/run.sh control
 
       - name: Dump state on failure

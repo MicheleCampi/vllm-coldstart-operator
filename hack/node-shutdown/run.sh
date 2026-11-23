@@ -50,6 +50,16 @@ TL=$!
 T_SIG=$(date +%s.%N)
 docker exec "$NODE" dbus-send --system --type=signal /org/freedesktop/login1 org.freedesktop.login1.Manager.PrepareForShutdown boolean:true
 echo "PrepareForShutdown sent to $NODE at $T_SIG"
+# What the node sees inside the drain (diagnostics, in the job log): the
+# drain flag, the readiness command run by hand, and the pod's conditions.
+( for at in 20 60; do
+    sleep $(( at == 20 ? 20 : 40 ))
+    CID=$(docker exec "$NODE" crictl ps --name inference -q 2>/dev/null | head -1)
+    echo "--- +${at}s container ${CID:-none}"
+    [ -n "$CID" ] && docker exec "$NODE" crictl exec "$CID" ls -la /tmp 2>&1 | sed 's/^/  /'
+    [ -n "$CID" ] && { docker exec "$NODE" crictl exec "$CID" python3 -I -S -c 'import os,sys; sys.exit("draining" if os.path.exists("/tmp/vllm-coldstart-draining") else 0)' 2>&1; echo "  ready-check rc=$?"; }
+    kubectl get pod "$TARGET" -o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}{"\n"}' 2>&1 | sed 's/^/  conditions: /'
+  done ) > "$MODE.diag" 2>&1 &
 for i in $(seq 1 200); do
   ph=$(kubectl get pod "$TARGET" -o jsonpath='{.status.phase}' 2>/dev/null || echo gone)
   case "$ph" in Succeeded|Failed|gone) break;; esac
@@ -60,6 +70,11 @@ echo "target pod $ph after $(python3 -c "print(round($T_END - $T_SIG, 1))") s"
 sleep 12
 kill "$TL"
 kubectl logs client > "$MODE.client.jsonl"
+echo "=== $MODE: diagnostics"; cat "$MODE.diag" || true
+echo "=== $MODE: timeline (phase, Ready, endpoint conditions)"; cat "$MODE.timeline" || true
+echo "=== $MODE: kubelet on $NODE (probes, status, shutdown)"
+docker exec "$NODE" journalctl -u kubelet --no-pager --since "-4min" 2>/dev/null \
+  | grep -E "$TARGET|[Ss]hutdown|SyncLoop \(probe\)" | grep -v "^$" | cut -c1-400 | tail -n 120 || true
 kubectl delete pod client --wait=false
 rc=0; python3 "$D/analyze.py" "$MODE" "$MODE.client.jsonl" "$T_SIG" "$T_END" "$TARGET" | tee "$MODE.result.json" || rc=$?
 # Back to a clean cluster for the next mode: cancel the shutdown, node Ready.

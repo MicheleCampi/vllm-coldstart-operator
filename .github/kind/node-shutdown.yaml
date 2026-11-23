@@ -10,6 +10,10 @@ kubeadmConfigPatches:
     kind: KubeletConfiguration
     shutdownGracePeriod: 150s
     shutdownGracePeriodCriticalPods: 30s
+    # V(1) logs probe results reaching the sync loop; V(4) the status
+    # manager's readiness updates. Both are read by run.sh.
+    logging:
+      verbosity: 4
 nodes:
   - role: control-plane
   - role: worker
