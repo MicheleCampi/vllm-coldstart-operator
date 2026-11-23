@@ -1,0 +1,76 @@
+# Study, not a gate: the proposed fix for vllm-project/vllm#69464
+# (hack/vllm-69464). Job 1 runs the unit tests inside the official v0.34.0
+# image with vLLM main's two utils files mounted, first unpatched (the new
+# tests must fail), then patched (all must pass). Job 2 measures steady-state
+# decode end to end on the official v0.34.0 image on a 2-core runner:
+# defaults, the fix mounted over the image file, and
+# VLLM_CPU_NUM_OF_RESERVED_CPU=0, interleaved, 2 runs each; then one physical
+# core with defaults and with the fix (expected: no change).
+name: vllm-69464-fix
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/project-thread-t7cl72]
+    paths:
+      - .github/workflows/vllm-69464-fix.yml
+      - hack/vllm-69464/**
+
+permissions:
+  contents: read
+
+env:
+  IMG: docker.io/vllm/vllm-openai-cpu:v0.34.0-x86_64@sha256:b14c3a46a4b08852b32528643e070d57f3731cccb0fa33ef86d4f3b3f8ac36c4
+
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Unit tests, unpatched then patched
+        run: |
+          d=$(docker run --rm --entrypoint python3 "$IMG" -c 'import os, vllm; print(os.path.dirname(vllm.__file__))')
+          echo "vllm package in image: $d"
+          run() {
+            docker run --rm --entrypoint sh \
+              -v "$PWD/hack/vllm-69464/$1/vllm/utils/ompmultiprocessing.py:$d/utils/ompmultiprocessing.py:ro" \
+              -v "$PWD/hack/vllm-69464/$1/vllm/utils/cpu_resource_utils.py:$d/utils/cpu_resource_utils.py:ro" \
+              -v "$PWD/hack/vllm-69464/main/tests/utils_:/t:ro" \
+              "$IMG" -c 'pip install -q pytest >/dev/null 2>&1; cd /tmp && python3 -m pytest -q -p no:cacheprovider /t/test_cpu_resource_utils.py 2>&1 | tail -25'
+          }
+          echo "== unpatched (main 5cfdcabb2)"; run main-base | tee base.txt
+          echo "== patched"; run main | tee fix.txt
+          grep -E 'passed|failed' base.txt fix.txt >> "$GITHUB_STEP_SUMMARY"
+          grep -q ' failed' base.txt
+          ! grep -q -E 'failed|error' fix.txt
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore the model
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/hf-cache
+          key: hf-qwen2.5-0.5b-instruct-7ae557604adf67be50417f59c2c2f167def9a775
+      - name: v0.34.0 defaults, fix, reserved 0 (2 cores); defaults and fix (1 core)
+        env:
+          MODEL: Qwen/Qwen2.5-0.5B-Instruct
+          MODEL_REVISION: 7ae557604adf67be50417f59c2c2f167def9a775
+        run: |
+          export HF_CACHE=$HOME/hf-cache
+          [ -d "$HF_CACHE/hub" ] || bash hack/first-request/fetch-model.sh "$IMG"
+          f=$(docker run --rm --entrypoint python3 "$IMG" -c 'import vllm.utils.ompmultiprocessing as m; print(m.__file__)')
+          docker run --rm --entrypoint cat "$IMG" "$f" > image-omp.py
+          echo "fix vs image file:"; diff image-omp.py hack/vllm-69464/v0.34.0/ompmultiprocessing.py | head -80 || true
+          one() {  # one NAME CPUS RUN
+            STUDY_ENV=; STUDY_MOUNT=
+            case $1 in fix) STUDY_MOUNT="$PWD/hack/vllm-69464/v0.34.0/ompmultiprocessing.py:$f:ro";; reserved0) STUDY_ENV=VLLM_CPU_NUM_OF_RESERVED_CPU=0;; esac
+            STUDY_ENV=$STUDY_ENV STUDY_MOUNT=$STUDY_MOUNT bash hack/steady-study/study.sh "$IMG" eager "$2" "out/v0.34.0-$1-$2-$3" > "log-$1-$2-$3.txt" 2>&1 || { tail -30 "log-$1-$2-$3.txt"; exit 1; }
+            grep -h -E 'core ids|reserved_cpus|Not reserving' "out/v0.34.0-$1-$2-$3/vllm.log" | head -3 | sed "s/^/$1 $2: /"
+          }
+          for r in 1 2; do for v in default fix reserved0; do one $v all $r; done; done
+          for v in default fix; do one $v core 1; done
+          python3 hack/steady-study/summarize.py out/* | tee table.txt
+          { echo '```'; cat table.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

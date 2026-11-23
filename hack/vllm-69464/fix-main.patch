@@ -1,0 +1,167 @@
+diff --git a/docs/getting_started/installation/cpu.md b/docs/getting_started/installation/cpu.md
+index 8bf727b..d6f0d75 100644
+--- a/docs/getting_started/installation/cpu.md
++++ b/docs/getting_started/installation/cpu.md
+@@ -150,7 +150,7 @@ VLLM_USE_PRECOMPILED=1 VLLM_PRECOMPILED_WHEEL_VARIANT=cpu VLLM_TARGET_DEVICE=cpu
+ 
+ - `VLLM_CPU_KVCACHE_SPACE`: specify the KV Cache size (e.g, `VLLM_CPU_KVCACHE_SPACE=40` means 40 GiB space for KV cache), larger setting will allow vLLM to run more requests in parallel. This parameter should be set based on the hardware configuration and memory management pattern of users. Default value is `0`.
+ - `VLLM_CPU_OMP_THREADS_BIND`: specify the CPU cores dedicated to the OpenMP threads, can be set as CPU id lists, `auto` (by default), or `nobind` (to disable binding to individual CPU cores and to inherit user-defined OpenMP variables). For example, `VLLM_CPU_OMP_THREADS_BIND=0-31` means there will be 32 OpenMP threads bound on 0-31 CPU cores. `VLLM_CPU_OMP_THREADS_BIND=0-31|32-63` means there will be 2 tensor parallel processes, 32 OpenMP threads of rank0 are bound on 0-31 CPU cores, and the OpenMP threads of rank1 are bound on 32-63 CPU cores. By setting to `auto`, the OpenMP threads of each rank are bound to the CPU cores in each NUMA node respectively. If set to `nobind`, the number of OpenMP threads is determined by the standard `OMP_NUM_THREADS` environment variable. With binding enabled and Intel OpenMP preloaded, vLLM sets `KMP_AFFINITY` for each worker and defaults `KMP_BLOCKTIME=5` and `KMP_TPAUSE=0`; values you export for `KMP_BLOCKTIME` or `KMP_TPAUSE` are kept.
+-- `VLLM_CPU_NUM_OF_RESERVED_CPU`: specify the total number of CPU cores which are not dedicated to OpenMP threads. The variable only takes effect when `VLLM_CPU_OMP_THREADS_BIND` is set to `auto`. By default, x86, ARM, and RISC-V reserve `local_world_size` CPUs in total, while PowerPC and S390X retain a one-CPU default. When KV transfer is enabled, one additional CPU is reserved per local rank. Reserved CPUs are distributed across the local ranks.
++- `VLLM_CPU_NUM_OF_RESERVED_CPU`: specify the total number of CPU cores which are not dedicated to OpenMP threads. The variable only takes effect when `VLLM_CPU_OMP_THREADS_BIND` is set to `auto`. By default, x86, ARM, and RISC-V reserve `local_world_size` CPUs in total, while PowerPC and S390X retain a one-CPU default. When KV transfer is enabled, one additional CPU is reserved per local rank. Reserved CPUs are distributed across the local ranks. If the default reservation would leave a worker with fewer than 2 CPUs (for example 2 physical cores and `world_size == 1`), the CPUs for the scheduler are not reserved and stay with the workers; set this variable to reserve them anyway.
+ - `CPU_VISIBLE_MEMORY_NODES`: specify visible NUMA memory nodes for vLLM CPU workers, similar to ```CUDA_VISIBLE_DEVICES```. The variable only takes effect when VLLM_CPU_OMP_THREADS_BIND is set to `auto`. The variable provides more control for the auto thread-binding feature, such as masking nodes and changing nodes binding sequence.
+ - `VLLM_ZENTORCH_WEIGHT_PREPACK` (AMD Zen only): when `ZenCpuPlatform` is active, eagerly prepack linear weights into ZenDNN's blocked layout at model load time, eliminating per-inference layout conversion overhead. Default is `1` (enabled). See [AMD Zen optimizations](#amd-zen-optimizations).
+ 
+diff --git a/tests/utils_/test_cpu_resource_utils.py b/tests/utils_/test_cpu_resource_utils.py
+index 5615ade..3dc5e2b 100644
+--- a/tests/utils_/test_cpu_resource_utils.py
++++ b/tests/utils_/test_cpu_resource_utils.py
+@@ -369,3 +369,76 @@ def test_omp_envs_keep_user_kmp_settings(monkeypatch):
+         assert os.environ["OMP_NUM_THREADS"] == "4"
+     assert os.environ["KMP_BLOCKTIME"] == "0"
+     assert os.environ["KMP_TPAUSE"] == "1"
++
++
++def _auto_bind_manager(
++    monkeypatch, physical_cores: int, world_size: int = 1, kv_transfer=None
++):
++    """OMPProcessManager with auto binding on one NUMA node of x86 SMT-2
++    cores: logical CPUs 2k and 2k+1 belong to physical core k."""
++    cpus = [
++        cru.LogicalCPUInfo(id=i, physical_core=i // 2, numa_node=0)
++        for i in range(2 * physical_cores)
++    ]
++    monkeypatch.setattr(sys, "platform", "linux")
++    monkeypatch.setattr(cru, "get_allowed_cpu_list", lambda: cpus)
++    monkeypatch.setattr(cru, "get_memory_affinity", lambda: [0])
++    monkeypatch.setattr(
++        omp,
++        "current_platform",
++        SimpleNamespace(
++            is_cpu=lambda: True, get_cpu_architecture=lambda: CpuArchEnum.X86
++        ),
++    )
++    monkeypatch.setenv("VLLM_CPU_OMP_THREADS_BIND", "auto")
++    monkeypatch.setenv("VLLM_CPU_SIM_MULTI_NUMA", "1" if world_size > 1 else "0")
++    monkeypatch.delenv(cru.DEVICE_CONTROL_ENV_VAR, raising=False)
++    parallel_config = SimpleNamespace(
++        local_world_size=world_size,
++        data_parallel_rank_local=0,
++        _api_process_count=1,
++        assigned_physical_gpu_ids=None,
++    )
++    return omp.OMPProcessManager(
++        SimpleNamespace(parallel_config=parallel_config, kv_transfer_config=kv_transfer)
++    )
++
++
++@pytest.mark.parametrize(
++    ("physical_cores", "world_size", "worker_cpus", "reserved"),
++    [
++        # 2 cores, 1 worker: the scheduler CPU stays with the worker (#69464).
++        (2, 1, [[1, 3]], []),
++        # 3 cores, 1 worker: the worker keeps 2 CPUs, so the default applies.
++        (3, 1, [[1, 3]], [5]),
++        # 4 cores, 2 workers: each worker would keep 1 CPU, so no reservation.
++        (4, 2, [[1, 3], [5, 7]], []),
++        # 6 cores, 2 workers: each worker keeps 2 CPUs after the reservation.
++        (6, 2, [[1, 3], [7, 9]], [5, 11]),
++    ],
++)
++def test_omp_manager_default_reservation_keeps_two_cpus_per_worker(
++    monkeypatch, physical_cores, world_size, worker_cpus, reserved
++):
++    monkeypatch.delenv("VLLM_CPU_NUM_OF_RESERVED_CPU", raising=False)
++    manager = _auto_bind_manager(monkeypatch, physical_cores, world_size)
++    assert manager.cpu_lists == worker_cpus
++    assert manager.reserved_cpu_list == reserved
++
++
++def test_omp_manager_explicit_reservation_is_kept_on_small_machines(monkeypatch):
++    """An explicit VLLM_CPU_NUM_OF_RESERVED_CPU is honored as before."""
++    monkeypatch.setenv("VLLM_CPU_NUM_OF_RESERVED_CPU", "1")
++    manager = _auto_bind_manager(monkeypatch, physical_cores=2)
++    assert manager.cpu_lists == [[1]]
++    assert manager.reserved_cpu_list == [3]
++
++
++def test_omp_manager_small_machine_keeps_kv_transfer_reservation(monkeypatch):
++    """Only the scheduler share is dropped: the KV transfer CPU stays reserved."""
++    monkeypatch.delenv("VLLM_CPU_NUM_OF_RESERVED_CPU", raising=False)
++    manager = _auto_bind_manager(
++        monkeypatch, physical_cores=3, kv_transfer=SimpleNamespace()
++    )
++    assert manager.cpu_lists == [[1, 3]]
++    assert manager.reserved_cpu_list == [5]
+diff --git a/vllm/utils/ompmultiprocessing.py b/vllm/utils/ompmultiprocessing.py
+index 87c7f2e..364cebc 100644
+--- a/vllm/utils/ompmultiprocessing.py
++++ b/vllm/utils/ompmultiprocessing.py
+@@ -51,8 +51,13 @@ class OMPProcessManager:
+             else 1
+         )
+         # reserve at one more core for nixl_connector under p/d case
+-        if config.kv_transfer_config:
+-            self.reserve_cpu_num += self.local_world_size
++        self.kv_transfer_reserve_cpu_num = (
++            self.local_world_size if config.kv_transfer_config else 0
++        )
++        self.reserve_cpu_num += self.kv_transfer_reserve_cpu_num
++        # Only the default scheduler reservation may be dropped on small
++        # machines; an explicit VLLM_CPU_NUM_OF_RESERVED_CPU is kept as is.
++        self.default_reservation = envs.VLLM_CPU_NUM_OF_RESERVED_CPU is None
+ 
+         if envs.VLLM_CPU_NUM_OF_RESERVED_CPU is not None:
+             if self.reserve_cpu_num > envs.VLLM_CPU_NUM_OF_RESERVED_CPU:
+@@ -287,16 +292,26 @@ class OMPProcessManager:
+             )
+             return cpu_lists_of_ranks, []
+ 
+-        reserve_num_per_rank = [
+-            self.reserve_cpu_num // self.local_world_size
+-        ] * self.local_world_size
+-        # last rank first
+-        for i in range(
+-            self.local_world_size - 1,
+-            self.local_world_size - 1 - self.reserve_cpu_num % self.local_world_size,
+-            -1,
++        reserve_num_per_rank = self._reserve_num_per_rank(self.reserve_cpu_num)
++        # On small machines the default scheduler reservation would leave a
++        # worker with a single OpenMP thread, e.g. 2 physical cores and
++        # world_size 1: decode then runs on one core and the scheduler, which
++        # is mostly idle, owns the other one (#69464). Keep the scheduler CPUs
++        # with the workers in that case; CPUs for the KV transfer thread are
++        # still reserved.
++        if self.default_reservation and any(
++            len(cpus) - num < 2
++            for cpus, num in zip(cpu_lists_of_ranks, reserve_num_per_rank)
+         ):
+-            reserve_num_per_rank[i] += 1
++            logger.warning(
++                "Not reserving %s CPU(s) for the scheduler process: it would "
++                "leave a worker with fewer than 2 CPUs. Set "
++                "VLLM_CPU_NUM_OF_RESERVED_CPU to reserve CPUs explicitly.",
++                self.reserve_cpu_num - self.kv_transfer_reserve_cpu_num,
++            )
++            reserve_num_per_rank = self._reserve_num_per_rank(
++                self.kv_transfer_reserve_cpu_num
++            )
+         for i in range(self.local_world_size):
+             num = reserve_num_per_rank[i]
+             if num > 0:
+@@ -304,3 +319,16 @@ class OMPProcessManager:
+                 cpu_lists_of_ranks[i] = cpu_lists_of_ranks[i][:-num]
+ 
+         return cpu_lists_of_ranks, reserved_cpu_list
++
++    def _reserve_num_per_rank(self, reserve_cpu_num: int) -> list[int]:
++        """Split reserve_cpu_num across local ranks, last rank first."""
++        reserve_num_per_rank = [
++            reserve_cpu_num // self.local_world_size
++        ] * self.local_world_size
++        for i in range(
++            self.local_world_size - 1,
++            self.local_world_size - 1 - reserve_cpu_num % self.local_world_size,
++            -1,
++        ):
++            reserve_num_per_rank[i] += 1
++        return reserve_num_per_rank
