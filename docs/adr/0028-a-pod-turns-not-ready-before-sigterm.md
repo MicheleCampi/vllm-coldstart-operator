@@ -1,6 +1,6 @@
 # ADR-0028: A serving pod turns NotReady before SIGTERM
 
-Status: Accepted; unit-tested; CI job `node-shutdown` on kind; not yet run live
+Status: Accepted; unit-tested; rehearsed on kind in CI (run 45264021013); not yet run live
 Date: 2026-11-23
 Amends: ADR-0019 (a pod leaves the Service before it stops serving)
 
@@ -74,6 +74,19 @@ availability SLI of the window was 99.32 %, below its 99.5 % objective.
 - A server that stops answering `/health` leaves the Service after 15 s
   instead of 5 min. The cold start is not affected: readiness runs only
   after the startup probe has passed.
+
+## Rehearsed, 2026-11-23
+
+CI run 45264021013, job `node-shutdown` (kind v0.33.0, node v1.36.4, logind
+`InhibitDelayMaxUSec` 150 s on both workers, so the kubelet's shutdown
+manager was active):
+
+- this release: target pod `Succeeded` 111.3 s after `PrepareForShutdown`;
+  607 requests in the window, **0 failed**; the target answered 26 requests
+  in the 10 s before the signal and its last at +109.8 s;
+- control, the v0.17.0 pod spec: target `Succeeded` after 110.3 s; 601
+  requests, **1 failed, at +110.0 s**, when SIGTERM reached a pod still
+  routed: the EKS game day's failure (111 s after the terminate), reproduced.
 
 ## What this ADR does not prove
 
