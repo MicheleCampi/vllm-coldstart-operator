@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-11-23
+### Fixed
+- **A serving pod leaves the Service before SIGTERM also when its node shuts down** (ADR-0028). On EKS AL2023 1.34+ the kubelet drains its own pods on an instance shutdown (graceful node shutdown, 150 s) and sets no deletionTimestamp, so the endpoint stays ready until the pod turns NotReady. The ADR-0019 pre-stop sleep kept `/health` answering, and SIGTERM reached a routed server: the EKS game day re-run of 2026-11-21 lost one request 111 s after `terminate-instances` (availability SLI 99.32 % against 99.5 %). Serving pods now write a drain flag in their pre-stop hook before the same 110 s sleep, and their readiness probe (exec, `python3 -I -S`) fails while it exists: NotReady within 15 s, inside the sleep.
+### Changed
+- Readiness of serving pods: exec probe on the health path, period 5 s, timeout 10 s, 3 failures (was HTTP, 60 failures, a budget from before the startup probe gated the cold start). The placeholder and the simulator keep the HTTP probe and the native sleep.
+- New CI job `node-shutdown`: graceful node shutdown on kind (D-Bus and logind added to the workers, `PrepareForShutdown` sent to one replica's node) under a client without retry; this release must lose no request, the v0.17.0 pod spec must lose some.
+### Upgrading
+- Serving pods roll once. The image must provide `python3`, as since v0.16.0.
+
 ## [0.17.0] — 2026-11-22
 ### Fixed
 - **Ready means warm again on vLLM v0.34.0, decode included.** The startup probe now sends a sentence prompt with 16 tokens, where it used to send `"Hi"` with 1 token. One token ran only the prefill. On v0.34.0 decode pays its own first-use cost, so the first client after Ready still paid it. Study run 44953491417, eager mode: after a 1-token warmup, the first 32-token request took 5.1 s on an Intel Xeon 6975P (AMX, steady 2.6 s) and 61.4 s on an AMD EPYC 7763 (AVX2 only, steady 4.7 s). CI on `main` after #99, AMD runner: 64.33 s against the 8 s objective. The CI job now records the runner's CPU model and ISA next to every number.
