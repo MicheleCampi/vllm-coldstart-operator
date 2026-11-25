@@ -1,0 +1,17 @@
+# node-shutdown job (ADR-0028): a serving VllmService (cpu and memory set, so
+# the operator builds the real command, startup probe, readiness and
+# pre-stop hook) at 2 replicas, running fake-vllm.py as `vllm`.
+apiVersion: inference.michelecampi.dev/v1alpha1
+kind: VllmService
+metadata:
+  name: drain-svc
+  namespace: default
+spec:
+  model: fake/model
+  replicas: 2
+  gpu: 0
+  cpu: "100m"
+  memory: 128Mi
+  healthPath: /health
+  zoneSpread: Disabled
+  image: fake-vllm:node-shutdown

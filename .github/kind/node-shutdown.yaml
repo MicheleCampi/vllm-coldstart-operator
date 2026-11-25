@@ -1,0 +1,20 @@
+# kind cluster for the node-shutdown job (ADR-0028): two workers whose
+# kubelet has graceful node shutdown on, with the values EKS AL2023 sets on
+# Kubernetes 1.34+ (nodeadm: 150 s, 30 s of it for critical pods).
+# hack/node-shutdown/setup-nodes.sh adds the D-Bus and logind it needs.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+kubeadmConfigPatches:
+  - |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    shutdownGracePeriod: 150s
+    shutdownGracePeriodCriticalPods: 30s
+    # V(1) logs probe results reaching the sync loop; V(4) the status
+    # manager's readiness updates. Both are read by run.sh.
+    logging:
+      verbosity: 4
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker

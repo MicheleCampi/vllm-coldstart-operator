@@ -42,6 +42,7 @@ use vllm_coldstart_operator::{
 };
 
 mod fleet_controller;
+mod node_drain;
 mod provision;
 
 const MANAGER: &str = "vllm-coldstart-operator";
@@ -793,7 +794,9 @@ async fn main() -> anyhow::Result<()> {
     // under normal operation, so this never returns. (select! would tear the
     // other controller down the instant one stream ended — wrong here.)
     let fleet_fut = fleet_controller::run(fleet_client, fleet_metrics);
-    tokio::join!(vllm_fut, fleet_fut);
+    // ADR-0028: pods off the Service when their node shuts down.
+    let drain_fut = node_drain::run(client.clone(), MANAGER);
+    tokio::join!(vllm_fut, fleet_fut, drain_fut);
 
     Ok(())
 }

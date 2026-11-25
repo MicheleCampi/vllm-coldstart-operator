@@ -45,16 +45,19 @@ rules:
   resources: ["nodestates"]
   verbs: ["get", "list", "watch"]
 # ADR-0008 D3: the fleet planner reads node allocatable to exclude nodes that
-# cannot run a GPU-requesting pod. Read-only and list-only — the operator never
-# writes to Node, and a placement decision needs the capacity of every node it
-# might choose, so this cannot be namespaced.
+# cannot run a GPU-requesting pod. ADR-0028: watch, to see a node's kubelet
+# report a graceful shutdown. Read-only: the operator never writes to Node,
+# and a placement decision needs the capacity of every node it might choose,
+# so this cannot be namespaced.
 - apiGroups: [""]
   resources: ["nodes"]
-  verbs: ["get", "list"]
+  verbs: ["get", "list", "watch"]
 # D-0145: the scale-up-from-zero placeholder Pod, owned by its fleet.
+# ADR-0028: list and delete the pods it manages on a node that shuts down
+# (label app.kubernetes.io/managed-by), so they leave the Service.
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["get", "create", "patch", "delete"]
+  verbs: ["get", "list", "create", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
